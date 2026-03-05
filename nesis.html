@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nesis — Brand & Identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #0a0a0a;
+    --paper: #f0ece4;
+    --ash: #c8c0b4;
+    --ember: #d4541a;
+    --ghost: rgba(10,10,10,0.04);
+    --serif: 'Cormorant Garamond', Georgia, serif;
+    --mono: 'Space Mono', monospace;
+    --bg: #0d0b08;
+    --accent: #d4541a;
+    --accent-dim: rgba(212, 84, 26, .25);
+    --text: rgba(255,255,255,.88);
+    --muted: rgba(255,255,255,.38);
+    --mid: rgba(255,255,255,.6);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    overflow-x: hidden;
+    cursor: none;
+    min-height: 100vh;
+  }
+
+  /* ── Noise overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: .6;
+  }
+
+  /* ── Ambient background ── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 80%, #1a1410 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 80% 20%, #2d1a0e 0%, transparent 50%),
+      linear-gradient(135deg, #0d0b08 0%, #1e1508 40%, #0a0d14 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Custom Cursor ── */
+  .cursor {
+    position: fixed; top: 0; left: 0;
+    width: 10px; height: 10px;
+    background: rgba(255,255,255,.8);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width .15s, height .15s, background .15s;
+  }
+  .cursor-ring {
+    position: fixed; top: 0; left: 0;
+    width: 36px; height: 36px;
+    border: 1px solid rgba(255,255,255,.4);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: transform .08s ease-out, width .2s, height .2s, opacity .2s;
+    opacity: .5;
+  }
+  body.hovering .cursor { width: 6px; height: 6px; background: var(--accent); }
+  body.hovering .cursor-ring { width: 56px; height: 56px; opacity: .2; }
+
+  /* ── Layout ── */
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 5vw;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 3rem 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 0;
+    animation: fadeUp .7s .1s forwards;
+  }
+  .back-link {
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    transition: color .2s;
+  }
+  .back-link::before { content: '←'; font-size: .8rem; }
+  .back-link:hover { color: var(--text); }
+  .header-tag {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding: .3rem .7rem;
+    border: 1px solid var(--accent-dim);
+    border-radius: 2px;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 7vw 0 5vw;
+    opacity: 0;
+    animation: fadeUp .9s .25s forwards;
+  }
+  .hero-eyebrow {
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+  }
+  .hero-title {
+    font-size: clamp(4.5rem, 13vw, 12rem);
+    font-weight: 300;
+    line-height: .9;
+    letter-spacing: -.03em;
+    color: var(--text);
+  }
+  .hero-title em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .hero-rule {
+    width: 60px;
+    height: 1px;
+    background: var(--accent);
+    margin: 2.5rem 0;
+    opacity: .5;
+  }
+  .hero-desc {
+    font-size: clamp(1.1rem, 2vw, 1.5rem);
+    font-weight: 300;
+    line-height: 1.65;
+    color: var(--mid);
+    max-width: 620px;
+    letter-spacing: .01em;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-dim), transparent 70%);
+    margin: 2px 0;
+    opacity: 0;
+    animation: fadeIn 1s .6s forwards;
+  }
+
+  /* ── Features Section ── */
+  .section {
+    padding: 6vw 0;
+    opacity: 0;
+    animation: fadeUp .8s .5s forwards;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,.08);
+    max-width: 200px;
+  }
+
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+  }
+  @media (max-width: 640px) { .pillars { grid-template-columns: 1fr; } }
+
+  .pillar {
+    padding: 2.5rem;
+    border: 1px solid rgba(255,255,255,.05);
+    background: rgba(255,255,255,.02);
+    position: relative;
+    overflow: hidden;
+    transition: background .3s;
+  }
+  .pillar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 0;
+    background: var(--accent);
+    transition: height .4s cubic-bezier(.16,1,.3,1);
+  }
+  .pillar:hover { background: rgba(255,255,255,.04); }
+  .pillar:hover::before { height: 100%; }
+
+  .pillar-num {
+    font-family: var(--mono);
+    font-size: .55rem;
+    letter-spacing: .2em;
+    color: var(--accent);
+    margin-bottom: 1.2rem;
+    opacity: .7;
+  }
+  .pillar-title {
+    font-size: 1.6rem;
+    font-weight: 300;
+    letter-spacing: -.02em;
+    color: var(--text);
+    margin-bottom: .8rem;
+    line-height: 1.2;
+  }
+  .pillar-title em { font-style: italic; color: var(--accent); }
+  .pillar-body {
+    font-size: .9rem;
+    font-weight: 300;
+    line-height: 1.75;
+    color: var(--muted);
+  }
+
+  /* ── Quote ── */
+  .quote-section {
+    padding: 7vw 0;
+    opacity: 0;
+    animation: fadeUp .8s .65s forwards;
+  }
+  .quote {
+    font-size: clamp(1.8rem, 4.5vw, 4rem);
+    font-weight: 300;
+    font-style: italic;
+    line-height: 1.2;
+    letter-spacing: -.02em;
+    color: var(--text);
+    max-width: 860px;
+    position: relative;
+    padding-left: 2.5rem;
+  }
+  .quote::before {
+    content: '';
+    position: absolute;
+    left: 0; top: .2em;
+    width: 3px;
+    height: 80%;
+    background: linear-gradient(180deg, var(--accent), transparent);
+  }
+  .quote em { color: var(--accent); font-style: normal; }
+  .quote-attr {
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 2rem;
+    padding-left: 2.5rem;
+  }
+
+  /* ── CTA ── */
+  .cta-section {
+    padding: 4vw 0 8vw;
+    opacity: 0;
+    animation: fadeUp .8s .8s forwards;
+    display: flex;
+    align-items: center;
+    gap: 3rem;
+    flex-wrap: wrap;
+  }
+  .cta-text {
+    font-size: .95rem;
+    font-weight: 300;
+    color: var(--muted);
+    max-width: 300px;
+    line-height: 1.7;
+  }
+  .cta-btn {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 1.1rem 2.4rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .8rem;
+    transition: background .2s, transform .2s;
+    border-radius: 2px;
+  }
+  .cta-btn::after { content: '→'; font-size: .8rem; }
+  .cta-btn:hover { background: #e05e20; transform: translateX(4px); }
+
+  /* ── Footer strip ── */
+  .footer-strip {
+    border-top: 1px solid rgba(255,255,255,.06);
+    padding: 2rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 0;
+    animation: fadeIn 1s 1s forwards;
+  }
+  .footer-strip span {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<div class="wrap">
+
+  <header>
+    <a class="back-link" href="index.html">The Archive</a>
+    <span class="header-tag">Brand &amp; Identity</span>
+  </header>
+
+  <section class="hero">
+    <p class="hero-eyebrow">Project 01 — Brand &amp; Identity Systems</p>
+    <h1 class="hero-title"><em>Nesis</em></h1>
+    <div class="hero-rule"></div>
+    <p class="hero-desc">Identity isn't decoration — it's infrastructure. Nesis is the studio where brands are architected from first principles: a relentless distillation of who you are, what you stand for, and how the world will remember you. Built for founders who know that perception is leverage, and leverage is everything.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <div class="section-label">Core Pillars</div>
+    <div class="pillars">
+      <div class="pillar">
+        <div class="pillar-num">01</div>
+        <h3 class="pillar-title">Brand <em>Architecture</em></h3>
+        <p class="pillar-body">Identity systems engineered with the precision of structural design. Every element deliberate, every relationship intentional. Visual language that scales from a business card to a billboard without losing a single gram of meaning.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">02</div>
+        <h3 class="pillar-title">Visual <em>Systems</em></h3>
+        <p class="pillar-body">Typography hierarchies, color philosophies, and motion principles that speak before a single word is read. Cohesive systems that empower teams to move fast while staying aligned — a brand that enforces itself.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">03</div>
+        <h3 class="pillar-title">Digital <em>Presence</em></h3>
+        <p class="pillar-body">Your digital surface is your first handshake, your loudest statement, your most visited real estate. Nesis builds presences that convert — not through tricks, but through the quiet authority that only comes from genuine craft.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">04</div>
+        <h3 class="pillar-title">Concept to <em>Launch</em></h3>
+        <p class="pillar-body">Strategy, naming, identity, rollout. End-to-end brand development that takes you from an idea scrawled on a napkin to a market presence that turns heads. No handoffs, no gaps — total ownership of the outcome.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="quote-section">
+    <blockquote class="quote">
+      "A brand built without conviction is just a logo with a price tag. <em>Nesis exists for the ones who refuse that.</em>"
+    </blockquote>
+    <p class="quote-attr">— Nesis Studio Manifesto</p>
+  </section>
+
+  <div class="cta-section">
+    <p class="cta-text">Ready to build something the market can't ignore? Let's architect your brand from the ground up.</p>
+    <a class="cta-btn" href="#">Visit Nesis</a>
+  </div>
+
+  <div class="footer-strip">
+    <span>Nesis — Brand &amp; Identity</span>
+    <span>© 2025 The Archive</span>
+  </div>
+
+</div>
+
+<script>
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx + 'px';
+    cursor.style.top = my + 'px';
+  });
+  (function animateRing() {
+    rx += (mx - rx) * .12;
+    ry += (my - ry) * .12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(animateRing);
+  })();
+  document.querySelectorAll('a, .pillar').forEach(el => {
+    el.addEventListener('mouseenter', () => document.body.classList.add('hovering'));
+    el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
+  });
+</script>
+</body>
+</html>

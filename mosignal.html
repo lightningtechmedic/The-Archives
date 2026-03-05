@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MO Signal — Encrypted Communications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --serif: 'Cormorant Garamond', Georgia, serif;
+    --mono: 'Space Mono', monospace;
+    --bg: #050905;
+    --accent: #50c864;
+    --accent-dim: rgba(80, 200, 100, .22);
+    --text: rgba(255,255,255,.88);
+    --muted: rgba(255,255,255,.38);
+    --mid: rgba(255,255,255,.6);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    overflow-x: hidden;
+    cursor: none;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: .6;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 50% at 30% 40%, #0d1a0e 0%, transparent 60%),
+      radial-gradient(ellipse 60% 60% at 80% 80%, #101a10 0%, transparent 50%),
+      linear-gradient(200deg, #050905 0%, #0e1a0f 50%, #060807 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .cursor {
+    position: fixed; top: 0; left: 0;
+    width: 10px; height: 10px;
+    background: rgba(255,255,255,.8);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width .15s, height .15s, background .15s;
+  }
+  .cursor-ring {
+    position: fixed; top: 0; left: 0;
+    width: 36px; height: 36px;
+    border: 1px solid rgba(255,255,255,.4);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: transform .08s ease-out, width .2s, height .2s, opacity .2s;
+    opacity: .5;
+  }
+  body.hovering .cursor { width: 6px; height: 6px; background: var(--accent); }
+  body.hovering .cursor-ring { width: 56px; height: 56px; opacity: .2; }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 5vw;
+  }
+
+  header {
+    padding: 3rem 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 0;
+    animation: fadeUp .7s .1s forwards;
+  }
+  .back-link {
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    transition: color .2s;
+  }
+  .back-link::before { content: '←'; font-size: .8rem; }
+  .back-link:hover { color: var(--text); }
+  .header-tag {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding: .3rem .7rem;
+    border: 1px solid var(--accent-dim);
+    border-radius: 2px;
+  }
+
+  .hero {
+    padding: 7vw 0 5vw;
+    opacity: 0;
+    animation: fadeUp .9s .25s forwards;
+  }
+  .hero-eyebrow {
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+  }
+  .hero-title {
+    font-size: clamp(4.5rem, 13vw, 12rem);
+    font-weight: 300;
+    line-height: .9;
+    letter-spacing: -.03em;
+    color: var(--text);
+  }
+  .hero-title em { font-style: italic; color: var(--accent); }
+  .hero-rule {
+    width: 60px; height: 1px;
+    background: var(--accent);
+    margin: 2.5rem 0; opacity: .5;
+  }
+  .hero-desc {
+    font-size: clamp(1.1rem, 2vw, 1.5rem);
+    font-weight: 300;
+    line-height: 1.65;
+    color: var(--mid);
+    max-width: 620px;
+    letter-spacing: .01em;
+  }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-dim), transparent 70%);
+    margin: 2px 0;
+    opacity: 0;
+    animation: fadeIn 1s .6s forwards;
+  }
+
+  .section {
+    padding: 6vw 0;
+    opacity: 0;
+    animation: fadeUp .8s .5s forwards;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 3rem;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1; height: 1px;
+    background: rgba(255,255,255,.08);
+    max-width: 200px;
+  }
+
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+  }
+  @media (max-width: 640px) { .pillars { grid-template-columns: 1fr; } }
+
+  .pillar {
+    padding: 2.5rem;
+    border: 1px solid rgba(255,255,255,.05);
+    background: rgba(255,255,255,.02);
+    position: relative;
+    overflow: hidden;
+    transition: background .3s;
+  }
+  .pillar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 0;
+    background: var(--accent);
+    transition: height .4s cubic-bezier(.16,1,.3,1);
+  }
+  .pillar:hover { background: rgba(255,255,255,.04); }
+  .pillar:hover::before { height: 100%; }
+
+  .pillar-num {
+    font-family: var(--mono);
+    font-size: .55rem;
+    letter-spacing: .2em;
+    color: var(--accent);
+    margin-bottom: 1.2rem;
+    opacity: .7;
+  }
+  .pillar-title {
+    font-size: 1.6rem;
+    font-weight: 300;
+    letter-spacing: -.02em;
+    color: var(--text);
+    margin-bottom: .8rem;
+    line-height: 1.2;
+  }
+  .pillar-title em { font-style: italic; color: var(--accent); }
+  .pillar-body {
+    font-size: .9rem;
+    font-weight: 300;
+    line-height: 1.75;
+    color: var(--muted);
+  }
+
+  .quote-section {
+    padding: 7vw 0;
+    opacity: 0;
+    animation: fadeUp .8s .65s forwards;
+  }
+  .quote {
+    font-size: clamp(1.8rem, 4.5vw, 4rem);
+    font-weight: 300;
+    font-style: italic;
+    line-height: 1.2;
+    letter-spacing: -.02em;
+    color: var(--text);
+    max-width: 860px;
+    position: relative;
+    padding-left: 2.5rem;
+  }
+  .quote::before {
+    content: '';
+    position: absolute;
+    left: 0; top: .2em;
+    width: 3px; height: 80%;
+    background: linear-gradient(180deg, var(--accent), transparent);
+  }
+  .quote em { color: var(--accent); font-style: normal; }
+  .quote-attr {
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 2rem;
+    padding-left: 2.5rem;
+  }
+
+  .cta-section {
+    padding: 4vw 0 8vw;
+    opacity: 0;
+    animation: fadeUp .8s .8s forwards;
+    display: flex;
+    align-items: center;
+    gap: 3rem;
+    flex-wrap: wrap;
+  }
+  .cta-text {
+    font-size: .95rem;
+    font-weight: 300;
+    color: var(--muted);
+    max-width: 300px;
+    line-height: 1.7;
+  }
+  .cta-btn {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 1.1rem 2.4rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .8rem;
+    transition: background .2s, transform .2s;
+    border-radius: 2px;
+  }
+  .cta-btn::after { content: '→'; font-size: .8rem; }
+  .cta-btn:hover { background: #60d874; transform: translateX(4px); }
+
+  .footer-strip {
+    border-top: 1px solid rgba(255,255,255,.06);
+    padding: 2rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 0;
+    animation: fadeIn 1s 1s forwards;
+  }
+  .footer-strip span {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* Pulse animation for ambience */
+  @keyframes pulse {
+    0%, 100% { opacity: .3; }
+    50% { opacity: .7; }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<div class="wrap">
+
+  <header>
+    <a class="back-link" href="index.html">The Archive</a>
+    <span class="header-tag">Communications</span>
+  </header>
+
+  <section class="hero">
+    <p class="hero-eyebrow">Project 04 — Encrypted Communications</p>
+    <h1 class="hero-title">MO <em>Signal</em></h1>
+    <div class="hero-rule"></div>
+    <p class="hero-desc">Every conversation you've ever had was a gift to someone who didn't deserve it. MO Signal is end-to-end encrypted messaging engineered for the modern world — where your words travel only between you and the people you choose. Dark by design. Silent by default. Yours by right.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <div class="section-label">Core Pillars</div>
+    <div class="pillars">
+      <div class="pillar">
+        <div class="pillar-num">01</div>
+        <h3 class="pillar-title">End-to-End <em>Encryption</em></h3>
+        <p class="pillar-body">Cryptography that was designed to be unbreakable — not promised to be, not marketed as being, but mathematically, provably unbreakable. Your messages are ciphertext from the moment they leave your fingers. No one reads what you write except who you wrote it to.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">02</div>
+        <h3 class="pillar-title">Zero <em>Metadata</em></h3>
+        <p class="pillar-body">The content of your message is only half the story — metadata tells the other half. Who you talk to, when, how often, from where. MO Signal strips the data trail down to nothing. When there's no record, there's nothing to surrender.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">03</div>
+        <h3 class="pillar-title">Sovereign <em>Identity</em></h3>
+        <p class="pillar-body">No phone number required. No email tether. No real-world identity as the price of admission. Cryptographic keys are your identity here — portable, self-sovereign, and controlled entirely by you. Take it anywhere. Revoke it at will.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-num">04</div>
+        <h3 class="pillar-title">Modern <em>UX</em></h3>
+        <p class="pillar-body">Security that requires a PhD to operate is security that gets abandoned. MO Signal delivers military-grade protection wrapped in an interface that any person, on any device, can use with zero friction. The right experience is one you don't notice — until you realize you can't go back.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="quote-section">
+    <blockquote class="quote">
+      "The right to a private conversation is not a privilege to be granted. <em>It is a line that should never have been crossed.</em> MO Signal draws it back."
+    </blockquote>
+    <p class="quote-attr">— MO Signal Core Principle</p>
+  </section>
+
+  <div class="cta-section">
+    <p class="cta-text">Communicate with total confidence. Your conversations belong to you — and only you.</p>
+    <a class="cta-btn" href="#">Get MO Signal</a>
+  </div>
+
+  <div class="footer-strip">
+    <span>MO Signal — Stay Dark</span>
+    <span>© 2025 The Archive</span>
+  </div>
+
+</div>
+
+<script>
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx + 'px';
+    cursor.style.top = my + 'px';
+  });
+  (function animateRing() {
+    rx += (mx - rx) * .12;
+    ry += (my - ry) * .12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(animateRing);
+  })();
+  document.querySelectorAll('a, .pillar').forEach(el => {
+    el.addEventListener('mouseenter', () => document.body.classList.add('hovering'));
+    el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
+  });
+</script>
+</body>
+</html>
