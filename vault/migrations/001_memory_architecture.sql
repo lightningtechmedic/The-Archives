@@ -7,8 +7,16 @@
 ALTER TABLE notes
   ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'private' CHECK (visibility IN ('private', 'public'));
 
--- Migrate existing is_shared data
-UPDATE notes SET visibility = 'public' WHERE is_shared = TRUE;
+-- Migrate existing is_shared data (safe — skips if is_shared column doesn't exist)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'notes' AND column_name = 'is_shared'
+  ) THEN
+    UPDATE notes SET visibility = 'public' WHERE is_shared = TRUE AND visibility IS DISTINCT FROM 'public';
+  END IF;
+END $$;
 
 -- 2. note_collaborators — per-note invite list
 CREATE TABLE IF NOT EXISTS note_collaborators (
@@ -34,6 +42,7 @@ CREATE POLICY "note_collaborators_access" ON note_collaborators
 CREATE TABLE IF NOT EXISTS reminders (
   id            UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   note_id       UUID        REFERENCES notes(id) ON DELETE CASCADE,
+  note_title    TEXT,
   user_id       UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   phrase        TEXT        NOT NULL,
   reminder_date TIMESTAMPTZ,
