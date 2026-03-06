@@ -853,6 +853,167 @@ export function AvatarScribe({ size = 30, state = 'idle' }) {
   return <CanvasAvatar drawFn={drawScribe} size={size} state={state} />
 }
 
+// ════════════════════════════════════════════════════════════════
+// TED — the budget manager
+// idle: pencil bobs gently (2px every 2.5s)
+// thinking: lines draw onto ledger page, pencil follows
+// concern: rapid tap, eraser smudge on page
+// done: green checkmark fades over ledger
+// rejected: ember X mark fades over ledger
+// ════════════════════════════════════════════════════════════════
+export function drawTed(ctx, w, h, t, age, state = 'idle') {
+  const s = w / 88
+  const cx = w / 2, cy = h / 2
+
+  // Background
+  ctx.fillStyle = '#1a1714'
+  rrect(ctx, 0, 0, w, h, 8 * s); ctx.fill()
+
+  // Border
+  ctx.strokeStyle = 'rgba(200,180,140,0.22)'
+  ctx.lineWidth = 1.2 * s
+  rrect(ctx, 0.6 * s, 0.6 * s, w - 1.2 * s, h - 1.2 * s, 7.4 * s); ctx.stroke()
+
+  // Warm grid (very subtle)
+  ctx.strokeStyle = 'rgba(200,180,140,0.04)'
+  ctx.lineWidth = 0.6 * s
+  const gs = 14 * s
+  for (let x = 0; x <= w; x += gs) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke() }
+  for (let y = 0; y <= h; y += gs) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke() }
+
+  // Pencil vertical offset (bob / write / tap)
+  let pencilOff = 0
+  if (state === 'idle') {
+    pencilOff = Math.sin(t * Math.PI * 2 / 2.5) * 2 * s
+  } else if (state === 'thinking') {
+    const cycle = age % 1.2
+    pencilOff = cycle < 0.6
+      ? lerp(0, 3 * s, ease(cycle / 0.6))
+      : lerp(3 * s, 0, ease((cycle - 0.6) / 0.6))
+  } else if (state === 'concern') {
+    pencilOff = Math.sin(age * Math.PI * 6) * 4 * s
+  }
+
+  // ── Ledger book ──
+  const lCx = 43 * s, lCy = 50 * s
+  const lW = 28 * s, lH = 22 * s
+  const lAngle = (3 * Math.PI) / 180
+
+  ctx.save()
+  ctx.translate(lCx, lCy); ctx.rotate(lAngle); ctx.translate(-lCx, -lCy)
+
+  // Page (cream)
+  ctx.fillStyle = '#e8dfc8'
+  rrect(ctx, lCx - lW / 2, lCy - lH / 2, lW, lH, 1.5 * s); ctx.fill()
+  ctx.strokeStyle = 'rgba(100,80,40,0.22)'
+  ctx.lineWidth = 0.8 * s
+  rrect(ctx, lCx - lW / 2, lCy - lH / 2, lW, lH, 1.5 * s); ctx.stroke()
+
+  // Spine strip
+  ctx.fillStyle = '#cfc0a4'
+  ctx.fillRect(lCx - lW / 2, lCy - lH / 2, 4.5 * s, lH)
+  ctx.strokeStyle = 'rgba(120,95,55,0.45)'
+  ctx.lineWidth = 0.7 * s
+  ctx.beginPath()
+  ctx.moveTo(lCx - lW / 2 + 4.5 * s, lCy - lH / 2)
+  ctx.lineTo(lCx - lW / 2 + 4.5 * s, lCy + lH / 2)
+  ctx.stroke()
+
+  // Ruled lines on page
+  const rlX1 = lCx - lW / 2 + 7 * s
+  const rlX2 = lCx + lW / 2 - 3 * s
+  const rlBaseY = lCy - lH / 2 + 5 * s
+  ctx.strokeStyle = 'rgba(140,110,60,0.35)'
+  ctx.lineWidth = 0.6 * s
+  for (let i = 0; i < 4; i++) {
+    const lineY = rlBaseY + i * 3.5 * s
+    let x2 = rlX2
+    if (state === 'thinking') {
+      const lineAge = age - i * 0.32
+      if (lineAge <= 0) continue
+      x2 = lerp(rlX1, rlX2, Math.min(lineAge / 0.32, 1))
+    }
+    ctx.beginPath(); ctx.moveTo(rlX1, lineY); ctx.lineTo(x2, lineY); ctx.stroke()
+  }
+
+  // Eraser smudge (concern)
+  if (state === 'concern') {
+    const smudgeA = 0.12 + 0.09 * Math.abs(Math.sin(age * 4.5))
+    ctx.fillStyle = `rgba(190,175,150,${smudgeA})`
+    ctx.fillRect(rlX1, rlBaseY, 13 * s, 3.5 * s)
+  }
+
+  ctx.restore() // end ledger rotate
+
+  // ── Pencil ──
+  const pAngle = (35 * Math.PI) / 180
+  const pLen = 16 * s
+  const pHalfW = 1.5 * s
+  const pCx = 52 * s
+  const pCy = 33 * s + pencilOff
+
+  ctx.save()
+  ctx.translate(pCx, pCy)
+  ctx.rotate(pAngle)
+
+  // Body (cream)
+  ctx.fillStyle = '#f0e8d0'
+  ctx.fillRect(-pLen / 2 + 5 * s, -pHalfW, pLen - 5 * s - 5 * s, pHalfW * 2)
+  // Eraser (pink)
+  ctx.fillStyle = '#c8a0a0'
+  ctx.fillRect(-pLen / 2, -pHalfW, 3.5 * s, pHalfW * 2)
+  // Metal ferrule
+  ctx.fillStyle = 'rgba(185,168,142,0.9)'
+  ctx.fillRect(-pLen / 2 + 3.5 * s, -pHalfW, 1.5 * s, pHalfW * 2)
+  // Graphite section
+  ctx.fillStyle = '#3c3028'
+  ctx.fillRect(pLen / 2 - 5 * s, -pHalfW, 4 * s, pHalfW * 2)
+  // Tip point
+  ctx.beginPath()
+  ctx.moveTo(pLen / 2 - 1 * s, -pHalfW * 0.7)
+  ctx.lineTo(pLen / 2 + 2.5 * s, 0)
+  ctx.lineTo(pLen / 2 - 1 * s, pHalfW * 0.7)
+  ctx.closePath()
+  ctx.fillStyle = '#1a1814'; ctx.fill()
+  // Outline
+  ctx.strokeStyle = 'rgba(160,140,100,0.3)'
+  ctx.lineWidth = 0.5 * s
+  ctx.strokeRect(-pLen / 2, -pHalfW, pLen, pHalfW * 2)
+
+  ctx.restore()
+
+  // ── Done: green checkmark ──
+  if (state === 'done') {
+    const a = Math.min(age / 0.5, 1)
+    ctx.globalAlpha = a
+    ctx.strokeStyle = 'rgba(80,160,80,0.9)'
+    ctx.lineWidth = 3.5 * s; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    ctx.beginPath()
+    ctx.moveTo(cx - 13 * s, cy + 1 * s)
+    ctx.lineTo(cx - 3 * s, cy + 10 * s)
+    ctx.lineTo(cx + 13 * s, cy - 8 * s)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+
+  // ── Rejected: ember X ──
+  if (state === 'rejected') {
+    const a = Math.min(age / 0.4, 1)
+    ctx.globalAlpha = a
+    ctx.strokeStyle = 'rgba(212,84,26,0.9)'
+    ctx.lineWidth = 3.5 * s; ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(cx - 12 * s, cy - 12 * s); ctx.lineTo(cx + 12 * s, cy + 12 * s); ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(cx + 12 * s, cy - 12 * s); ctx.lineTo(cx - 12 * s, cy + 12 * s); ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+}
+
+export function AvatarTed({ size = 30, state = 'idle' }) {
+  return <CanvasAvatar drawFn={drawTed} size={size} state={state} />
+}
+
 // Generic fallback
 export function AvatarGeneric({ initial = '?', size = 30 }) {
   return (
