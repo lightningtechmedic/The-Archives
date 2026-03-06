@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useRef, useState } from 'react'
-import { useSearchParams, Suspense } from 'next/navigation' // eslint-disable-line
+import { useEffect, useRef, useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation' // eslint-disable-line
 import { createClient } from '@/lib/supabase'
 
 function formatDate(ts) {
