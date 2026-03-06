@@ -153,7 +153,7 @@ export function createReactionEngine({
   getLastActivity,   // () => number timestamp (kept for compat)
   getLastKeystroke,  // () => number timestamp — only typing, not clicks/reads
   getHistory,        // () => Message[]
-  triggerReaction,   // async (model, reactionPrompt, isCrossReaction) => msg | null
+  triggerReaction,   // async (model, reactionPrompt, isCrossReaction, replyToId) => msg | null
 }) {
   let lastReaction = { agent: null, msgIndex: 0 }
   let pending = []
@@ -161,6 +161,8 @@ export function createReactionEngine({
   // Per-build sequence: track if Advocate or Contrarian already fired this build
   let advocateFiredThisBuild = false
   let contrarianFiredThisBuild = false
+  // Source message id for the current reaction batch — replies point here
+  let currentSourceId = null
 
   function schedule(fn, delay) {
     const t = setTimeout(fn, delay)
@@ -191,16 +193,16 @@ export function createReactionEngine({
     return true
   }
 
-  async function fire(agent, prompt, isCross = false) {
+  async function fire(agent, prompt, isCross = false, sourceOverride = null) {
     if (!ok()) return null
     console.log('[REACTION] fire() passing for:', agent, 'keystroke gap:', Date.now() - getLastKeystroke())
-    return triggerReaction(agent, prompt, isCross)
+    return triggerReaction(agent, prompt, isCross, sourceOverride ?? currentSourceId)
   }
 
-  async function fireUser(agent, prompt, isCross = false) {
+  async function fireUser(agent, prompt, isCross = false, sourceOverride = null) {
     if (!okUser()) return null
     console.log('[REACTION] fireUser() passing for:', agent, 'keystroke gap:', Date.now() - getLastKeystroke())
-    return triggerReaction(agent, prompt, isCross)
+    return triggerReaction(agent, prompt, isCross, sourceOverride ?? currentSourceId)
   }
 
   async function onScribeMessage(scribeMsg, index) {
@@ -212,6 +214,7 @@ export function createReactionEngine({
     crossDone = false
     advocateFiredThisBuild = false
     contrarianFiredThisBuild = false
+    currentSourceId = scribeMsg.id || null
     const text = scribeMsg.content || ''
     const ctx  = ctxStr(getHistory())
 
@@ -223,7 +226,7 @@ export function createReactionEngine({
           lastReaction = { agent: 'claude', msgIndex: index }
           if (!crossDone) {
             crossDone = true
-            schedule(async () => { await fire('gpt', promptSparkCross(archMsg.content), true) }, 5000)
+            schedule(async () => { await fire('gpt', promptSparkCross(archMsg.content), true, archMsg.id) }, 5000)
           }
         }
       }, 2000)
@@ -250,7 +253,7 @@ export function createReactionEngine({
             lastReaction = { agent: 'gpt', msgIndex: index }
             if (!crossDone && Math.random() < 0.20) {
               crossDone = true
-              schedule(async () => { await fire('claude', promptArchitectCross(sparkMsg.content), true) }, 5000 + Math.random() * 5000)
+              schedule(async () => { await fire('claude', promptArchitectCross(sparkMsg.content), true, sparkMsg.id) }, 5000 + Math.random() * 5000)
             }
           }
         }, 8000 + Math.random() * 10000)
@@ -290,7 +293,7 @@ export function createReactionEngine({
         lastReaction = { agent: 'claude', msgIndex: index }
         if (!crossDone && Math.random() < 0.35) {
           crossDone = true
-          schedule(async () => { await fire('gpt', promptSparkCross(archMsg.content), true) }, 5000 + Math.random() * 5000)
+          schedule(async () => { await fire('gpt', promptSparkCross(archMsg.content), true, archMsg.id) }, 5000 + Math.random() * 5000)
         }
       }, 8000 + Math.random() * 10000)
     } else if (sparkWins) {
@@ -300,7 +303,7 @@ export function createReactionEngine({
         lastReaction = { agent: 'gpt', msgIndex: index }
         if (!crossDone && Math.random() < 0.20) {
           crossDone = true
-          schedule(async () => { await fire('claude', promptArchitectCross(sparkMsg.content), true) }, 5000 + Math.random() * 5000)
+          schedule(async () => { await fire('claude', promptArchitectCross(sparkMsg.content), true, sparkMsg.id) }, 5000 + Math.random() * 5000)
         }
       }, 8000 + Math.random() * 10000)
     }
@@ -371,6 +374,7 @@ export function createReactionEngine({
   }
 
   async function onUserMessage(userMsg, index) {
+    currentSourceId = userMsg.id || null
     const text = userMsg.content || ''
     const ctx  = ctxStr(getHistory())
 

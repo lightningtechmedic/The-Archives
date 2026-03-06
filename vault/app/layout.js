@@ -1,4 +1,5 @@
 import { Cormorant_Garamond, Space_Mono, Caveat } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import Cursor from '@/components/Cursor'
 
@@ -36,6 +37,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${cormorant.variable} ${spaceMono.variable} ${caveat.variable}`}>
       <body>
+        <Script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" strategy="afterInteractive" />
         <Cursor />
         <div className="noise-overlay" aria-hidden="true" />
         {children}

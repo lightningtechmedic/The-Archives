@@ -24,6 +24,7 @@ import { createReactionEngine } from '@/lib/reactionEngine'
 import VoiceCapture from '@/components/VoiceCapture'
 import AudioPlayer from '@/components/AudioPlayer'
 import TheGuideWidget from '@/components/TheGuideWidget'
+import Neuron from '@/components/Neuron'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -1359,7 +1360,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1423,6 +1424,17 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           <span style={{ width:5, height:5, borderRadius:'50%', background: autoAI ? 'var(--green)' : 'var(--muted)', animation: autoAI ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
           Auto {autoAI ? 'ON' : 'OFF'}
         </button>
+        <button onClick={e => { e.stopPropagation(); onNeuronToggle?.() }}
+          title="The Neuron — conversation topology"
+          style={{ display:'flex', alignItems:'center', justifyContent:'center', background:'transparent', border:`1px solid ${neuronOpen ? 'rgba(200,160,96,0.5)' : 'var(--border)'}`, borderRadius:'2px', padding:'.22rem .45rem', color: neuronOpen ? 'rgba(200,160,96,0.9)' : 'var(--muted)', transition:'all .2s', opacity: neuronOpen ? 1 : 0.55 }}>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+            <circle cx="3" cy="6" r="2" fill="currentColor" opacity="0.8" />
+            <circle cx="13" cy="2" r="2" fill="currentColor" opacity="0.8" />
+            <circle cx="13" cy="10" r="2" fill="currentColor" opacity="0.8" />
+            <line x1="5" y1="6" x2="11" y2="2.5" stroke="currentColor" strokeOpacity="0.55" strokeWidth="1" />
+            <line x1="5" y1="6" x2="11" y2="9.5" stroke="currentColor" strokeOpacity="0.55" strokeWidth="1" />
+          </svg>
+        </button>
         <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--green)' }}>◆ Live</span>
       </div>
 
@@ -1438,9 +1450,11 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
               </div>
             )}
             {messages.map((msg, i) => (
-              <ChatMessage key={msg.id || i} msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
-                onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
-                architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} stewardState={stewardState} advocateState={advocateState} contrarianState={contrarianState} />
+              <div key={msg.id || i} id={`msg-${msg.id}`}>
+                <ChatMessage msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
+                  onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
+                  architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} stewardState={stewardState} advocateState={advocateState} contrarianState={contrarianState} />
+              </div>
             ))}
             {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} stewardState={stewardState} />}
             <div ref={messagesEndRef} />
@@ -1565,6 +1579,7 @@ export default function Dashboard() {
   const [advocateAvatarState, setAdvocateAvatarState] = useState('idle')
   const [contrarianAvatarState, setContrarianAvatarState] = useState('idle')
   const [focusMode, setFocusMode] = useState(false)
+  const [neuronOpen, setNeuronOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMode, setMobileMode] = useState('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -1607,6 +1622,7 @@ export default function Dashboard() {
   const triggerReactionRef = useRef(null)
   const userRef = useRef(null)
   const scribePendingApprovalRef = useRef(false)
+  const lastHumanMsgIdRef = useRef(null)
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { aiLockedRef.current = aiLocked }, [aiLocked])
@@ -2029,7 +2045,7 @@ export default function Dashboard() {
   }
 
   // ── Reaction trigger (called by reaction engine) ──
-  async function triggerReaction(model, reactionPrompt, isCrossReaction = false) {
+  async function triggerReaction(model, reactionPrompt, isCrossReaction = false, replyToId = null) {
     if (focusModeRef.current) return null
     const meta = AI[model]
     const tempId = `${Date.now()}-react-${model}`
@@ -2060,7 +2076,7 @@ export default function Dashboard() {
         text += chunk
         if (text.trim() && !placeholderAdded) {
           placeholderAdded = true
-          setMessages(prev => [...prev, { id: tempId, role: model, display_name: meta.label, content: text, streaming: true, isReaction: true, isCrossReaction, created_at: new Date().toISOString() }])
+          setMessages(prev => [...prev, { id: tempId, role: model, display_name: meta.label, content: text, streaming: true, isReaction: true, isCrossReaction, replyToId, created_at: new Date().toISOString() }])
         } else if (placeholderAdded) {
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: text } : m))
         }
@@ -2082,8 +2098,8 @@ export default function Dashboard() {
       enclave_id: activeEnclaveIdRef.current,
     }).select().single()
     const final = saved || { id: tempId, role: model, display_name: meta.label, content: text }
-    setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, isReaction: true, isCrossReaction } : m))
-    return { ...final, isReaction: true, isCrossReaction }
+    setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, isReaction: true, isCrossReaction, replyToId } : m))
+    return { ...final, isReaction: true, isCrossReaction, replyToId }
   }
   triggerReactionRef.current = triggerReaction
 
@@ -2098,10 +2114,10 @@ export default function Dashboard() {
     return final
   }
 
-  async function triggerAI(model, history, noteContext, publicNotes, extraBody = {}) {
+  async function triggerAI(model, history, noteContext, publicNotes, extraBody = {}, replyToId = null) {
     const meta = AI[model]
     const tempId = `${Date.now()}-${model}`
-    const placeholder = { id: tempId, role: model, display_name: meta.label, content: '', streaming: true, created_at: new Date().toISOString() }
+    const placeholder = { id: tempId, role: model, display_name: meta.label, content: '', streaming: true, replyToId, created_at: new Date().toISOString() }
     setMessages(prev => [...prev, placeholder])
     setThinking(model)
     if (model === 'scribe')  setScribeState('thinking')
@@ -2131,8 +2147,8 @@ export default function Dashboard() {
     if (model === 'steward') setTimeout(() => setStewardAvatarState('idle'), 1500)
     const { data: saved } = await getSupabase().from('messages').insert({ user_id: userRef.current?.id, display_name: meta.label, content: text, role: model, enclave_id: activeEnclaveIdRef.current }).select().single()
     const final = saved || { ...placeholder, content: text, streaming: false }
-    setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false } : m))
-    return final
+    setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, replyToId } : m))
+    return { ...final, replyToId }
   }
 
   // ── Roll call: "who is here" ──────────────────────────────────────────────
@@ -2221,6 +2237,7 @@ export default function Dashboard() {
     setTimeout(() => setSparkState('idle'), 1500)
 
     const humanMsg = await saveHumanMessage(content)
+    lastHumanMsgIdRef.current = humanMsg.id
     // Cancel pending reactions from previous turn — new message starts a fresh turn
     reactionEngineRef.current?.onNewMessage()
 
@@ -2259,7 +2276,7 @@ export default function Dashboard() {
         const estimate = await res.json()
         setStewardEstimate(estimate)
         setStewardAvatarState(estimate.recommendation === 'approve' ? 'done' : estimate.recommendation === 'reject' ? 'rejected' : 'concern')
-        pendingBuildRef.current = { content, noteContext, publicNotes, isConfirmation }
+        pendingBuildRef.current = { content, noteContext, publicNotes, isConfirmation, humanMsgId: humanMsg.id }
         setAwaitingStewardEstimate(true)
         setAiLocked(false)
         return
@@ -2276,13 +2293,13 @@ export default function Dashboard() {
       const enclaveId = activeEnclaveIdRef.current
       const { budget_cents } = enclaveId ? await getEnclaveBudget(enclaveId) : { budget_cents: null }
       const spentCents = (budget_cents != null && enclaveId) ? await getEnclaveSpend(enclaveId) : 0
-      await triggerAI('steward', [...historyRef.current], noteContext, publicNotes, { budgetCents: budget_cents, spentCents })
+      await triggerAI('steward', [...historyRef.current], noteContext, publicNotes, { budgetCents: budget_cents, spentCents }, humanMsg.id)
       setAiLocked(false)
       return
     }
 
     // Architect first
-    const archReply = await triggerAI('claude', [...historyRef.current], noteContext, publicNotes)
+    const archReply = await triggerAI('claude', [...historyRef.current], noteContext, publicNotes, {}, humanMsg.id)
     setArchitectState('idle')
 
     // Detect disagreement in Spark's upcoming response by checking contrast words in arch reply
@@ -2292,7 +2309,7 @@ export default function Dashboard() {
     setYourState('replied')
     setTimeout(() => setYourState('idle'), 900)
 
-    const sparkReply = await triggerAI('gpt', [...historyRef.current], noteContext, publicNotes)
+    const sparkReply = await triggerAI('gpt', [...historyRef.current], noteContext, publicNotes, {}, humanMsg.id)
     const sparkText = sparkReply?.content || ''
 
     // Check disagreement between the two
@@ -2306,7 +2323,7 @@ export default function Dashboard() {
       const directAddress = /\bscribe\b/i.test(content)
       const buildIntent = SCRIBE_TRIGGER_RE.test(content)
       if (directAddress || buildIntent) {
-        const scribeReply = await triggerAI('scribe', [...historyRef.current], noteContext, publicNotes)
+        const scribeReply = await triggerAI('scribe', [...historyRef.current], noteContext, publicNotes, {}, humanMsg.id)
         if (scribeReply) {
           reactionEngineRef.current?.onScribeMessage(scribeReply, historyRef.current.length)
           // If Scribe is asking for confirmation, flag it so next user message can trigger Steward
@@ -2341,11 +2358,12 @@ export default function Dashboard() {
 
     // Continue AI flow
     setAiLocked(true)
-    const archReply = await triggerAI('claude', [...historyRef.current], pending.noteContext, pending.publicNotes)
+    const hid = pending.humanMsgId || null
+    const archReply = await triggerAI('claude', [...historyRef.current], pending.noteContext, pending.publicNotes, {}, hid)
     setArchitectState('idle')
     setYourState('replied')
     setTimeout(() => setYourState('idle'), 900)
-    const sparkReply = await triggerAI('gpt', [...historyRef.current], pending.noteContext, pending.publicNotes)
+    const sparkReply = await triggerAI('gpt', [...historyRef.current], pending.noteContext, pending.publicNotes, {}, hid)
     if (CONTRAST_RE.test(sparkReply?.content || '') || CONTRAST_RE.test(archReply?.content || '')) {
       setArchitectState('disagreeing')
       setTimeout(() => setArchitectState('idle'), 3000)
@@ -2356,7 +2374,7 @@ export default function Dashboard() {
       /\bscribe\b/i.test(pending.content) ||
       pending.isConfirmation
     )) {
-      const scribeReply = await triggerAI('scribe', [...historyRef.current], pending.noteContext, pending.publicNotes)
+      const scribeReply = await triggerAI('scribe', [...historyRef.current], pending.noteContext, pending.publicNotes, {}, hid)
       if (scribeReply) {
         reactionEngineRef.current?.onScribeMessage(scribeReply, historyRef.current.length)
         if (SCRIBE_AWAIT_RE.test(scribeReply.content || '')) {
@@ -2379,6 +2397,16 @@ export default function Dashboard() {
       enclave_id: activeEnclaveIdRef.current,
     }).select().single()
     if (data) setMessages(prev => [...prev, data])
+  }
+
+  function handleScrollToMessage(msgId) {
+    const el = document.getElementById(`msg-${msgId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const prev = el.style.background
+    el.style.transition = 'background 0.3s'
+    el.style.background = 'rgba(196,78,24,0.13)'
+    setTimeout(() => { el.style.background = prev; el.style.transition = '' }, 1200)
   }
 
   function handleAskSteward() {
@@ -2691,6 +2719,7 @@ export default function Dashboard() {
             stewardActive={awaitingStewardEstimate} stewardState={stewardAvatarState}
             advocateState={advocateAvatarState} contrarianState={contrarianAvatarState}
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
+            neuronOpen={neuronOpen} onNeuronToggle={() => setNeuronOpen(v => !v)}
             isMobile={isMobile} />
         </>
       )}
@@ -2712,6 +2741,7 @@ export default function Dashboard() {
             onSignOut={handleSignOut} />
         </>
       )}
+      <Neuron messages={messages} open={neuronOpen} onScrollToMessage={handleScrollToMessage} />
       <TheGuideWidget />
     </div>
   )
