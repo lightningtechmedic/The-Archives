@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "verify-db": "node scripts/verify-db.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.26.1",

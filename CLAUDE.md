@@ -295,3 +295,32 @@ FOR SELECT USING (
 2. Are all column names verified against `information_schema`?
 3. Are `DROP POLICY IF EXISTS` statements included before every `CREATE POLICY`?
 4. Is `ENABLE ROW LEVEL SECURITY` present for every new table?
+
+---
+
+## Migration Rules — Mandatory
+
+### Never assume a migration ran
+Before writing code that depends on a table or column, always check it exists.
+Use: `SELECT column_name FROM information_schema.columns WHERE table_name = 'X'`
+
+### Every migration file must:
+1. Use `IF NOT EXISTS` for every `CREATE TABLE`
+2. Use `IF NOT EXISTS` for every `ALTER TABLE ADD COLUMN`
+3. Use `DROP POLICY IF EXISTS` before every `CREATE POLICY`
+4. Never use `owner_id` — enclaves uses `created_by`
+5. Never write self-referential RLS policies
+
+### After every push that includes a migration:
+Tell the user explicitly:
+"⚠️ Run vault/migrations/[filename].sql in Supabase SQL editor before testing this feature"
+Include the exact file path every time without exception.
+
+### After user confirms migration ran:
+Run: `npm run verify-db`
+Report which tables pass and which fail before closing the task.
+
+### Single source of truth for stickies
+`vault/migrations/003_stickies_complete.sql` is the canonical stickies migration.
+It supersedes `003_stickies.sql` and `003b_stickies_smart.sql`.
+Never write partial stickies migrations — update `003_stickies_complete.sql` instead.
