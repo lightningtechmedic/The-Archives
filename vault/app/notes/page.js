@@ -46,11 +46,12 @@ function NotesInner() {
 
   // Auth
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) { router.push('/login'); return }
       setUser(session.user)
       setMounted(true)
     })
+    return () => subscription.unsubscribe()
   }, []) // eslint-disable-line
 
   // Load notes

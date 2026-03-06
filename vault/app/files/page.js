@@ -40,12 +40,13 @@ export default function FilesPage() {
   const fileInputRef = useRef(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) { router.push('/login'); return }
       setUser(session.user)
       setMounted(true)
       loadFiles(session.user.id)
     })
+    return () => subscription.unsubscribe()
   }, []) // eslint-disable-line
 
   async function loadFiles(uid) {

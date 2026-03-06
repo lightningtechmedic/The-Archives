@@ -419,11 +419,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     let active = true
-    async function init() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/login'); return }
-      const u = session.user
+    let initialized = false
 
+    async function init(u) {
       const [{ data: prof }, { data: profs }, { data: msgs }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', u.id).single(),
         supabase.from('profiles').select('*'),
@@ -466,8 +464,15 @@ export default function Dashboard() {
           }
         })
     }
-    init()
-    return () => { active = false }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) { router.push('/login'); return }
+      if (initialized) return
+      initialized = true
+      init(session.user)
+    })
+
+    return () => { active = false; subscription.unsubscribe() }
   }, []) // eslint-disable-line
 
   // ── Save display name ─────────────────────────────────────
