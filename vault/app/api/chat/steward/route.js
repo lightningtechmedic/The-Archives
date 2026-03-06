@@ -1,5 +1,35 @@
 import Anthropic from '@anthropic-ai/sdk'
 
+const STEWARD_CHAT_SYSTEM = `You are The Steward — the long view in The Vault's Lattice.
+
+You hold four things nobody else holds:
+1. The Budget — what was agreed to spend, what has been spent, what remains
+2. The Roadmap — what was decided, approved, built, promised, and forgotten
+3. The Health of the Project — patterns across builds, decisions, and priorities
+4. The Priorities — whether what's being proposed is the right thing right now
+
+Your personality:
+- Measured and deliberate — you don't speak often, but when you do it matters
+- You have been in the room for every decision. You remember all of it.
+- Not cheap for the sake of it — careful because you've seen what happens without a long view
+- Respectful of everyone: The Architect's precision, The Spark's vision, The Scribe's craft
+- Dry, not humorous — occasionally wry when something is obviously repeating a past mistake
+- Never alarmist — you state facts and let them land
+
+When addressed directly: answer conversationally in The Steward's voice.
+Be concise — 1-3 sentences unless the question demands more.
+No JSON. No bullet lists unless essential.
+
+If budget data is available: share it plainly. 'You're at $X of $Y. $Z remaining.'
+If no budget is set: say so without alarm. 'No budget has been set for this enclave. I'm tracking the builds.'
+
+Your voice:
+NOT: 'The budget utilization currently stands at...'
+YES: 'You're at 78% of budget on the 8th. Something to be aware of.'
+
+NOT: 'I recommend reviewing the current trajectory'
+YES: 'You've touched this area three times this month. Worth asking why it keeps coming back.'`
+
 const STEWARD_SYSTEM = `You are The Steward — the long view in The Vault's Lattice.
 
 You hold four things nobody else holds:
@@ -58,10 +88,79 @@ If no budget is set: always "approve" unless estimate_cents > 15000 (over $150).
 
 Be terse. The reasoning field is one sentence maximum. The flags are one sentence or null — never pad.`
 
+function formatForSteward(messages) {
+  const mapped = messages.map(m => {
+    if (m.role === 'steward')    return { role: 'assistant', content: m.content }
+    if (m.role === 'scribe')     return { role: 'user', content: `[The Scribe]: ${m.content}` }
+    if (m.role === 'claude')     return { role: 'user', content: `[The Architect]: ${m.content}` }
+    if (m.role === 'gpt')        return { role: 'user', content: `[The Spark]: ${m.content}` }
+    if (m.role === 'advocate')   return { role: 'user', content: `[The Advocate]: ${m.content}` }
+    if (m.role === 'contrarian') return { role: 'user', content: `[The Contrarian]: ${m.content}` }
+    const name = m.display_name || 'Team'
+    return { role: 'user', content: `${name}: ${m.content}` }
+  })
+  const merged = []
+  for (const msg of mapped) {
+    if (merged.length && merged[merged.length - 1].role === msg.role) {
+      merged[merged.length - 1].content += '\n\n' + msg.content
+    } else {
+      merged.push({ ...msg })
+    }
+  }
+  if (merged.length && merged[0].role === 'assistant') {
+    merged.unshift({ role: 'user', content: '[Start of conversation]' })
+  }
+  return merged.length ? merged : [{ role: 'user', content: 'Hello' }]
+}
+
 export async function POST(req) {
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const { request, budgetCents, spentCents } = await req.json()
+    const body = await req.json()
+
+    // ── Chat mode: direct address, streaming conversational response ──────────
+    if (body.messages) {
+      const { messages, budgetCents, spentCents } = body
+      const formatted = formatForSteward(messages)
+
+      let systemPrompt = STEWARD_CHAT_SYSTEM
+      if (budgetCents != null) {
+        const remainingCents = budgetCents - (spentCents || 0)
+        systemPrompt += `\n\n--- BUDGET CONTEXT ---\nBudget: $${(budgetCents / 100).toFixed(2)} / period\nSpent: $${((spentCents || 0) / 100).toFixed(2)}\nRemaining: $${(remainingCents / 100).toFixed(2)}`
+      } else {
+        systemPrompt += '\n\n--- BUDGET CONTEXT ---\nNo budget has been set for this enclave.'
+      }
+
+      const stream = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 300,
+        system: systemPrompt,
+        messages: formatted,
+        stream: true,
+      })
+
+      const encoder = new TextEncoder()
+      const readable = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of stream) {
+              if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+                controller.enqueue(encoder.encode(chunk.delta.text))
+              }
+            }
+          } finally {
+            controller.close()
+          }
+        },
+      })
+
+      return new Response(readable, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' },
+      })
+    }
+
+    // ── Estimate mode: JSON response ──────────────────────────────────────────
+    const { request, budgetCents, spentCents } = body
 
     const remainingCents = budgetCents != null ? budgetCents - spentCents : null
 

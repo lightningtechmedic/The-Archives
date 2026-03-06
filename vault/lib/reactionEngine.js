@@ -146,7 +146,7 @@ export function createReactionEngine({
     if (isSleeping()) return false
     if (!isScribeActive()) return false
     if (isAiLocked()) return false
-    if (Date.now() - getLastActivity() < 30000) return false
+    if (Date.now() - getLastActivity() < 8000) return false
     return true
   }
 

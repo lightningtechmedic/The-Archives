@@ -76,6 +76,9 @@ const STEWARD_CONFIRM_RE = /^(go|proceed|build it|do it|ship it|yes please|let's
 // Scribe asking for approval — sets scribePendingApprovalRef so next user msg can trigger Steward
 const SCRIBE_AWAIT_RE = /\b(ready when you are|shall I proceed|should I proceed|approve to proceed|want me to proceed|proceed\?|shall I start|shall I begin)\b/i
 
+// Direct Steward address — user is talking to The Steward specifically
+const STEWARD_DIRECT_RE = /\bsteward\b|@steward/i
+
 // ── Reminder regex ─────────────────────────────────────────────────────────────
 const REMINDER_RE = /\b(remind(?:er|s)?(?:\s+me)?|remember\s+to|don'?t\s+forget|follow[\s-]?up(?:\s+(?:on|with))?|check\s+back|revisit|by\s+(?:eod|end\s+of\s+(?:day|week)|tomorrow|(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|week|month))|deadline[:\s]|due\s+(?:date[:\s]|by[:\s]|on[:\s]|\d+)|in\s+\d+\s+(?:days?|weeks?|months?|hours?)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|next\s+(?:monday|tuesday|wednesday|thursday|friday|week|month)|this\s+(?:friday|monday|tuesday|wednesday|thursday))\b/gi
 
@@ -1291,12 +1294,14 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
   )
 }
 
-function ThinkingDot({ model, architectState, sparkState, scribeState }) {
+function ThinkingDot({ model, architectState, sparkState, scribeState, stewardState }) {
   const meta = AI[model]
   const avatarEl = model === 'claude'
     ? <AvatarArchitect size={26} state={architectState} />
     : model === 'scribe'
     ? <AvatarScribe size={26} state={scribeState || 'thinking'} />
+    : model === 'steward'
+    ? <AvatarSteward size={26} state={stewardState || 'thinking'} />
     : <AvatarSpark size={26} state={sparkState} />
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'.5rem', paddingLeft:'.5rem', borderLeft:`2px solid ${meta.border}`, marginLeft:'-.5rem' }}>
@@ -1353,7 +1358,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1388,12 +1393,10 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             {AI.scribe.label}
           </span>
         )}
-        {stewardActive && (
-          <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.steward.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.steward.color, background:AI.steward.dim }}>
-            <AvatarSteward size={16} state={stewardState} />
-            The Steward — reviewing
-          </span>
-        )}
+        <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.steward.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.steward.color, background:AI.steward.dim, opacity: stewardActive ? 1 : 0.35, transition:'opacity .3s' }}>
+          <AvatarSteward size={16} state={stewardState} />
+          {stewardActive ? 'The Steward — reviewing' : 'The Steward'}
+        </span>
         {advocateState !== 'idle' && (
           <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.advocate.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.advocate.color, background:AI.advocate.dim }}>
             <AvatarAdvocate size={16} state={advocateState} />
@@ -1438,13 +1441,13 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
                 onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
                 architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} stewardState={stewardState} advocateState={advocateState} contrarianState={contrarianState} />
             ))}
-            {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} />}
+            {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} stewardState={stewardState} />}
             <div ref={messagesEndRef} />
           </div>
 
           {!autoAI && (
             <div style={{ display:'flex', gap:'.5rem', padding:'.4rem 1rem 0', flexShrink:0 }}>
-              {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }].map(({ fn, meta }) => (
+              {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }, { fn: onAskSteward, meta: AI.steward }].map(({ fn, meta }) => (
                 <button key={meta.role} onClick={fn} disabled={aiLocked}
                   style={{ flex:1, padding:'.35rem', border:`1px solid ${meta.border}`, borderRadius:'2px', background: aiLocked ? 'transparent' : meta.dim, color: aiLocked ? 'var(--muted)' : meta.color, fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s', opacity: aiLocked ? .4 : 1 }}>
                   Ask {meta.label}
@@ -2021,10 +2024,11 @@ export default function Dashboard() {
     let text = ''
     let placeholderAdded = false
 
-    if (model === 'claude')      setArchitectState('processing')
-    else if (model === 'gpt')       setSparkState('excited')
-    else if (model === 'advocate')  setAdvocateAvatarState('thinking')
+    if (model === 'claude')          setArchitectState('processing')
+    else if (model === 'gpt')        setSparkState('excited')
+    else if (model === 'advocate')   setAdvocateAvatarState('thinking')
     else if (model === 'contrarian') setContrarianAvatarState('thinking')
+    else if (model === 'steward')    setStewardAvatarState('thinking')
 
     try {
       const { noteContext, publicNotes } = await buildNoteContext()
@@ -2057,6 +2061,7 @@ export default function Dashboard() {
     if (model === 'gpt')         setTimeout(() => setSparkState('idle'), 1200)
     if (model === 'advocate')    setTimeout(() => setAdvocateAvatarState('idle'), 3000)
     if (model === 'contrarian')  setTimeout(() => setContrarianAvatarState('idle'), 3500)
+    if (model === 'steward')     setTimeout(() => setStewardAvatarState('idle'), 2500)
 
     if (!text.trim()) return null
 
@@ -2081,19 +2086,20 @@ export default function Dashboard() {
     return final
   }
 
-  async function triggerAI(model, history, noteContext, publicNotes) {
+  async function triggerAI(model, history, noteContext, publicNotes, extraBody = {}) {
     const meta = AI[model]
     const tempId = `${Date.now()}-${model}`
     const placeholder = { id: tempId, role: model, display_name: meta.label, content: '', streaming: true, created_at: new Date().toISOString() }
     setMessages(prev => [...prev, placeholder])
     setThinking(model)
-    if (model === 'scribe') setScribeState('thinking')
+    if (model === 'scribe')  setScribeState('thinking')
+    if (model === 'steward') setStewardAvatarState('thinking')
 
     let text = '', firstToken = true
     try {
       const res = await fetch(`${API_BASE}/api/chat/${model}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, noteContext: noteContext || null, publicNotes: publicNotes || [] }),
+        body: JSON.stringify({ messages: history, noteContext: noteContext || null, publicNotes: publicNotes || [], ...extraBody }),
       })
       if (!res.ok) { const e = await res.json().catch(() => ({ error: 'Error' })); throw new Error(e.error || `HTTP ${res.status}`) }
       const reader = res.body.getReader(), dec = new TextDecoder()
@@ -2109,7 +2115,8 @@ export default function Dashboard() {
     }
 
     setThinking(null)
-    if (model === 'scribe') { setScribeState('done'); setTimeout(() => setScribeState('idle'), 850) }
+    if (model === 'scribe')  { setScribeState('done'); setTimeout(() => setScribeState('idle'), 850) }
+    if (model === 'steward') setTimeout(() => setStewardAvatarState('idle'), 1500)
     const { data: saved } = await getSupabase().from('messages').insert({ user_id: userRef.current?.id, display_name: meta.label, content: text, role: model, enclave_id: activeEnclaveIdRef.current }).select().single()
     const final = saved || { ...placeholder, content: text, streaming: false }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false } : m))
@@ -2176,6 +2183,18 @@ export default function Dashboard() {
         setStewardAvatarState('idle')
         // fall through to normal AI call
       }
+    }
+
+    // ── Direct Steward address ────────────────────────────────────────────────
+    // User is talking to The Steward directly ("Steward, what's our budget?")
+    const isStewardDirect = STEWARD_DIRECT_RE.test(content) && !stewardShouldFire
+    if (isStewardDirect) {
+      const enclaveId = activeEnclaveIdRef.current
+      const { budget_cents } = enclaveId ? await getEnclaveBudget(enclaveId) : { budget_cents: null }
+      const spentCents = (budget_cents != null && enclaveId) ? await getEnclaveSpend(enclaveId) : 0
+      await triggerAI('steward', [...historyRef.current], noteContext, publicNotes, { budgetCents: budget_cents, spentCents })
+      setAiLocked(false)
+      return
     }
 
     // Architect first
@@ -2577,6 +2596,7 @@ export default function Dashboard() {
             autoAI={autoAI} setAutoAI={setAutoAI}
             onAskArchitect={() => askOne('claude')}
             onAskSpark={() => askOne('gpt')}
+            onAskSteward={handleAskSteward}
             allProfiles={allProfiles} currentUserId={user?.id}
             onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
             architectState={architectState} sparkState={sparkState} yourState={yourState}
