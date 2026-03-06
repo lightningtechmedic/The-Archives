@@ -1,23 +1,30 @@
 // vault/lib/enclaves.js — Supabase helpers for the Enclave system
 
-export async function createEnclave(supabase, { name, description, userId }) {
-  // Step 1 — insert enclave
-  const { data: enclave, error: enclaveError } = await supabase
+export async function createEnclave(supabase, { name, userId }) {
+  // Step 1 — insert only, no chained .select() to avoid triggering policy chain
+  const { error: insertError } = await supabase
     .from('enclaves')
     .insert({ name: name.trim(), created_by: userId })
-    .select()
+
+  if (insertError) return { data: null, error: insertError }
+
+  // Step 2 — wait for insert to settle before reading back
+  await new Promise(r => setTimeout(r, 200))
+
+  const { data: enclave, error: fetchError } = await supabase
+    .from('enclaves')
+    .select('*')
+    .eq('created_by', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .single()
 
-  if (enclaveError) return { data: null, error: enclaveError }
+  if (fetchError) return { data: null, error: fetchError }
 
-  // Step 2 — add creator as owner member
+  // Step 3 — add creator as owner member
   const { error: memberError } = await supabase
     .from('enclave_members')
-    .insert({
-      enclave_id: enclave.id,
-      user_id: userId,
-      role: 'owner',
-    })
+    .insert({ enclave_id: enclave.id, user_id: userId, role: 'owner' })
 
   if (memberError) return { data: null, error: memberError }
 
@@ -25,12 +32,26 @@ export async function createEnclave(supabase, { name, description, userId }) {
 }
 
 export async function getUserEnclaves(supabase, userId) {
-  const { data, error } = await supabase
+  // Two separate queries — no relational join to avoid cross-table policy chain
+  const { data: memberships, error: memError } = await supabase
     .from('enclave_members')
-    .select('role, enclaves(*)')
+    .select('enclave_id, role')
     .eq('user_id', userId)
-  if (error || !data) return []
-  return data.map(em => ({ ...em.enclaves, role: em.role })).filter(Boolean)
+
+  if (memError || !memberships?.length) return []
+
+  const enclaveIds = memberships.map(m => m.enclave_id)
+
+  const { data: enclaves, error: encError } = await supabase
+    .from('enclaves')
+    .select('*')
+    .in('id', enclaveIds)
+
+  if (encError || !enclaves) return []
+
+  // Merge role from memberships back onto each enclave
+  const roleMap = Object.fromEntries(memberships.map(m => [m.enclave_id, m.role]))
+  return enclaves.map(e => ({ ...e, role: roleMap[e.id] }))
 }
 
 export async function inviteMember(supabase, enclaveId, userEmail) {

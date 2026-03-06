@@ -1038,13 +1038,14 @@ export default function Dashboard() {
 
   async function loadEnclaveData(enclaveId) {
     const sb = getSupabase()
+    // No relational joins — fetch each table independently to avoid cross-table policy chain
     const [{ data: eNotes }, { data: membersData }] = await Promise.all([
       sb.from('notes')
         .select('id,title,content,user_id,visibility,enclave_id,created_at,updated_at')
         .eq('enclave_id', enclaveId).eq('visibility', 'enclave')
         .order('updated_at', { ascending: false }),
       sb.from('enclave_members')
-        .select('role, joined_at, profiles(*)')
+        .select('role, joined_at, user_id')
         .eq('enclave_id', enclaveId),
     ])
     setEnclaveNotes(eNotes || [])
