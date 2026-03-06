@@ -1,19 +1,27 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 export default function LoginPage() {
+  const router = useRouter()
+
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [magicLoading, setMagicLoading] = useState(false)
+  const [magicError, setMagicError] = useState('')
 
-  async function handleSubmit(e) {
+  const [pwEmail, setPwEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError] = useState('')
+
+  async function handleMagicLink(e) {
     e.preventDefault()
     if (!email) return
-    setLoading(true)
-    setError('')
+    setMagicLoading(true)
+    setMagicError('')
 
     const supabase = createClient()
     const { error: err } = await supabase.auth.signInWithOtp({
@@ -23,12 +31,26 @@ export default function LoginPage() {
       },
     })
 
-    setLoading(false)
-    if (err) {
-      setError(err.message)
-    } else {
-      setSent(true)
-    }
+    setMagicLoading(false)
+    if (err) setMagicError(err.message)
+    else setSent(true)
+  }
+
+  async function handlePassword(e) {
+    e.preventDefault()
+    if (!pwEmail || !password) return
+    setPwLoading(true)
+    setPwError('')
+
+    const supabase = createClient()
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: pwEmail,
+      password,
+    })
+
+    setPwLoading(false)
+    if (err) setPwError(err.message)
+    else router.push('/dashboard')
   }
 
   return (
@@ -79,49 +101,130 @@ export default function LoginPage() {
         </div>
 
         {!sent ? (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label
-                htmlFor="email"
-                className="panel-label block mb-2"
-                style={{ color: 'var(--muted)' }}
+          <>
+            {/* Magic link */}
+            <form onSubmit={handleMagicLink} className="flex flex-col gap-4">
+              <div>
+                <label
+                  htmlFor="email"
+                  className="panel-label block mb-2"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  Email Address
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  className="vault-input w-full px-4 py-3"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+
+              {magicError && (
+                <p className="font-mono text-xs" style={{ color: 'var(--ember)', letterSpacing: '0.05em' }}>
+                  {magicError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={magicLoading}
+                className="vault-btn w-full justify-center mt-2"
+                style={{ padding: '1rem' }}
               >
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="vault-input w-full px-4 py-3"
-                style={{ fontSize: '0.9rem' }}
-              />
+                {magicLoading ? (
+                  <span style={{ opacity: 0.6 }}>Sending&hellip;</span>
+                ) : (
+                  <>Send Access Link <span style={{ fontSize: '0.9rem' }}>→</span></>
+                )}
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                margin: '2rem 0',
+              }}
+            >
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+              <span
+                className="font-mono"
+                style={{ fontSize: '0.55rem', letterSpacing: '0.2em', color: 'var(--muted)', textTransform: 'uppercase' }}
+              >
+                or
+              </span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
             </div>
 
-            {error && (
-              <p
-                className="font-mono text-xs"
-                style={{ color: 'var(--ember)', letterSpacing: '0.05em' }}
-              >
-                {error}
-              </p>
-            )}
+            {/* Password */}
+            <form onSubmit={handlePassword} className="flex flex-col gap-4">
+              <div>
+                <label
+                  htmlFor="pw-email"
+                  className="panel-label block mb-2"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  Email Address
+                </label>
+                <input
+                  id="pw-email"
+                  type="email"
+                  value={pwEmail}
+                  onChange={e => setPwEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  className="vault-input w-full px-4 py-3"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="vault-btn w-full justify-center mt-2"
-              style={{ padding: '1rem' }}
-            >
-              {loading ? (
-                <span style={{ opacity: 0.6 }}>Sending&hellip;</span>
-              ) : (
-                <>Send Access Link <span style={{ fontSize: '0.9rem' }}>→</span></>
+              <div>
+                <label
+                  htmlFor="password"
+                  className="panel-label block mb-2"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="vault-input w-full px-4 py-3"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+
+              {pwError && (
+                <p className="font-mono text-xs" style={{ color: 'var(--ember)', letterSpacing: '0.05em' }}>
+                  {pwError}
+                </p>
               )}
-            </button>
-          </form>
+
+              <button
+                type="submit"
+                disabled={pwLoading}
+                className="vault-btn w-full justify-center mt-2"
+                style={{ padding: '1rem' }}
+              >
+                {pwLoading ? (
+                  <span style={{ opacity: 0.6 }}>Signing in&hellip;</span>
+                ) : (
+                  <>Sign In <span style={{ fontSize: '0.9rem' }}>→</span></>
+                )}
+              </button>
+            </form>
+          </>
         ) : (
           <div
             className="vault-panel p-6 text-center"
