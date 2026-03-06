@@ -42,16 +42,18 @@ function formatForGPT(messages) {
 export async function POST(req) {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    const { messages, noteContext, publicNotes } = await req.json()
+    const { messages, noteContext, publicNotes, reactionPrompt } = await req.json()
     const formatted = formatForGPT(messages)
-    const systemPrompt = buildSystemPrompt(noteContext, publicNotes)
+    let systemPrompt = buildSystemPrompt(noteContext, publicNotes)
+    if (reactionPrompt) systemPrompt += `\n\n--- REACTION CONTEXT ---\n${reactionPrompt}`
+    const maxTokens = reactionPrompt ? 300 : 1024
 
     const stream = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [{ role: 'system', content: systemPrompt }, ...formatted],
       stream: true,
       temperature: 0.85,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
     })
 
     const encoder = new TextEncoder()

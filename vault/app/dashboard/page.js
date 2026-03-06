@@ -16,6 +16,7 @@ import {
   AvatarGeneric,
 } from '@/components/Avatars'
 import WelcomeModal from '@/components/WelcomeModal'
+import { createReactionEngine } from '@/lib/reactionEngine'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -806,28 +807,37 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
   const isSpark = role === 'gpt'
   const isScribe = role === 'scribe'
   const isAI = isArchitect || isSpark || isScribe
+  const isReaction = !!msg.isReaction
   const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : null
   const prof = allProfiles?.find(p => p.id === msg.user_id)
   const isMe = msg.user_id === currentUserId
-  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : (msg.display_name || prof?.display_name || 'Team')
+  const baseLabel = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : (msg.display_name || prof?.display_name || 'Team')
+  const label = isReaction ? `${baseLabel} ↩` : baseLabel
 
   let avatar
-  if (isArchitect)        avatar = <AvatarArchitect size={26} state={architectState} />
-  else if (isSpark)       avatar = <AvatarSpark size={26} state={sparkState} />
+  if (isArchitect)        avatar = <AvatarArchitect size={isReaction ? 22 : 26} state={architectState} />
+  else if (isSpark)       avatar = <AvatarSpark size={isReaction ? 22 : 26} state={sparkState} />
   else if (isScribe)      avatar = <AvatarScribe size={26} state={scribeState} />
   else if (isSmara(prof)) avatar = <AvatarSmara size={26} />
   else if (isMe)          avatar = <AvatarYou size={26} state={yourState} />
   else                    avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={26} />
 
   return (
-    <div className="msg-row" style={{ borderLeft: isAI ? `2px solid ${aiMeta.border}` : `2px solid rgba(58,212,200,0.15)`, paddingLeft:'.5rem', marginLeft:'-.5rem', background: isScribe ? 'rgba(10,12,20,0.6)' : 'transparent', borderRadius: isScribe ? '2px' : 0 }}>
+    <div className="msg-row" style={{
+      borderLeft: isAI ? `2px solid ${aiMeta.border}` : `2px solid rgba(58,212,200,0.15)`,
+      paddingLeft: isReaction ? '1rem' : '.5rem',
+      marginLeft: isReaction ? '.75rem' : '-.5rem',
+      background: isScribe ? 'rgba(10,12,20,0.6)' : isReaction ? 'rgba(255,255,255,0.01)' : 'transparent',
+      borderRadius: isScribe || isReaction ? '2px' : 0,
+      opacity: isReaction ? 0.82 : 1,
+    }}>
       {avatar}
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:'flex', alignItems:'baseline', gap:'.5rem', marginBottom:'.1rem' }}>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.12em', textTransform:'uppercase', color: aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.6)') }}>{label}</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize: isReaction ? '.48rem' : '.52rem', letterSpacing:'.12em', textTransform:'uppercase', color: isReaction ? (aiMeta?.color ? aiMeta.color.replace(')', ', 0.7)').replace('rgb', 'rgba') : 'rgba(255,255,255,0.45)') : (aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.6)')) }}>{label}</span>
           <span className="msg-timestamp">{formatTime(msg.created_at)}</span>
         </div>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize: isReaction ? '0.9rem' : '1rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
           {msg.content}
           {msg.streaming && <span style={{ color: aiMeta?.color || 'var(--ember)', marginLeft:1 }} className="animate-pulse-slow">▋</span>}
         </p>
@@ -911,7 +921,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, focusMode, onFocusToggle }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -947,6 +957,13 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           </span>
         )}
         <div style={{ flex:1 }} />
+        {focusMode && (
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(100,140,255,0.7)' }}>◉ Focus</span>
+        )}
+        <button onClick={e => { e.stopPropagation(); onFocusToggle() }}
+          style={{ background:'transparent', border:'none', padding:'.18rem .3rem', fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', textTransform:'uppercase', color: focusMode ? 'rgba(100,140,255,0.6)' : 'var(--muted)', cursor:'none', opacity: focusMode ? 1 : 0.55, transition:'all .2s' }}>
+          Focus
+        </button>
         <button onClick={e => { e.stopPropagation(); setAutoAI(v => !v) }}
           style={{ display:'flex', alignItems:'center', gap:'.3rem', padding:'.22rem .55rem', background:'transparent', border:`1px solid ${autoAI ? 'rgba(80,200,100,0.4)' : 'var(--border)'}`, borderRadius:'2px', color: autoAI ? 'var(--green)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
           <span style={{ width:5, height:5, borderRadius:'50%', background: autoAI ? 'var(--green)' : 'var(--muted)', animation: autoAI ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
@@ -1090,6 +1107,7 @@ export default function Dashboard() {
   const [sleeping, setSleeping] = useState(false)
   const [scribeActive, setScribeActive] = useState(false)
   const [scribeState, setScribeState] = useState('idle')
+  const [focusMode, setFocusMode] = useState(false)
 
   // Enclaves
   const [enclaves, setEnclaves] = useState([])
@@ -1116,8 +1134,14 @@ export default function Dashboard() {
   const lastProvocationRef = useRef(0)
   const sleepStartRef = useRef(0)
   const scribeActiveRef = useRef(false)
+  const aiLockedRef = useRef(false)
+  const focusModeRef = useRef(false)
+  const focusTimerRef = useRef(null)
+  const reactionEngineRef = useRef(null)
+  const triggerReactionRef = useRef(null)
 
   useEffect(() => { historyRef.current = messages }, [messages])
+  useEffect(() => { aiLockedRef.current = aiLocked }, [aiLocked])
   useEffect(() => { activeNoteRef.current = activeNote }, [activeNote])
   useEffect(() => { noteTitleRef.current = noteTitle }, [noteTitle])
   useEffect(() => { noteContentRef.current = noteContent }, [noteContent])
@@ -1250,6 +1274,7 @@ export default function Dashboard() {
     if (!user) return
     function onActivity() {
       lastActivityRef.current = Date.now()
+      reactionEngineRef.current?.onUserActivity()
       if (!sleepModeRef.current) return
       // Wake up
       sleepModeRef.current = false
@@ -1316,6 +1341,21 @@ export default function Dashboard() {
     }, 60000)
     return () => clearInterval(sleepInterval)
   }, [user, aiLocked]) // eslint-disable-line
+
+  // ── Reaction engine ──
+  useEffect(() => {
+    if (!user) return
+    const engine = createReactionEngine({
+      isSleeping:      () => sleepModeRef.current,
+      isScribeActive:  () => scribeActiveRef.current,
+      isAiLocked:      () => aiLockedRef.current || focusModeRef.current,
+      getLastActivity: () => lastActivityRef.current,
+      getHistory:      () => historyRef.current,
+      triggerReaction: (model, prompt, isCross) => triggerReactionRef.current?.(model, prompt, isCross),
+    })
+    reactionEngineRef.current = engine
+    return () => { engine.destroy(); reactionEngineRef.current = null }
+  }, [user]) // eslint-disable-line
 
   // ── Reminder polling ──
   useEffect(() => {
@@ -1444,6 +1484,75 @@ export default function Dashboard() {
     return { noteContext: noteCtx, publicNotes }
   }
 
+  // ── Focus mode ──
+  function toggleFocusMode() {
+    const next = !focusModeRef.current
+    focusModeRef.current = next
+    setFocusMode(next)
+    if (next) {
+      reactionEngineRef.current?.onUserActivity()
+      clearTimeout(focusTimerRef.current)
+      focusTimerRef.current = setTimeout(() => {
+        focusModeRef.current = false
+        setFocusMode(false)
+      }, 10 * 60 * 1000)
+    } else {
+      clearTimeout(focusTimerRef.current)
+    }
+  }
+
+  // ── Reaction trigger (called by reaction engine) ──
+  async function triggerReaction(model, reactionPrompt, isCrossReaction = false) {
+    if (focusModeRef.current) return null
+    const meta = AI[model]
+    const tempId = `${Date.now()}-react-${model}`
+    let text = ''
+    let placeholderAdded = false
+
+    if (model === 'claude') setArchitectState('processing')
+    else if (model === 'gpt') setSparkState('excited')
+
+    try {
+      const { noteContext, publicNotes } = await buildNoteContext()
+      const history = historyRef.current.slice(-8)
+      const res = await fetch(`${API_BASE}/api/chat/${model}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, noteContext, publicNotes, reactionPrompt }),
+      })
+      if (!res.ok) return null
+      const reader = res.body.getReader()
+      const dec = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = dec.decode(value, { stream: true })
+        text += chunk
+        if (text.trim() && !placeholderAdded) {
+          placeholderAdded = true
+          setMessages(prev => [...prev, { id: tempId, role: model, display_name: meta.label, content: text, streaming: true, isReaction: true, isCrossReaction, created_at: new Date().toISOString() }])
+        } else if (placeholderAdded) {
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: text } : m))
+        }
+      }
+    } catch {
+      return null
+    }
+
+    if (model === 'claude') setArchitectState('idle')
+    if (model === 'gpt') setTimeout(() => setSparkState('idle'), 1200)
+
+    if (!text.trim()) return null
+
+    const { data: saved } = await getSupabase().from('messages').insert({
+      user_id: null, display_name: meta.label, content: text, role: model,
+    }).select().single()
+    const final = saved || { id: tempId, role: model, display_name: meta.label, content: text }
+    setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, isReaction: true, isCrossReaction } : m))
+    return { ...final, isReaction: true, isCrossReaction }
+  }
+  triggerReactionRef.current = triggerReaction
+
   // ── Chat ──
   async function saveHumanMessage(content) {
     const tempId = `${Date.now()}-h`
@@ -1546,7 +1655,8 @@ export default function Dashboard() {
       const directAddress = /\bscribe\b/i.test(content)
       const buildIntent = SCRIBE_TRIGGER_RE.test(content)
       if (directAddress || buildIntent) {
-        await triggerAI('scribe', [...historyRef.current], noteContext, publicNotes)
+        const scribeReply = await triggerAI('scribe', [...historyRef.current], noteContext, publicNotes)
+        if (scribeReply) reactionEngineRef.current?.onScribeMessage(scribeReply, historyRef.current.length)
       }
     }
 
@@ -1779,7 +1889,14 @@ export default function Dashboard() {
         scribeAvailable={enclaveNotes.length > 0 && messages.length >= 3}
         scribeState={scribeState}
         onScribeSummon={summonScribe}
-        onSignOut={async () => { await getSupabase().auth.signOut(); localStorage.removeItem('vault_scribe_active'); setScribeActive(false); window.location.href = '/vault/login' }} />
+        onSignOut={async () => {
+          reactionEngineRef.current?.destroy()
+          clearTimeout(focusTimerRef.current)
+          localStorage.removeItem('vault_scribe_active')
+          setScribeActive(false)
+          await getSupabase().auth.signOut()
+          window.location.href = '/vault/login'
+        }} />
 
       {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
       <NotesDrawer open={notesOpen}
@@ -1825,7 +1942,8 @@ export default function Dashboard() {
         noteTitle={noteTitle}
         activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
         sleeping={sleeping}
-        scribeActive={scribeActive} scribeState={scribeState} />
+        scribeActive={scribeActive} scribeState={scribeState}
+        focusMode={focusMode} onFocusToggle={toggleFocusMode} />
     </div>
   )
 }

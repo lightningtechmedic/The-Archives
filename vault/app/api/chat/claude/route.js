@@ -46,13 +46,15 @@ function formatForClaude(messages) {
 export async function POST(req) {
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const { messages, noteContext, publicNotes } = await req.json()
+    const { messages, noteContext, publicNotes, reactionPrompt } = await req.json()
     const formatted = formatForClaude(messages)
-    const systemPrompt = buildSystemPrompt(noteContext, publicNotes)
+    let systemPrompt = buildSystemPrompt(noteContext, publicNotes)
+    if (reactionPrompt) systemPrompt += `\n\n--- REACTION CONTEXT ---\n${reactionPrompt}`
+    const maxTokens = reactionPrompt ? 300 : 1024
 
     const stream = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: formatted,
       stream: true,
