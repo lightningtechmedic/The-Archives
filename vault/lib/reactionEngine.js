@@ -70,6 +70,35 @@ Examples: 'Focus, Spark.' / 'After. Let him finish.' / '...noted.' / 'The enthus
 Spark's message: ${sparkMsg}`
 }
 
+function promptAdvocateOnUserMsg(userText, ctx) {
+  return `A team member just sent a message about something they're building or designing. React in character as The Advocate — the voice of the end user.
+Rules:
+- One paragraph maximum
+- Speak in human situations: 'A first-time user hits this screen...' not 'UX could be improved'
+- Focus on the most important human concern — friction, confusion, silent failures
+- If you have no genuine UX concern: return an empty string. Do not pad.
+- Never block the build — only refine it
+- You occasionally lead with 'One thing worth considering...'
+
+Team member's message: ${userText}
+Recent conversation:
+${ctx}`
+}
+
+function promptContrarianOnUserMsg(userText, ctx) {
+  return `A team member just sent a message that suggests a change in direction. React in character as The Contrarian — the reasoning layer.
+Rules:
+- Maximum 3 sentences
+- Only speak if you detect a genuine issue: a past decision being reversed, the problem not being stated, scope expanding quietly
+- State specific evidence first, then the tension, then the question
+- If you find no genuine concern: return an empty string
+- Never be vague
+
+Team member's message: ${userText}
+Recent conversation:
+${ctx}`
+}
+
 function promptAdvocate(scribeText, ctx) {
   return `The Scribe just posted an update while building something. React in character as The Advocate — the voice of the end user.
 Rules:
@@ -118,12 +147,13 @@ Contrarian said: ${contrarianMsg}`
 
 // ── Engine factory ────────────────────────────────────────────────────────────
 export function createReactionEngine({
-  isSleeping,      // () => bool
-  isScribeActive,  // () => bool
-  isAiLocked,      // () => bool — also covers focus mode
-  getLastActivity, // () => number timestamp
-  getHistory,      // () => Message[]
-  triggerReaction, // async (model, reactionPrompt, isCrossReaction) => msg | null
+  isSleeping,        // () => bool
+  isScribeActive,    // () => bool
+  isAiLocked,        // () => bool — also covers focus mode
+  getLastActivity,   // () => number timestamp (kept for compat)
+  getLastKeystroke,  // () => number timestamp — only typing, not clicks/reads
+  getHistory,        // () => Message[]
+  triggerReaction,   // async (model, reactionPrompt, isCrossReaction) => msg | null
 }) {
   let lastReaction = { agent: null, msgIndex: 0 }
   let pending = []
@@ -142,16 +172,34 @@ export function createReactionEngine({
     pending = []
   }
 
+  // ok() — for Scribe-context reactions (Architect, Spark cross-reactions)
+  // Requires Scribe active; blocks if user is actively typing
   function ok() {
     if (isSleeping()) return false
     if (!isScribeActive()) return false
     if (isAiLocked()) return false
-    if (Date.now() - getLastActivity() < 8000) return false
+    if (Date.now() - getLastKeystroke() < 5000) return false
+    return true
+  }
+
+  // okUser() — for Advocate/Contrarian on user messages
+  // Does NOT require Scribe active; blocks only if user is actively typing
+  function okUser() {
+    if (isSleeping()) return false
+    if (isAiLocked()) return false
+    if (Date.now() - getLastKeystroke() < 5000) return false
     return true
   }
 
   async function fire(agent, prompt, isCross = false) {
     if (!ok()) return null
+    console.log('[REACTION] fire() passing for:', agent, 'keystroke gap:', Date.now() - getLastKeystroke())
+    return triggerReaction(agent, prompt, isCross)
+  }
+
+  async function fireUser(agent, prompt, isCross = false) {
+    if (!okUser()) return null
+    console.log('[REACTION] fireUser() passing for:', agent, 'keystroke gap:', Date.now() - getLastKeystroke())
     return triggerReaction(agent, prompt, isCross)
   }
 
@@ -322,9 +370,60 @@ export function createReactionEngine({
     }
   }
 
+  async function onUserMessage(userMsg, index) {
+    const text = userMsg.content || ''
+    const ctx  = ctxStr(getHistory())
+
+    // No consecutive reactions — require at least one non-reaction message between
+    if (lastReaction.agent && index - lastReaction.msgIndex < 2) {
+      console.log('[REACTION] onUserMessage: skipping — consecutive reaction guard')
+      return
+    }
+
+    console.log('[REACTION] onUserMessage:', text.substring(0, 60))
+
+    const isBackendOnly = has(text, BACKEND_ONLY_WORDS) && !has(text, ADVOCATE_KEYWORDS)
+
+    // ── Advocate on user UI/UX messages ──────────────────────────────────────
+    if (!isBackendOnly) {
+      let advocateP = 0.25
+      if (has(text, ADVOCATE_KEYWORDS)) advocateP = 0.65
+      const roll = Math.random()
+      console.log('[REACTION] Advocate roll:', roll.toFixed(2), '/ threshold:', advocateP)
+      if (roll < advocateP) {
+        const delay = 8000 + Math.random() * 8000
+        console.log('[REACTION] scheduling Advocate for user msg, delay:', Math.round(delay))
+        schedule(async () => {
+          const advMsg = await fireUser('advocate', promptAdvocateOnUserMsg(text, ctx), false)
+          if (!advMsg) return
+          lastReaction = { agent: 'advocate', msgIndex: index }
+        }, delay)
+      }
+    }
+
+    // ── Contrarian on direction-change messages ───────────────────────────────
+    let contrarianP = 0
+    if (has(text, CONTRARIAN_KEYWORDS)) contrarianP = 0.60
+    if (contrarianP > 0) {
+      const roll = Math.random()
+      console.log('[REACTION] Contrarian roll:', roll.toFixed(2), '/ threshold:', contrarianP)
+      if (roll < contrarianP) {
+        const delay = 12000 + Math.random() * 8000
+        console.log('[REACTION] scheduling Contrarian for user msg, delay:', Math.round(delay))
+        schedule(async () => {
+          const contrMsg = await fireUser('contrarian', promptContrarianOnUserMsg(text, ctx), false)
+          if (!contrMsg) return
+          lastReaction = { agent: 'contrarian', msgIndex: index }
+        }, delay)
+      }
+    }
+  }
+
   return {
     onScribeMessage,
-    onUserActivity: clearAll,
+    onUserMessage,
+    onNewMessage: clearAll,    // call when user sends — cancels previous turn's pending reactions
+    onUserActivity: () => {},  // kept for compat — no longer clears timers
     destroy: clearAll,
   }
 }

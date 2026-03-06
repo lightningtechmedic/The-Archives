@@ -1594,6 +1594,7 @@ export default function Dashboard() {
   const avatarTimersRef = useRef({})
   const activeEnclaveIdRef = useRef(null)
   const lastActivityRef = useRef(Date.now())
+  const lastKeystrokeRef = useRef(0)
   const sleepModeRef = useRef(false)
   const lastProvocationRef = useRef(0)
   const sleepStartRef = useRef(0)
@@ -1776,12 +1777,14 @@ export default function Dashboard() {
     return () => { active = false; subscription.unsubscribe() }
   }, []) // eslint-disable-line
 
-  // ── Activity tracking — update lastActivityRef on any user interaction ──
+  // ── Activity tracking — keystrokes and clicks tracked separately ──
+  // Keystroke gate: prevents reactions while user is actively typing (5s window)
+  // Click/general activity: updates lastActivity for sleep/wake, does NOT clear reaction timers
   useEffect(() => {
     if (!user) return
-    function onActivity() {
+    function onKeydown() {
       lastActivityRef.current = Date.now()
-      reactionEngineRef.current?.onUserActivity()
+      lastKeystrokeRef.current = Date.now()
       if (!sleepModeRef.current) return
       // Wake up
       sleepModeRef.current = false
@@ -1804,11 +1807,18 @@ export default function Dashboard() {
       setArchitectState('idle')
       setSparkState('idle')
     }
-    window.addEventListener('keydown', onActivity)
-    window.addEventListener('click', onActivity)
+    function onAnyActivity() {
+      lastActivityRef.current = Date.now()
+      // Does NOT call clearAll — reaction timers survive clicks and reads
+      if (!sleepModeRef.current) return
+      sleepModeRef.current = false
+      setSleeping(false)
+    }
+    window.addEventListener('keydown', onKeydown)
+    window.addEventListener('click', onAnyActivity)
     return () => {
-      window.removeEventListener('keydown', onActivity)
-      window.removeEventListener('click', onActivity)
+      window.removeEventListener('keydown', onKeydown)
+      window.removeEventListener('click', onAnyActivity)
     }
   }, [user, aiLocked]) // eslint-disable-line
 
@@ -1855,12 +1865,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return
     const engine = createReactionEngine({
-      isSleeping:      () => sleepModeRef.current,
-      isScribeActive:  () => scribeActiveRef.current,
-      isAiLocked:      () => aiLockedRef.current || focusModeRef.current,
-      getLastActivity: () => lastActivityRef.current,
-      getHistory:      () => historyRef.current,
-      triggerReaction: (model, prompt, isCross) => triggerReactionRef.current?.(model, prompt, isCross),
+      isSleeping:       () => sleepModeRef.current,
+      isScribeActive:   () => scribeActiveRef.current,
+      isAiLocked:       () => aiLockedRef.current || focusModeRef.current,
+      getLastActivity:  () => lastActivityRef.current,
+      getLastKeystroke: () => lastKeystrokeRef.current,
+      getHistory:       () => historyRef.current,
+      triggerReaction:  (model, prompt, isCross) => triggerReactionRef.current?.(model, prompt, isCross),
     })
     reactionEngineRef.current = engine
     return () => { engine.destroy(); reactionEngineRef.current = null }
@@ -2148,11 +2159,16 @@ export default function Dashboard() {
     setSparkState('excited')
     setTimeout(() => setSparkState('idle'), 1500)
 
-    await saveHumanMessage(content)
+    const humanMsg = await saveHumanMessage(content)
+    // Cancel pending reactions from previous turn — new message starts a fresh turn
+    reactionEngineRef.current?.onNewMessage()
     if (!autoAI) return
     setAiLocked(true)
 
     const { noteContext, publicNotes } = await buildNoteContext()
+
+    // ── Advocate/Contrarian on user message (no Scribe required) ─────────────
+    reactionEngineRef.current?.onUserMessage(humanMsg, historyRef.current.length)
 
     // ── Steward interception ──────────────────────────────────────────────────
     // Fires when: (a) build intent in any active context (enclave or Scribe session)
