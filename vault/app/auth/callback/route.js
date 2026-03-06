@@ -31,5 +31,5 @@ export async function GET(request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+  return NextResponse.redirect(`${origin}/vault/login?error=auth_failed`)
 }
