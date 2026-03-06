@@ -44,7 +44,7 @@ export async function setEnclaveBudget(enclaveId, budgetCents, period = 'monthly
   return !error
 }
 
-export async function logBuild(enclaveId, userId, description, estimatedCostCents, tedReasoning) {
+export async function logBuild(enclaveId, userId, description, estimatedCostCents, stewardReasoning) {
   const sb = createClient()
   const { data, error } = await sb
     .from('build_log')
@@ -53,7 +53,7 @@ export async function logBuild(enclaveId, userId, description, estimatedCostCent
       user_id: userId,
       description,
       estimated_cost_cents: estimatedCostCents,
-      ted_reasoning: tedReasoning,
+      ted_reasoning: stewardReasoning,
       status: 'pending',
     })
     .select()

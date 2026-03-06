@@ -14,9 +14,9 @@ import {
   AvatarYou,
   AvatarSocra,
   AvatarGeneric,
-  AvatarTed,
+  AvatarSteward,
 } from '@/components/Avatars'
-import { getEnclaveBudget, getEnclaveSpend, getBuildHistory, logBuild } from '@/lib/ted'
+import { getEnclaveBudget, getEnclaveSpend, getBuildHistory, logBuild } from '@/lib/steward'
 import WelcomeModal from '@/components/WelcomeModal'
 import { createReactionEngine } from '@/lib/reactionEngine'
 import VoiceCapture from '@/components/VoiceCapture'
@@ -45,11 +45,11 @@ const AI = {
     textColor: 'rgba(210,220,255,0.88)',
     thinkingLabel: 'crafting a response…',
   },
-  ted: {
-    label: 'Ted', role: 'ted',
+  steward: {
+    label: 'The Steward', role: 'steward',
     color: 'rgba(200,180,140,0.85)', dim: 'rgba(200,180,140,0.08)', border: 'rgba(200,180,140,0.3)',
     textColor: 'rgba(230,220,200,0.88)',
-    thinkingLabel: 'running the numbers…',
+    thinkingLabel: 'weighing the long view…',
   },
 }
 
@@ -434,7 +434,7 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
 
         {/* Tabs */}
         <div style={{ display:'flex', gap:2, marginBottom:'1.25rem', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'3px' }}>
-          {[{ id:'members', label:'Members' }, { id:'ledger', label:'Ted Ledger' }].map(t => (
+          {[{ id:'members', label:'Members' }, { id:'ledger', label:'Steward Ledger' }].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:'.35rem', borderRadius:'2px', background: tab === t.id ? (t.id === 'ledger' ? 'rgba(200,180,140,0.12)' : 'rgba(255,255,255,0.07)') : 'transparent', border:'none', color: tab === t.id ? (t.id === 'ledger' ? 'rgba(200,180,140,0.85)' : 'var(--text)') : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', transition:'all .15s' }}>
               {t.label}
             </button>
@@ -559,55 +559,87 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
   )
 }
 
-// ── Ted Estimate Card ─────────────────────────────────────────────────────────
-function TedEstimateCard({ estimate, tedState, onApprove, onReject, onAskTed }) {
+// ── Steward Estimate Card ─────────────────────────────────────────────────────
+function StewardEstimateCard({ estimate, stewardState, onApprove, onReject, onAskSteward }) {
   const isGood = estimate.recommendation === 'approve'
   const isBad = estimate.recommendation === 'reject'
   const accentColor = isGood ? 'rgba(80,160,80,0.9)' : isBad ? 'var(--ember)' : 'rgba(200,180,140,0.8)'
-  const headline = isGood ? 'Looks clean.' : isBad ? 'Over budget.' : 'Worth a closer look.'
+  const headline = isGood ? 'Approved.' : isBad ? 'Not this one.' : 'Worth resolving first.'
   return (
     <div style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'flex-end', justifyContent:'center', padding:'0 1rem 72px' }}>
-      <div style={{ width:'100%', maxWidth:'440px', background:'rgba(26,23,20,0.99)', border:'1px solid rgba(200,180,140,0.22)', borderRadius:'8px', padding:'1.5rem', boxShadow:'0 -8px 48px rgba(0,0,0,0.6)', animation:'fadeUp .3s ease' }}>
+      <div style={{ width:'100%', maxWidth:'460px', background:'rgba(18,15,12,0.99)', border:'1px solid rgba(200,180,140,0.22)', borderRadius:'8px', padding:'1.5rem', boxShadow:'0 -8px 48px rgba(0,0,0,0.6)', animation:'fadeUp .3s ease' }}>
         {/* Header */}
         <div style={{ display:'flex', alignItems:'center', gap:'.65rem', marginBottom:'1rem' }}>
-          <AvatarTed size={36} state={tedState} />
+          <AvatarSteward size={36} state={stewardState} />
           <div>
-            <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(200,180,140,0.5)', marginBottom:'.2rem' }}>Ted — Budget Review</p>
+            <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(200,180,140,0.5)', marginBottom:'.2rem' }}>The Steward — Budget &amp; Priority Review</p>
             <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.25rem', color:'var(--text)', fontWeight:600, lineHeight:1 }}>{headline}</p>
           </div>
         </div>
 
-        {/* Cost line */}
-        <div style={{ display:'flex', alignItems:'baseline', gap:'.6rem', marginBottom:'.75rem', padding:'.65rem .85rem', background:'rgba(255,255,255,0.025)', borderRadius:'4px', border:'1px solid rgba(200,180,140,0.1)' }}>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'1.35rem', letterSpacing:'-.01em', color:accentColor, fontWeight:700 }}>
-            ${(estimate.estimate_cents / 100).toFixed(2)}
-          </span>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(200,180,140,0.4)' }}>
-            estimated · {estimate.confidence} confidence
-          </span>
+        {/* Cost + effort row */}
+        <div style={{ display:'flex', alignItems:'stretch', gap:'.5rem', marginBottom:'.75rem' }}>
+          <div style={{ flex:2, padding:'.65rem .85rem', background:'rgba(255,255,255,0.025)', borderRadius:'4px', border:'1px solid rgba(200,180,140,0.1)' }}>
+            <div style={{ display:'flex', alignItems:'baseline', gap:'.5rem' }}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'1.35rem', letterSpacing:'-.01em', color:accentColor, fontWeight:700 }}>
+                ${(estimate.estimate_cents / 100).toFixed(2)}
+              </span>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(200,180,140,0.4)' }}>
+                {estimate.confidence} confidence
+              </span>
+            </div>
+          </div>
+          {estimate.effort && (
+            <div style={{ flex:1, padding:'.65rem .75rem', background:'rgba(255,255,255,0.015)', borderRadius:'4px', border:'1px solid rgba(200,180,140,0.08)', display:'flex', flexDirection:'column', justifyContent:'center' }}>
+              <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(200,180,140,0.38)', marginBottom:'.15rem' }}>Effort</p>
+              <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.95rem', color:'rgba(200,180,140,0.75)', fontWeight:600, lineHeight:1 }}>{estimate.effort}</p>
+              {estimate.effort_time && <p style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', color:'rgba(200,180,140,0.35)', marginTop:'.1rem' }}>{estimate.effort_time}</p>}
+            </div>
+          )}
         </div>
 
+        {/* Touches */}
+        {estimate.touches?.length > 0 && (
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'.3rem', marginBottom:'.65rem' }}>
+            {estimate.touches.map((t, i) => (
+              <span key={i} style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.06em', color:'rgba(200,180,140,0.5)', background:'rgba(200,180,140,0.06)', border:'1px solid rgba(200,180,140,0.12)', borderRadius:'2px', padding:'.15rem .4rem' }}>{t}</span>
+            ))}
+          </div>
+        )}
+
         {/* Reasoning */}
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.95rem', color:'rgba(255,255,255,0.68)', lineHeight:1.5, marginBottom: estimate.risks ? '.5rem' : '1.1rem' }}>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.95rem', color:'rgba(255,255,255,0.68)', lineHeight:1.5, marginBottom:'.5rem' }}>
           {estimate.reasoning}
         </p>
+
+        {/* Flags */}
         {estimate.risks && (
-          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.06em', color:'rgba(200,140,80,0.7)', marginBottom:'1.1rem', lineHeight:1.5 }}>
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.06em', color:'rgba(200,140,80,0.7)', marginBottom:'.4rem', lineHeight:1.5 }}>
             ⚠ {estimate.risks}
+          </p>
+        )}
+        {estimate.priority_flag && (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.06em', color:'rgba(100,160,255,0.7)', marginBottom:'.4rem', lineHeight:1.5 }}>
+            ↑ {estimate.priority_flag}
+          </p>
+        )}
+        {estimate.contradiction_flag && (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.06em', color:'rgba(212,84,26,0.65)', marginBottom:'.4rem', lineHeight:1.5 }}>
+            ↺ {estimate.contradiction_flag}
           </p>
         )}
 
         {/* Actions */}
-        <div style={{ display:'flex', gap:'.5rem' }}>
+        <div style={{ display:'flex', gap:'.5rem', marginTop:'1rem' }}>
           <button onClick={onReject} style={{ flex:1, padding:'.6rem', background:'transparent', border:'1px solid rgba(212,84,26,0.28)', borderRadius:'3px', color:'rgba(212,84,26,0.6)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s', cursor:'pointer' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(212,84,26,0.6)'; e.currentTarget.style.color='var(--ember)' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(212,84,26,0.28)'; e.currentTarget.style.color='rgba(212,84,26,0.6)' }}>
             Reject
           </button>
-          <button onClick={onAskTed} style={{ flex:1, padding:'.6rem', background:'transparent', border:'1px solid rgba(200,180,140,0.18)', borderRadius:'3px', color:'rgba(200,180,140,0.5)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s', cursor:'pointer' }}
+          <button onClick={onAskSteward} style={{ flex:1, padding:'.6rem', background:'transparent', border:'1px solid rgba(200,180,140,0.18)', borderRadius:'3px', color:'rgba(200,180,140,0.5)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s', cursor:'pointer' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(200,180,140,0.45)'; e.currentTarget.style.color='rgba(200,180,140,0.85)' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(200,180,140,0.18)'; e.currentTarget.style.color='rgba(200,180,140,0.5)' }}>
-            Ask Ted
+            Ask Steward
           </button>
           <button onClick={onApprove} style={{ flex:2, padding:'.6rem', background: isGood ? 'rgba(80,160,80,0.1)' : 'rgba(255,255,255,0.025)', border:`1px solid ${isGood ? 'rgba(80,160,80,0.4)' : 'rgba(200,180,140,0.22)'}`, borderRadius:'3px', color: isGood ? 'rgba(80,160,80,0.9)' : 'rgba(200,180,140,0.65)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s', cursor:'pointer' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(80,160,80,0.65)'; e.currentTarget.style.color='rgba(100,200,100,0.95)' }}
@@ -720,7 +752,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, tedActive, tedAvatarState, isMobile, mobileMode, onMobileModeChange }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, isMobile, mobileMode, onMobileModeChange }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -827,9 +859,9 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
             <AvatarScribe size={28} state={scribeActive ? scribeState : 'idle'} />
           </div>
           <div
-            title={tedActive ? 'Ted — reviewing budget' : activeEnclaveId ? 'Ted — budget gatekeeper' : 'Ted — active in enclaves'}
-            style={{ opacity: tedActive ? 1 : activeEnclaveId ? 0.5 : 0.2, transition:'opacity .3s', borderRadius:'4px', boxShadow: tedActive ? '0 0 10px rgba(200,180,140,0.4)' : 'none' }}>
-            <AvatarTed size={28} state={tedAvatarState} />
+            title={stewardActive ? 'The Steward — reviewing' : activeEnclaveId ? 'The Steward — budget gatekeeper' : 'The Steward — active in enclaves'}
+            style={{ opacity: stewardActive ? 1 : activeEnclaveId ? 0.5 : 0.2, transition:'opacity .3s', borderRadius:'4px', boxShadow: stewardActive ? '0 0 10px rgba(200,180,140,0.4)' : 'none' }}>
+            <AvatarSteward size={28} state={stewardAvatarState} />
           </div>
         </div>
 
@@ -1165,25 +1197,25 @@ function VoiceFAB({ setNoteContent, chatHeight }) {
 }
 
 // ── Chat Message ──────────────────────────────────────────────────────────────
-function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, tedState }) {
+function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState }) {
   const role = msg.role === 'user' ? 'human' : msg.role
   const isArchitect = role === 'claude'
   const isSpark = role === 'gpt'
   const isScribe = role === 'scribe'
-  const isTed = role === 'ted'
-  const isAI = isArchitect || isSpark || isScribe || isTed
+  const isSteward = role === 'steward'
+  const isAI = isArchitect || isSpark || isScribe || isSteward
   const isReaction = !!msg.isReaction
-  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isTed ? AI.ted : null
+  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : null
   const prof = allProfiles?.find(p => p.id === msg.user_id)
   const isMe = msg.user_id === currentUserId
-  const baseLabel = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isTed ? AI.ted.label : (msg.display_name || prof?.display_name || 'Team')
+  const baseLabel = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : (msg.display_name || prof?.display_name || 'Team')
   const label = isReaction ? `${baseLabel} ↩` : baseLabel
 
   let avatar
   if (isArchitect)        avatar = <AvatarArchitect size={isReaction ? 22 : 26} state={architectState} />
   else if (isSpark)       avatar = <AvatarSpark size={isReaction ? 22 : 26} state={sparkState} />
   else if (isScribe)      avatar = <AvatarScribe size={26} state={scribeState} />
-  else if (isTed)         avatar = <AvatarTed size={26} state={tedState || 'idle'} />
+  else if (isSteward)     avatar = <AvatarSteward size={26} state={stewardState || 'idle'} />
   else if (isSmara(prof)) avatar = <AvatarSmara size={26} />
   else if (isMe)          avatar = <AvatarYou size={26} state={yourState} />
   else                    avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={26} />
@@ -1287,7 +1319,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, tedActive, tedState, focusMode, onFocusToggle, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, focusMode, onFocusToggle, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1322,10 +1354,10 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             {AI.scribe.label}
           </span>
         )}
-        {tedActive && (
-          <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.ted.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.ted.color, background:AI.ted.dim }}>
-            <AvatarTed size={16} state={tedState} />
-            Ted — reviewing
+        {stewardActive && (
+          <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.steward.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.steward.color, background:AI.steward.dim }}>
+            <AvatarSteward size={16} state={stewardState} />
+            The Steward — reviewing
           </span>
         )}
         <div style={{ flex:1 }} />
@@ -1358,7 +1390,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             {messages.map((msg, i) => (
               <ChatMessage key={msg.id || i} msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
                 onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
-                architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} tedState={tedState} />
+                architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} stewardState={stewardState} />
             ))}
             {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} />}
             <div ref={messagesEndRef} />
@@ -1479,15 +1511,15 @@ export default function Dashboard() {
   const [sleeping, setSleeping] = useState(false)
   const [scribeActive, setScribeActive] = useState(false)
   const [scribeState, setScribeState] = useState('idle')
-  const [tedAvatarState, setTedAvatarState] = useState('idle')
+  const [stewardAvatarState, setStewardAvatarState] = useState('idle')
   const [focusMode, setFocusMode] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMode, setMobileMode] = useState('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Ted
-  const [awaitingTedEstimate, setAwaitingTedEstimate] = useState(false)
-  const [tedEstimate, setTedEstimate] = useState(null)
+  // Steward
+  const [awaitingStewardEstimate, setAwaitingStewardEstimate] = useState(false)
+  const [stewardEstimate, setStewardEstimate] = useState(null)
   const pendingBuildRef = useRef(null)
 
   // Enclaves
@@ -2062,25 +2094,25 @@ export default function Dashboard() {
 
     const { noteContext, publicNotes } = await buildNoteContext()
 
-    // ── Ted interception: build intent in enclave context ──
+    // ── Steward interception: build intent in enclave context ──
     if (activeEnclaveIdRef.current && SCRIBE_TRIGGER_RE.test(content)) {
-      setTedAvatarState('thinking')
+      setStewardAvatarState('thinking')
       try {
         const { budget_cents } = await getEnclaveBudget(activeEnclaveIdRef.current)
         const spentCents = budget_cents != null ? await getEnclaveSpend(activeEnclaveIdRef.current) : 0
-        const res = await fetch(`${API_BASE}/api/chat/ted`, {
+        const res = await fetch(`${API_BASE}/api/chat/steward`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ request: content, budgetCents: budget_cents, spentCents }),
         })
         const estimate = await res.json()
-        setTedEstimate(estimate)
-        setTedAvatarState(estimate.recommendation === 'approve' ? 'done' : estimate.recommendation === 'reject' ? 'rejected' : 'concern')
+        setStewardEstimate(estimate)
+        setStewardAvatarState(estimate.recommendation === 'approve' ? 'done' : estimate.recommendation === 'reject' ? 'rejected' : 'concern')
         pendingBuildRef.current = { content, noteContext, publicNotes }
-        setAwaitingTedEstimate(true)
+        setAwaitingStewardEstimate(true)
         setAiLocked(false)
         return
       } catch {
-        setTedAvatarState('idle')
+        setStewardAvatarState('idle')
         // fall through to normal AI call
       }
     }
@@ -2123,13 +2155,13 @@ export default function Dashboard() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
-  async function handleTedApprove() {
+  async function handleStewardApprove() {
     const pending = pendingBuildRef.current
     if (!pending) return
-    setAwaitingTedEstimate(false)
-    const currentEstimate = tedEstimate
-    setTedEstimate(null)
-    setTedAvatarState('idle')
+    setAwaitingStewardEstimate(false)
+    const currentEstimate = stewardEstimate
+    setStewardEstimate(null)
+    setStewardAvatarState('idle')
     pendingBuildRef.current = null
 
     // Log the build
@@ -2154,25 +2186,25 @@ export default function Dashboard() {
     setAiLocked(false)
   }
 
-  async function handleTedReject() {
-    setAwaitingTedEstimate(false)
-    setTedEstimate(null)
-    setTedAvatarState('idle')
+  async function handleStewardReject() {
+    setAwaitingStewardEstimate(false)
+    setStewardEstimate(null)
+    setStewardAvatarState('idle')
     pendingBuildRef.current = null
-    const rejectionMsg = "Not logging that one. Come back when the numbers make sense."
+    const rejectionMsg = "Rejected. The numbers don't support it — or the timing doesn't. Come back when one of those changes."
     const { data } = await getSupabase().from('messages').insert({
-      user_id: userRef.current?.id, display_name: 'Ted', content: rejectionMsg, role: 'ted',
+      user_id: userRef.current?.id, display_name: 'The Steward', content: rejectionMsg, role: 'steward',
       enclave_id: activeEnclaveIdRef.current,
     }).select().single()
     if (data) setMessages(prev => [...prev, data])
   }
 
-  function handleTedAskTed() {
-    setAwaitingTedEstimate(false)
-    setTedEstimate(null)
-    setTedAvatarState('idle')
+  function handleAskSteward() {
+    setAwaitingStewardEstimate(false)
+    setStewardEstimate(null)
+    setStewardAvatarState('idle')
     pendingBuildRef.current = null
-    setChatInput('Ted, ')
+    setChatInput('Steward, ')
     setChatExpanded(true)
   }
 
@@ -2387,9 +2419,9 @@ export default function Dashboard() {
         <ReminderCard phrase={reminderCard} noteTitle={noteTitle}
           onSave={saveReminder} onDismiss={() => setReminderCard(null)} />
       )}
-      {awaitingTedEstimate && tedEstimate && (
-        <TedEstimateCard estimate={tedEstimate} tedState={tedAvatarState}
-          onApprove={handleTedApprove} onReject={handleTedReject} onAskTed={handleTedAskTed} />
+      {awaitingStewardEstimate && stewardEstimate && (
+        <StewardEstimateCard estimate={stewardEstimate} stewardState={stewardAvatarState}
+          onApprove={handleStewardApprove} onReject={handleStewardReject} onAskSteward={handleAskSteward} />
       )}
       {pinToast && <div className="pin-toast">📌 Pinned to note</div>}
       {boardPinToast && <div className="pin-toast" style={{ bottom:'3.5rem' }}>🗂 Pinned to board</div>}
@@ -2413,8 +2445,8 @@ export default function Dashboard() {
         scribeAvailable={enclaveNotes.length > 0 && messages.length >= 3}
         scribeState={scribeState}
         onScribeSummon={summonScribe}
-        tedActive={awaitingTedEstimate}
-        tedAvatarState={tedAvatarState}
+        stewardActive={awaitingStewardEstimate}
+        stewardAvatarState={stewardAvatarState}
         isMobile={isMobile} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
         onSignOut={handleSignOut} />
 
@@ -2470,7 +2502,7 @@ export default function Dashboard() {
             activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
             sleeping={sleeping}
             scribeActive={scribeActive} scribeState={scribeState}
-            tedActive={awaitingTedEstimate} tedState={tedAvatarState}
+            stewardActive={awaitingStewardEstimate} stewardState={stewardAvatarState}
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
             isMobile={isMobile} />
         </>
