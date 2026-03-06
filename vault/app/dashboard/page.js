@@ -355,10 +355,46 @@ function CreateEnclaveModal({ onCreate, onClose }) {
 }
 
 // ── Enclave Settings Panel ────────────────────────────────────────────────────
-function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, onClose }) {
+function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }) {
+  const [members, setMembers] = useState([])
+  const [loadingMembers, setLoadingMembers] = useState(true)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState('')
+
+  async function fetchMembers() {
+    if (!enclave?.id) return
+    setLoadingMembers(true)
+    const sb = createClient()
+    const { data: membersData } = await sb.from('enclave_members')
+      .select('role, joined_at, user_id')
+      .eq('enclave_id', enclave.id)
+    const userIds = membersData?.map(m => m.user_id).filter(Boolean) || []
+    const { data: profilesData } = userIds.length
+      ? await sb.from('profiles').select('id, display_name, email').in('id', userIds)
+      : { data: [] }
+    const profileMap = Object.fromEntries((profilesData || []).map(p => [p.id, p]))
+    setMembers((membersData || []).map(m => ({ ...m, profiles: profileMap[m.user_id] || null })))
+    setLoadingMembers(false)
+  }
+
+  useEffect(() => { fetchMembers() }, [enclave?.id]) // eslint-disable-line
+
+  async function handleInvite() {
+    setInviting(true)
+    const r = await onInvite(inviteEmail)
+    if (r?.error) setInviteError(r.error)
+    else { setInviteEmail(''); fetchMembers() }
+    setInviting(false)
+  }
+
+  async function handleRemove(userId) {
+    await onRemove(userId)
+    fetchMembers()
+  }
+
+  const isOwner = members.find(m => m.profiles?.id && m.role === 'owner') // any owner can remove
+
   return (
     <div style={{ position:'fixed', inset:0, zIndex:8000, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
       <div style={{ width:'100%', maxWidth:'420px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.2)', borderRadius:'4px', padding:'2rem' }}>
@@ -369,44 +405,60 @@ function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, 
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--muted)', fontSize:'1.2rem', padding:'.25rem', lineHeight:1 }}>×</button>
         </div>
+
         <p className="panel-label" style={{ marginBottom:'.6rem' }}>Members</p>
         <div style={{ display:'flex', flexDirection:'column', gap:'.35rem', marginBottom:'1.25rem' }}>
-          {members.map(m => (
-            <div key={m.profiles?.id || m.user_id}
-              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.4rem .6rem', background:'rgba(255,255,255,0.02)', border:'1px solid var(--border)', borderRadius:'2px' }}>
-              <div>
-                <span style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--text)' }}>
-                  {m.profiles?.display_name || m.profiles?.email || 'Unknown'}
+          {loadingMembers && (
+            <p style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', color:'var(--muted)', letterSpacing:'.1em' }}>Loading…</p>
+          )}
+          {!loadingMembers && members.length === 0 && (
+            <p style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', color:'var(--muted)', letterSpacing:'.1em' }}>No members found</p>
+          )}
+          {members.map(m => {
+            const name = m.profiles?.display_name || m.profiles?.email || 'Unknown'
+            const initial = name[0]?.toUpperCase() || '?'
+            return (
+              <div key={m.user_id}
+                style={{ display:'flex', alignItems:'center', gap:'.65rem', padding:'.45rem .6rem', background:'rgba(255,255,255,0.02)', border:'1px solid var(--border)', borderRadius:'3px' }}>
+                {/* Initial circle */}
+                <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(212,84,26,0.15)', border:'1px solid rgba(212,84,26,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <span style={{ fontFamily:'var(--font-caveat)', fontSize:'.85rem', color:'var(--ember)', lineHeight:1 }}>{initial}</span>
+                </div>
+                {/* Name + role */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <span style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--text)', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {name}
+                  </span>
+                </div>
+                <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color: m.role === 'owner' ? 'var(--ember)' : 'var(--muted)', flexShrink:0 }}>
+                  {m.role}
                 </span>
-                <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color: m.role === 'owner' ? 'var(--ember)' : 'var(--muted)', marginLeft:'.5rem' }}>{m.role}</span>
+                {m.role !== 'owner' && (
+                  <button onClick={() => handleRemove(m.user_id)}
+                    style={{ background:'none', border:'none', color:'var(--muted)', fontSize:'.9rem', padding:'0 .15rem', lineHeight:1, transition:'color .15s', flexShrink:0 }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--ember)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}>×</button>
+                )}
               </div>
-              {m.role !== 'owner' && (
-                <button onClick={() => onRemove(m.profiles?.id)}
-                  style={{ background:'none', border:'none', color:'var(--muted)', fontSize:'.85rem', padding:'0 .2rem', lineHeight:1, transition:'color .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.color = 'var(--ember)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}>×</button>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
+
         <p className="panel-label" style={{ marginBottom:'.4rem' }}>Invite by email</p>
         <div style={{ display:'flex', gap:'.5rem', marginBottom:'.5rem' }}>
           <input type="email" value={inviteEmail}
             onChange={e => { setInviteEmail(e.target.value); setInviteError('') }}
+            onKeyDown={e => e.key === 'Enter' && inviteEmail.trim() && handleInvite()}
             placeholder="teammate@studio.com" className="vault-input"
             style={{ flex:1, fontSize:'.75rem' }} />
-          <button onClick={async () => {
-            setInviting(true)
-            const r = await onInvite(inviteEmail)
-            if (r?.error) setInviteError(r.error)
-            else setInviteEmail('')
-            setInviting(false)
-          }} disabled={!inviteEmail.trim() || inviting} className="vault-btn"
+          <button onClick={handleInvite}
+            disabled={!inviteEmail.trim() || inviting} className="vault-btn"
             style={{ padding:'.5rem .9rem', fontSize:'.48rem', borderColor:'var(--cyan)', color:'var(--cyan)' }}>
             {inviting ? '…' : 'Invite'}
           </button>
         </div>
         {inviteError && <p style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', color:'var(--ember)', marginBottom:'.75rem' }}>{inviteError}</p>}
+
         <div style={{ borderTop:'1px solid var(--border)', paddingTop:'.75rem', marginTop:'.25rem' }}>
           <button onClick={onDelete}
             style={{ background:'none', border:'none', color:'rgba(212,84,26,0.4)', fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'color .15s' }}
@@ -2013,7 +2065,7 @@ export default function Dashboard() {
 
   async function handleRemoveMember(userId) {
     await removeMember(getSupabase(), activeEnclaveId, userId)
-    setActiveEnclaveMembers(prev => prev.filter(m => m.profiles?.id !== userId))
+    setActiveEnclaveMembers(prev => prev.filter(m => m.user_id !== userId))
   }
 
   async function handleDeleteEnclave() {
@@ -2083,7 +2135,6 @@ export default function Dashboard() {
       {showEnclaveSettings && activeEnclaveId && (
         <EnclaveSettingsPanel
           enclave={enclaves.find(e => e.id === activeEnclaveId) || {}}
-          members={activeEnclaveMembers}
           onInvite={handleInviteMember}
           onRemove={handleRemoveMember}
           onDelete={handleDeleteEnclave}
