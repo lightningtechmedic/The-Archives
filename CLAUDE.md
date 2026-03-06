@@ -221,3 +221,35 @@ The Archive / The Vault is a cinematic idea center — a living document of prod
 The audience is small and trusted. This is not optimized for virality or SEO — it's optimized for the impression it leaves on the right person, at the right moment.
 
 Every design decision reinforces one principle: **restraint creates weight.**
+
+---
+
+## Vercel Deployment — Critical Rules
+
+### How routing works in this monorepo
+- `vercel.json` in the repo root uses a LEGACY `builds` array
+- Vercel explicitly **BANS** `basePath` in `next.config.js` when `builds` is present
+- Routing is handled by `vercel.json` routes, NOT by Next.js `basePath`
+- The route `{ "src": "/vault/(.*)", "dest": "vault/$1" }` handles all `/vault/*` routing at the edge
+
+### next.config.js must ONLY have:
+```js
+assetPrefix: '/vault'
+```
+
+### next.config.js must NEVER have:
+```js
+basePath: '/vault'  // ← BANNED — breaks build when builds array exists in vercel.json
+```
+
+### How it works
+- Vercel routes `/vault/dashboard` → `vault/dashboard` via `vercel.json` routes rule
+- `assetPrefix: '/vault'` ensures browser fetches `_next/static` bundles from the right path
+- No `basePath` needed — `vercel.json` handles all path remapping at the edge
+
+### If build fails, check in this order:
+1. Check vercel.com — is the deployment red or green?
+2. Read the EXACT error message — don't guess
+3. Check every import in modified files resolves to a real exported component
+4. Check `next.config.js` has NO `basePath`
+5. Never add `basePath` to `next.config.js` in this project
