@@ -17,6 +17,8 @@ import {
 } from '@/components/Avatars'
 import WelcomeModal from '@/components/WelcomeModal'
 import { createReactionEngine } from '@/lib/reactionEngine'
+import VoiceCapture from '@/components/VoiceCapture'
+import AudioPlayer from '@/components/AudioPlayer'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -419,7 +421,7 @@ function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, 
 }
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, isMobile, mobileMode, onMobileModeChange }) {
   const tbBtn = {
     display:'flex', alignItems:'center', gap:'.4rem',
     background:'transparent', border:'1px solid var(--border)', borderRadius:'4px',
@@ -442,11 +444,26 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           onSwitch={onEnclaveSwitch} onCreateNew={onCreateEnclave} onSettings={onEnclaveSettings} />
       </div>
 
-      {/* Center: note title */}
-      <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', maxWidth:'280px', pointerEvents:'none' }}>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center' }}>
-          {noteTitle || 'Untitled'}
-        </p>
+      {/* Center: note title (desktop) or mode toggle (mobile) */}
+      <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', pointerEvents: isMobile ? 'auto' : 'none' }}>
+        {isMobile ? (
+          <div style={{ display:'flex', gap:3 }}>
+            {[{ id:'dashboard', label:'Dashboard' }, { id:'voice', label:'🎙 Voice' }].map(opt => (
+              <button key={opt.id} onClick={() => onMobileModeChange(opt.id)} style={{
+                padding:'.28rem .65rem', borderRadius:'3px',
+                fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase',
+                background: mobileMode === opt.id ? 'var(--ember)' : 'transparent',
+                color: mobileMode === opt.id ? '#fff' : 'var(--muted)',
+                border: mobileMode === opt.id ? '1px solid transparent' : '1px solid rgba(212,84,26,0.4)',
+                transition:'all .2s', cursor:'pointer',
+              }}>{opt.label}</button>
+            ))}
+          </div>
+        ) : (
+          <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center', maxWidth:'280px' }}>
+            {noteTitle || 'Untitled'}
+          </p>
+        )}
       </div>
 
       {/* Right: actions */}
@@ -676,6 +693,12 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
         <textarea value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder="Note title…" rows={1}
           style={{ background:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'2.8rem', fontWeight:700, color:'var(--text)', lineHeight:1.1, padding:0, marginBottom:'1.5rem', flexShrink:0, overflow:'hidden' }}
           onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }} />
+
+        {/* Voice recording player — shown when note contains a voice recording */}
+        {(() => {
+          const m = noteContent.match(/\[voice-recording\]:\s*(https?:\/\/[^\s\n]+)/)
+          return m ? <AudioPlayer url={m[1]} /> : null
+        })()}
 
         {/* Body */}
         <textarea ref={contentRef} value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Start writing…" className="ruled-editor"
@@ -1108,6 +1131,8 @@ export default function Dashboard() {
   const [scribeActive, setScribeActive] = useState(false)
   const [scribeState, setScribeState] = useState('idle')
   const [focusMode, setFocusMode] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileMode, setMobileMode] = useState('dashboard')
 
   // Enclaves
   const [enclaves, setEnclaves] = useState([])
@@ -1239,6 +1264,14 @@ export default function Dashboard() {
         // Restore scribe active state from localStorage
         const savedScribe = typeof window !== 'undefined' ? localStorage.getItem('vault_scribe_active') : null
         if (savedScribe === 'true') { scribeActiveRef.current = true; setScribeActive(true) }
+
+        // Mobile detection + mode restore
+        const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768
+        setIsMobile(mobile)
+        if (mobile) {
+          const savedMode = localStorage.getItem('vault_mobile_mode') || 'dashboard'
+          setMobileMode(savedMode)
+        }
 
         setMounted(true)
 
@@ -1482,6 +1515,12 @@ export default function Dashboard() {
     pinPendingRef.current = false
     if (pinNote) noteCtx.content = (noteCtx.content || '') + '\n\n' + pinNote
     return { noteContext: noteCtx, publicNotes }
+  }
+
+  // ── Mobile mode ──
+  function setMobileModePersist(mode) {
+    setMobileMode(mode)
+    localStorage.setItem('vault_mobile_mode', mode)
   }
 
   // ── Focus mode ──
@@ -1889,6 +1928,7 @@ export default function Dashboard() {
         scribeAvailable={enclaveNotes.length > 0 && messages.length >= 3}
         scribeState={scribeState}
         onScribeSummon={summonScribe}
+        isMobile={isMobile} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
         onSignOut={async () => {
           reactionEngineRef.current?.destroy()
           clearTimeout(focusTimerRef.current)
@@ -1898,52 +1938,61 @@ export default function Dashboard() {
           window.location.href = '/vault/login'
         }} />
 
-      {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
-      <NotesDrawer open={notesOpen}
-        notes={activeEnclaveId ? filteredNotes.filter(n => noteVisibilityFromRecord(n) !== 'enclave') : filteredNotes}
-        sharedNotes={sharedNotes}
-        enclaveNotes={enclaveNotes.filter(n => !notesSearch || (n.title || '').toLowerCase().includes(notesSearch.toLowerCase()) || (n.content || '').toLowerCase().includes(notesSearch.toLowerCase()))}
-        activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
-        activeNoteId={activeNote?.id} reminders={reminders}
-        onOpen={openNote} onNew={newNote} onClose={() => setNotesOpen(false)}
-        search={notesSearch} setSearch={setNotesSearch} />
+      {isMobile && mobileMode === 'voice' ? (
+        <VoiceCapture
+          user={user}
+          enclaves={enclaves}
+          onOpenNote={note => { setMobileModePersist('dashboard'); openNote(note) }} />
+      ) : (
+        <>
+          {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
+          <NotesDrawer open={notesOpen}
+            notes={activeEnclaveId ? filteredNotes.filter(n => noteVisibilityFromRecord(n) !== 'enclave') : filteredNotes}
+            sharedNotes={sharedNotes}
+            enclaveNotes={enclaveNotes.filter(n => !notesSearch || (n.title || '').toLowerCase().includes(notesSearch.toLowerCase()) || (n.content || '').toLowerCase().includes(notesSearch.toLowerCase()))}
+            activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
+            activeNoteId={activeNote?.id} reminders={reminders}
+            onOpen={openNote} onNew={newNote} onClose={() => setNotesOpen(false)}
+            search={notesSearch} setSearch={setNotesSearch} />
 
-      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column' }}>
-        <FullScreenEditor
-          noteTitle={noteTitle} setNoteTitle={setNoteTitle}
-          noteContent={noteContent} setNoteContent={setNoteContent}
-          noteImages={noteImages} setNoteImages={setNoteImages}
-          noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
-          saveStatus={saveStatus} user={user} supabase={getSupabase()}
-          chatHeight={chatHeight} contentRef={contentRef}
-          detectedReminders={detectedReminders}
-          onReminderClick={phrase => setReminderCard(phrase)}
-          onImageUploaded={handleImageUploaded}
-          activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />
-      </div>
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column' }}>
+            <FullScreenEditor
+              noteTitle={noteTitle} setNoteTitle={setNoteTitle}
+              noteContent={noteContent} setNoteContent={setNoteContent}
+              noteImages={noteImages} setNoteImages={setNoteImages}
+              noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
+              saveStatus={saveStatus} user={user} supabase={getSupabase()}
+              chatHeight={chatHeight} contentRef={contentRef}
+              detectedReminders={detectedReminders}
+              onReminderClick={phrase => setReminderCard(phrase)}
+              onImageUploaded={handleImageUploaded}
+              activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />
+          </div>
 
-      <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
-        chatHeight={chatHeight} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
-        onDropToBoard={handleDropToBoard} />
+          <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
+            chatHeight={chatHeight} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
+            onDropToBoard={handleDropToBoard} />
 
-      <VoiceFAB setNoteContent={setNoteContent} chatHeight={chatHeight} />
+          <VoiceFAB setNoteContent={setNoteContent} chatHeight={chatHeight} />
 
-      <LatticeDrawer
-        expanded={chatExpanded} setExpanded={setChatExpanded}
-        messages={messages} chatInput={chatInput} setChatInput={setChatInput}
-        onSend={handleSend} onKeyDown={handleKeyDown}
-        thinking={thinking} aiLocked={aiLocked}
-        autoAI={autoAI} setAutoAI={setAutoAI}
-        onAskArchitect={() => askOne('claude')}
-        onAskSpark={() => askOne('gpt')}
-        allProfiles={allProfiles} currentUserId={user?.id}
-        onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
-        architectState={architectState} sparkState={sparkState} yourState={yourState}
-        noteTitle={noteTitle}
-        activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
-        sleeping={sleeping}
-        scribeActive={scribeActive} scribeState={scribeState}
-        focusMode={focusMode} onFocusToggle={toggleFocusMode} />
+          <LatticeDrawer
+            expanded={chatExpanded} setExpanded={setChatExpanded}
+            messages={messages} chatInput={chatInput} setChatInput={setChatInput}
+            onSend={handleSend} onKeyDown={handleKeyDown}
+            thinking={thinking} aiLocked={aiLocked}
+            autoAI={autoAI} setAutoAI={setAutoAI}
+            onAskArchitect={() => askOne('claude')}
+            onAskSpark={() => askOne('gpt')}
+            allProfiles={allProfiles} currentUserId={user?.id}
+            onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
+            architectState={architectState} sparkState={sparkState} yourState={yourState}
+            noteTitle={noteTitle}
+            activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
+            sleeping={sleeping}
+            scribeActive={scribeActive} scribeState={scribeState}
+            focusMode={focusMode} onFocusToggle={toggleFocusMode} />
+        </>
+      )}
     </div>
   )
 }
