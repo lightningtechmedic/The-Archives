@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const ROLE_CONFIG = {
   human:      { color: '#f0ece4', label: 'You' },
   claude:     { color: '#d4541a', label: 'Architect' },
@@ -19,7 +21,15 @@ const EDGE_STYLE = {
   approval: { stroke: 'rgba(80,200,100,0.38)',  width: 1,   dash: '2,4' },
 }
 
+const ARROW_FILL = {
+  reply:    'rgba(255,255,255,0.45)',
+  tension:  'rgba(255,96,96,0.5)',
+  approval: 'rgba(80,200,100,0.5)',
+}
+
 const WIDTH = 480
+const NODE_CAP = 200
+const NODE_TRIM = 20
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -53,46 +63,76 @@ function drawShape(d3, g, d) {
       .attr('fill', cfg.color).attr('opacity', 0.82)
       .attr('filter', `url(#ng-${d.role})`)
   }
-  g.append('text')
+  g.append('text').attr('class', 'node-label')
     .attr('text-anchor', 'middle').attr('dy', '0.35em')
     .attr('font-family', 'var(--font-mono)')
-    .attr('font-size', Math.max((d._r || d.r) * 0.72, 6))
+    .attr('font-size', Math.max(r * 0.72, 6))
     .attr('fill', 'rgba(0,0,0,0.72)')
     .attr('pointer-events', 'none')
     .text(cfg.label[0])
+  g.append('text').attr('class', 'node-preview')
+    .attr('text-anchor', 'middle').attr('y', r + 14)
+    .attr('font-family', 'var(--font-mono)')
+    .attr('font-size', 5.5)
+    .attr('fill', 'rgba(255,255,255,0.4)')
+    .attr('pointer-events', 'none')
+    .attr('opacity', 0)
+    .text((d.content || '').slice(0, 40) + ((d.content || '').length > 40 ? '…' : ''))
 }
 
 function setNodeRadius(d3, g, d, r) {
   if (d.role === 'steward') {
     g.select('rect').attr('x', -(r + 1)).attr('y', -(r + 1)).attr('width', (r + 1) * 2).attr('height', (r + 1) * 2)
   } else if (d.role === 'contrarian') {
-    const s = r + 2
-    g.select('polygon').attr('points', `0,${-s} ${s},0 0,${s} ${-s},0`)
+    g.select('polygon').attr('points', `0,${-(r + 2)} ${r + 2},0 0,${r + 2} ${-(r + 2)},0`)
   } else {
     g.select('circle').attr('r', r)
   }
+}
+
+function detectShape(nodes, edges) {
+  const n = nodes.filter(nd => !nd._ghost)
+  const e = edges
+  const avgConnections = e.length / Math.max(n.length, 1)
+  const hasTensionEdges = e.filter(ed => ed.type === 'tension').length >= 2
+  const sparkNode = n.find(nd => nd.role === 'gpt')
+  const sparkConnections = sparkNode ? e.filter(ed => {
+    const src = typeof ed.source === 'object' ? ed.source.id : ed.source
+    const tgt = typeof ed.target === 'object' ? ed.target.id : ed.target
+    return src === sparkNode.id || tgt === sparkNode.id
+  }).length : 0
+  const stewardIsRecent = n.length > 3 && n.slice(-3).some(nd => nd.role === 'steward')
+  if (hasTensionEdges) return 'CONTESTED'
+  if (stewardIsRecent) return 'CONVERGING'
+  if (sparkConnections > avgConnections * 1.8) return 'EXPANSIVE'
+  if (avgConnections > 2.5) return 'FOCUSED'
+  return 'OPEN'
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Neuron({ messages, open, onScrollToMessage }) {
   // ── Refs ──
-  const svgRef        = useRef(null)
-  const minimapRef    = useRef(null)
-  const simRef        = useRef(null)
-  const nodesRef      = useRef([])
-  const linksRef      = useRef([])
-  const nodeGroupRef  = useRef(null)   // D3 sel: <g> containing all node <g>
-  const linkGroupRef  = useRef(null)   // D3 sel: <g> containing all edge paths
-  const nodeElsRef    = useRef(null)   // D3 sel: current node elements (for RAF)
-  const linkPathsRef  = useRef(null)   // D3 sel: current base edge paths (for RAF)
-  const rafRef        = useRef(null)
-  const breathStartRef  = useRef(0)
-  const lastMsgTimeRef  = useRef(Date.now())
-  const graphOpRef      = useRef(1)
-  const prevMsgLenRef   = useRef(0)
-  const divideRef       = useRef({ adv: 0, contr: 0, advNode: null, contrNode: null })
-  const liveModeRef     = useRef(true)
+  const svgRef           = useRef(null)
+  const minimapRef       = useRef(null)
+  const simRef           = useRef(null)
+  const zoomRef          = useRef(null)
+  const zoomContainerRef = useRef(null)
+  const currentXfRef     = useRef(null)    // current D3 zoom transform
+  const nodesRef         = useRef([])
+  const linksRef         = useRef([])
+  const nodeGroupRef     = useRef(null)
+  const linkGroupRef     = useRef(null)
+  const nodeElsRef       = useRef(null)
+  const linkPathsRef     = useRef(null)
+  const rafRef           = useRef(null)
+  const breathStartRef   = useRef(0)
+  const lastMsgTimeRef   = useRef(Date.now())
+  const graphOpRef       = useRef(1)
+  const divideRef        = useRef({ adv: 0, contr: 0, advNode: null, contrNode: null })
+  const liveModeRef      = useRef(true)
+  const hasOpenedRef     = useRef(false)   // stagger on first open only
+  const heightRef        = useRef(600)
 
   // ── State ──
   const [detail, setDetail]             = useState(null)
@@ -100,20 +140,25 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
   const [liveMode, setLiveMode]         = useState(true)
   const [snapshotTime, setSnapshotTime] = useState(null)
   const [rebuildKey, setRebuildKey]     = useState(0)
+  const [zoomLevel, setZoomLevel]       = useState(2)
+  const [shape, setShape]               = useState('OPEN')
+  const [hiddenCount, setHiddenCount]   = useState(0)
 
-  // Sync liveMode to ref (for use inside async callbacks)
   useEffect(() => { liveModeRef.current = liveMode }, [liveMode])
 
-  // ── Keyframe inject ──
+  // ── Keyframes inject ──
   useEffect(() => {
     if (document.getElementById('neuron-kf')) return
     const s = document.createElement('style')
     s.id = 'neuron-kf'
-    s.textContent = '@keyframes neuronSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}'
+    s.textContent = [
+      '@keyframes neuronSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}',
+      '@keyframes neuronEmptyBreathe{0%,100%{opacity:.3}50%{opacity:.6}}',
+    ].join('')
     document.head.appendChild(s)
   }, [])
 
-  // ── D3 ready poll ──
+  // ── D3 ready ──
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (window.d3) { setD3Ready(true); return }
@@ -121,23 +166,33 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     return () => clearInterval(id)
   }, [])
 
-  // ── Main build ─────────────────────────────────────────────────────────────
-  // Deps: open, d3Ready, rebuildKey — NOT messages (handled by live update effect)
+  // ── Keyboard shortcuts (1/2/3) when panel open ──
   useEffect(() => {
-    if (!open || !d3Ready || !svgRef.current) return
+    if (!open) return
+    function onKey(e) {
+      if (e.key === '1') setZoomLevel(1)
+      if (e.key === '2') setZoomLevel(2)
+      if (e.key === '3') setZoomLevel(3)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  // ── Main build ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!open || !d3Ready || !svgRef.current || messages.length < 3) return
     const d3 = window.d3
     const HEIGHT = svgRef.current.parentElement?.clientHeight || window.innerHeight - 44
+    heightRef.current = HEIGHT
 
     if (simRef.current) { simRef.current.stop(); simRef.current = null }
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
     d3.select(svgRef.current).selectAll('*').remove()
+    divideRef.current = { adv: 0, contr: 0, advNode: null, contrNode: null }
 
-    // Snapshot of messages at build time
-    const msgSnap = messages
-
-    // Build node/link data
+    const snap = messages
     const nodeMap = new Map()
-    const nodes = msgSnap.map(m => {
+    const nodes = snap.map(m => {
       const n = {
         id: m.id, role: m.role || 'human',
         content: m.content || '', display_name: m.display_name || m.role,
@@ -164,7 +219,6 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     }
     linksRef.current = links
 
-    // Influence sizing
     const influence = new Map()
     for (const l of links) {
       const t = typeof l.target === 'object' ? l.target.id : l.target
@@ -172,14 +226,21 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     }
     for (const n of nodes) n._r = n.r + Math.min((influence.get(n.id) || 0) * 1.5, 6)
 
-    prevMsgLenRef.current = msgSnap.length
-    divideRef.current = { adv: 0, contr: 0, advNode: null, contrNode: null }
+    setShape(detectShape(nodes, links))
 
     // SVG
     const svg = d3.select(svgRef.current).attr('width', WIDTH).attr('height', HEIGHT)
 
-    // Defs: glow filters + Room Divides gradient
+    // ── Defs ──
     const defs = svg.append('defs')
+
+    // Radial gradient background
+    const bgGrad = defs.append('radialGradient').attr('id', 'ng-bg')
+      .attr('cx', '50%').attr('cy', '50%').attr('r', '70%')
+    bgGrad.append('stop').attr('offset', '0%').attr('stop-color', '#0f0e0c')
+    bgGrad.append('stop').attr('offset', '100%').attr('stop-color', '#080706')
+
+    // Glow filters
     Object.keys(ROLE_CONFIG).forEach(role => {
       const f = defs.append('filter').attr('id', `ng-${role}`)
         .attr('x', '-60%').attr('y', '-60%').attr('width', '220%').attr('height', '220%')
@@ -188,46 +249,75 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       fm.append('feMergeNode').attr('in', 'blur')
       fm.append('feMergeNode').attr('in', 'SourceGraphic')
     })
+
+    // Arrowhead markers per edge type
+    Object.entries(ARROW_FILL).forEach(([type, fill]) => {
+      defs.append('marker').attr('id', `arr-${type}`)
+        .attr('markerWidth', 4).attr('markerHeight', 4)
+        .attr('refX', 3).attr('refY', 2).attr('orient', 'auto')
+        .append('path').attr('d', 'M0,0 L0,4 L4,2 z').attr('fill', fill)
+    })
+
+    // Room Divides gradient
     const grad = defs.append('linearGradient').attr('id', 'ng-divide-grad')
       .attr('gradientUnits', 'userSpaceOnUse')
-    grad.append('stop').attr('offset', '0%').attr('stop-color', '#b8856a')  // brass advocate side
-    grad.append('stop').attr('offset', '100%').attr('stop-color', '#c44e18') // ember contrarian side
+    grad.append('stop').attr('offset', '0%').attr('stop-color', '#b8856a')
+    grad.append('stop').attr('offset', '100%').attr('stop-color', '#c44e18')
 
-    // Socra field
-    svg.append('circle')
+    // Background rect (outside zoom — stays fixed)
+    svg.append('rect').attr('width', WIDTH).attr('height', HEIGHT)
+      .attr('fill', 'url(#ng-bg)').attr('pointer-events', 'none')
+
+    // ── Zoom container ──
+    const zoomContainer = svg.append('g').attr('id', 'ng-zc')
+    zoomContainerRef.current = zoomContainer
+    currentXfRef.current = d3.zoomIdentity
+
+    const zoomBehavior = d3.zoom()
+      .scaleExtent([0.1, 6])
+      .on('zoom', event => {
+        zoomContainer.attr('transform', event.transform)
+        currentXfRef.current = event.transform
+      })
+    svg.call(zoomBehavior)
+    zoomRef.current = zoomBehavior
+
+    // ── Socra field (inside zoom container) ──
+    zoomContainer.append('circle')
       .attr('cx', WIDTH / 2).attr('cy', HEIGHT / 2).attr('r', 120)
       .attr('fill', 'none').attr('stroke', 'rgba(200,160,96,0.1)')
       .attr('stroke-width', 1).attr('stroke-dasharray', '3,5')
-    svg.append('circle')
+    zoomContainer.append('circle')
       .attr('cx', WIDTH / 2).attr('cy', HEIGHT / 2).attr('r', 4)
       .attr('fill', ROLE_CONFIG.socra.color).attr('opacity', 0.5)
       .attr('filter', 'url(#ng-socra)')
-    svg.append('text')
+    zoomContainer.append('text')
       .attr('x', WIDTH / 2 + 8).attr('y', HEIGHT / 2 + 3)
       .attr('font-family', 'var(--font-mono)').attr('font-size', 7)
       .attr('fill', 'rgba(200,160,96,0.45)').attr('letter-spacing', '0.12em')
       .text('SOCRA')
 
-    // Edges
-    const linkG = svg.append('g')
+    // ── Edges ──
+    const linkG = zoomContainer.append('g')
     linkGroupRef.current = linkG
     const linkPaths = linkG.selectAll('path').data(links).enter().append('path')
       .attr('fill', 'none')
       .attr('stroke', d => (EDGE_STYLE[d.type] || EDGE_STYLE.reply).stroke)
       .attr('stroke-width', d => (EDGE_STYLE[d.type] || EDGE_STYLE.reply).width)
       .attr('stroke-dasharray', d => (EDGE_STYLE[d.type] || EDGE_STYLE.reply).dash)
+      .attr('marker-end', d => `url(#arr-${d.type || 'reply'})`)
       .attr('opacity', 0.65)
     linkPathsRef.current = linkPaths
 
-    // Nodes
-    const nodeG = svg.append('g')
+    // ── Nodes ──
+    const nodeG = zoomContainer.append('g')
     nodeGroupRef.current = nodeG
     const nodeEls = nodeG.selectAll('g').data(nodes).enter().append('g').style('cursor', 'pointer')
     nodeEls.each(function(d) { drawShape(d3, d3.select(this), d) })
     attachInteractions(d3, nodeEls)
     nodeElsRef.current = nodeEls
 
-    // Simulation
+    // ── Simulation ──
     const sim = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(links).id(d => d.id).distance(72).strength(0.5))
       .force('charge', d3.forceManyBody().strength(-95))
@@ -237,7 +327,7 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     simRef.current = sim
 
     function tick() {
-      const all = nodesRef.current
+      const all = nodesRef.current.filter(n => !n._ghost)
       for (const n of all) {
         const r = n._r + 5
         n.x = Math.max(r, Math.min(WIDTH - r, n.x))
@@ -249,7 +339,7 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       nodeGroupRef.current?.selectAll('g').each(function(d) {
         if (d?.x != null) d3.select(this).attr('transform', `translate(${d.x},${d.y})`)
       })
-      updateMinimap(nodesRef.current, WIDTH, HEIGHT)
+      updateMinimap()
     }
     sim.on('tick', tick)
 
@@ -259,41 +349,44 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null })
     nodeEls.call(drag)
 
+    // ── Staggered entrance (first open only) ──
+    if (!hasOpenedRef.current) {
+      hasOpenedRef.current = true
+      const staggerDelay = Math.min(40, 1200 / Math.max(nodes.length, 1))
+      nodeEls.attr('opacity', 0).each(function(_, i) {
+        d3.select(this).transition().delay(i * staggerDelay).duration(300).attr('opacity', 1)
+      })
+    }
+
     // ── Breathing RAF ──
     breathStartRef.current = performance.now()
-
     function breathe(ts) {
       if (!svgRef.current) return
       const t = ts - breathStartRef.current
       const silentMs = Date.now() - lastMsgTimeRef.current
       const isSilent = silentMs > 90000
       const divisor = isSilent ? 6000 : 3000
-
-      // Silence dimming — drift opacity over ~200 frames
       const targetOp = isSilent ? 0.6 : 1.0
       graphOpRef.current += (targetOp - graphOpRef.current) * (isSilent ? 0.004 : 0.04)
       if (Math.abs(graphOpRef.current - targetOp) > 0.002) {
         d3.select(svgRef.current).attr('opacity', graphOpRef.current)
       }
-
-      // Node breathing — per node, staggered phase
       if (nodeElsRef.current) {
         let i = 0
         nodeElsRef.current.each(function(d) {
-          const breathAmt = Math.sin(t / divisor + i * 0.4) * 1.2
-          setNodeRadius(d3, d3.select(this), d, (d._r || d.r) + breathAmt)
+          if (!d._ghost) {
+            const breathAmt = Math.sin(t / divisor + i * 0.4) * 1.2
+            setNodeRadius(d3, d3.select(this), d, (d._r || d.r) + breathAmt)
+          }
           i++
         })
       }
-
-      // Edge opacity breathing (base edges only, skip custom-pinned ones)
       if (linkPathsRef.current) {
         const edgeOp = 0.35 + Math.sin(t / divisor) * 0.08
         linkPathsRef.current.each(function(d) {
-          if (!d?._pinOpacity) d3.select(this).attr('opacity', edgeOp + 0.3)
+          if (!d?._ghost && !d?._pinOpacity) d3.select(this).attr('opacity', edgeOp + 0.3)
         })
       }
-
       rafRef.current = requestAnimationFrame(breathe)
     }
     rafRef.current = requestAnimationFrame(breathe)
@@ -306,38 +399,99 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
 
   // ── Live update effect ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!open || !d3Ready || !simRef.current) return
-    const newMsgs = messages.slice(prevMsgLenRef.current)
-    if (!newMsgs.length) return
+    if (!open || !d3Ready || !simRef.current || !liveModeRef.current) return
+    if (messages.length < 3) return
 
-    // Restore from silence on any new message
+    const existingIds = new Set(nodesRef.current.map(n => n.id))
+    const newMessages = messages.filter(m => !existingIds.has(m.id))
+    if (!newMessages.length) return
+
     lastMsgTimeRef.current = Date.now()
     graphOpRef.current = 1.0
 
-    if (!liveModeRef.current) {
-      // In paused mode: just advance the cursor so we don't double-process on resume
-      prevMsgLenRef.current = messages.length
-      return
-    }
-
     const d3 = window.d3
-    const HEIGHT = svgRef.current?.parentElement?.clientHeight || 600
+    const HEIGHT = heightRef.current
     const nodeMap = new Map(nodesRef.current.map(n => [n.id, n]))
 
-    for (const msg of newMsgs) {
-      if (nodeMap.has(msg.id)) continue
+    for (const msg of newMessages) {
       addLiveNode(d3, msg, nodeMap, HEIGHT)
     }
-    prevMsgLenRef.current = messages.length
-  }, [messages]) // eslint-disable-line
+
+    // Node cap enforcement
+    const activeCount = nodesRef.current.filter(n => !n._ghost).length
+    if (activeCount > NODE_CAP) trimOldNodes(d3)
+
+    setShape(detectShape(nodesRef.current, linksRef.current))
+    simRef.current?.alpha(0.3).restart()
+  }, [messages, liveMode]) // eslint-disable-line
+
+  // ── Zoom level effect ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!open || !d3Ready || !svgRef.current || !zoomRef.current) return
+    const d3 = window.d3
+    const svg = d3.select(svgRef.current)
+    const HEIGHT = heightRef.current
+
+    if (zoomLevel === 1) {
+      const nodes = nodesRef.current.filter(n => !n._ghost && n.x)
+      if (nodes.length) {
+        const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y)
+        const minX = Math.min(...xs) - 24, maxX = Math.max(...xs) + 24
+        const minY = Math.min(...ys) - 24, maxY = Math.max(...ys) + 24
+        const scale = Math.min(WIDTH / (maxX - minX), HEIGHT / (maxY - minY)) * 0.85
+        const tx = WIDTH / 2 - ((minX + maxX) / 2) * scale
+        const ty = HEIGHT / 2 - ((minY + maxY) / 2) * scale
+        svg.transition().duration(600).call(zoomRef.current.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
+      }
+      nodeGroupRef.current?.selectAll('.node-label').attr('opacity', 0)
+      nodeGroupRef.current?.selectAll('.node-preview').attr('opacity', 0)
+      nodeGroupRef.current?.selectAll('g').each(function() {
+        d3.select(this).select('circle,rect,polygon').attr('transform', 'scale(0.8)')
+      })
+    } else if (zoomLevel === 2) {
+      svg.transition().duration(600).call(zoomRef.current.transform, d3.zoomIdentity)
+      nodeGroupRef.current?.selectAll('.node-label').attr('opacity', 1)
+      nodeGroupRef.current?.selectAll('.node-preview').attr('opacity', 0)
+      nodeGroupRef.current?.selectAll('g').each(function() {
+        d3.select(this).select('circle,rect,polygon').attr('transform', 'scale(1)')
+      })
+    } else if (zoomLevel === 3) {
+      svg.transition().duration(600).call(zoomRef.current.transform, d3.zoomIdentity.scale(1.8))
+      nodeGroupRef.current?.selectAll('.node-label').attr('opacity', 1)
+      nodeGroupRef.current?.selectAll('.node-preview').attr('opacity', 0.7)
+      nodeGroupRef.current?.selectAll('g').each(function() {
+        d3.select(this).select('circle,rect,polygon').attr('transform', 'scale(1)')
+      })
+    }
+  }, [zoomLevel, open, d3Ready]) // eslint-disable-line
+
+  // ── Minimap click → pan ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const canvas = minimapRef.current
+    if (!canvas) return
+    function onMinimapClick(e) {
+      if (!zoomRef.current || !svgRef.current || !d3Ready) return
+      const d3 = window.d3
+      const rect = canvas.getBoundingClientRect()
+      const mx = (e.clientX - rect.left) / 80
+      const my = (e.clientY - rect.top) / 60
+      const HEIGHT = heightRef.current
+      const targetX = mx * WIDTH, targetY = my * HEIGHT
+      const t = currentXfRef.current || d3.zoomIdentity
+      d3.select(svgRef.current).transition().duration(300)
+        .call(zoomRef.current.transform,
+          d3.zoomIdentity.translate(WIDTH / 2 - targetX * t.k, HEIGHT / 2 - targetY * t.k).scale(t.k))
+    }
+    canvas.style.cursor = 'crosshair'
+    canvas.addEventListener('click', onMinimapClick)
+    return () => canvas.removeEventListener('click', onMinimapClick)
+  }, [d3Ready])
 
   // ── addLiveNode ─────────────────────────────────────────────────────────────
   function addLiveNode(d3, msg, nodeMap, HEIGHT) {
     const sim = simRef.current
-    if (!sim || !svgRef.current || !nodeGroupRef.current) return
+    if (!sim || !nodeGroupRef.current) return
     const isSocra = msg.role === 'socra'
-
-    // Build node datum
     const baseR = msg.role === 'human' ? 7 : (msg.isReaction ? 5 : 9)
     const n = {
       id: msg.id, role: msg.role || 'human',
@@ -350,31 +504,24 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     if (isSocra) {
       n.x = WIDTH / 2; n.y = HEIGHT / 2
     } else {
-      // Entry from top edge, nearest to source cluster centroid
-      const clusterNodes = nodesRef.current.filter(nd => nd.role === msg.role)
+      const cluster = nodesRef.current.filter(nd => nd.role === msg.role && !nd._ghost)
       const sourceNode = msg.replyToId ? nodeMap.get(msg.replyToId) : null
-      let entryX = WIDTH / 2
-      if (clusterNodes.length > 0) {
-        entryX = clusterNodes.reduce((s, nd) => s + nd.x, 0) / clusterNodes.length
-      } else if (sourceNode) {
-        entryX = sourceNode.x
-      }
-      n.x = Math.max(20, Math.min(WIDTH - 20, entryX)) + (Math.random() - 0.5) * 30
+      let ex = WIDTH / 2
+      if (cluster.length) ex = cluster.reduce((s, nd) => s + nd.x, 0) / cluster.length
+      else if (sourceNode) ex = sourceNode.x
+      n.x = Math.max(20, Math.min(WIDTH - 20, ex)) + (Math.random() - 0.5) * 30
       n.y = 0
     }
 
-    // Influence sizing
-    const inboundCount = linksRef.current.filter(l => {
+    const inbound = linksRef.current.filter(l => {
       const t = typeof l.target === 'object' ? l.target.id : l.target
       return t === n.id
     }).length
-    n._r = n.r + Math.min(inboundCount * 1.5, 6)
+    n._r = n.r + Math.min(inbound * 1.5, 6)
 
-    // Register in data structures
     nodesRef.current = [...nodesRef.current, n]
     nodeMap.set(n.id, n)
 
-    // Build new link if applicable
     let newLinkEl = null
     if (n.replyToId && nodeMap.has(n.replyToId)) {
       let type = 'reply'
@@ -389,70 +536,74 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
         .attr('stroke', (EDGE_STYLE[type] || EDGE_STYLE.reply).stroke)
         .attr('stroke-width', (EDGE_STYLE[type] || EDGE_STYLE.reply).width)
         .attr('stroke-dasharray', (EDGE_STYLE[type] || EDGE_STYLE.reply).dash)
+        .attr('marker-end', `url(#arr-${type})`)
         .attr('opacity', 0)
       linkPathsRef.current = linkGroupRef.current.selectAll('path')
     }
 
-    // Add DOM node
-    const newNodeEl = nodeGroupRef.current.append('g').datum(n).style('cursor', 'pointer')
+    const newNodeEl = nodeGroupRef.current.append('g').datum(n).style('cursor', 'pointer').attr('opacity', 0)
     drawShape(d3, newNodeEl, n)
     attachInteractions(d3, newNodeEl)
     nodeElsRef.current = nodeGroupRef.current.selectAll('g')
 
-    // Update simulation
-    sim.nodes(nodesRef.current)
+    sim.nodes(nodesRef.current.filter(nd => !nd._ghost))
     sim.force('link').links(linksRef.current)
-    sim.alpha(0.3).restart()
 
-    // Fade in new link
     if (newLinkEl) newLinkEl.transition().duration(400).attr('opacity', 0.65)
 
     if (isSocra) {
-      newNodeEl.attr('opacity', 0).transition().duration(600).attr('opacity', 1)
+      newNodeEl.transition().duration(600).attr('opacity', 1)
       doSocraDrift(d3, n, nodesRef.current, sim)
     } else {
-      // Entry animation: fade + drift from entry edge
-      newNodeEl.attr('opacity', 0)
-      const targetX = n.x, targetY = n.y
-      const startX = n.x, startY = n.y
       let startTs = null
-
       function animateArrival(ts) {
         if (!startTs) startTs = ts
         const p = Math.min((ts - startTs) / 800, 1)
-        const ease = 1 - Math.pow(1 - p, 3)
-        newNodeEl.attr('opacity', ease)
+        newNodeEl.attr('opacity', 1 - Math.pow(1 - p, 3))
         if (p < 1) { requestAnimationFrame(animateArrival); return }
-
-        // Landed
-        emitRipple(d3, svgRef.current, n)
+        emitRipple(d3, n)
         shiftAdjacent(nodesRef.current, n, 4)
-
-        // Special: Steward approval
-        if (msg.role === 'scribe' && msg.approvedByStewId) {
-          doStewardApproval(d3, n, nodesRef.current, newLinkEl)
-        }
-
-        // Special: Contrarian tension
-        if (n.role === 'contrarian') {
-          doContrarianTension(d3, n, newLinkEl, nodesRef.current, svgRef.current)
-        }
-
-        // Room Divides tracking
+        if (msg.role === 'scribe' && msg.approvedByStewId) doStewardApproval(d3, n, nodesRef.current, newLinkEl)
+        if (n.role === 'contrarian') doContrarianTension(d3, n, newLinkEl, nodesRef.current)
         const now = Date.now()
-        if (n.role === 'advocate') {
-          divideRef.current.adv = now; divideRef.current.advNode = n
-        } else if (n.role === 'contrarian') {
-          divideRef.current.contr = now; divideRef.current.contrNode = n
-        }
+        if (n.role === 'advocate') { divideRef.current.adv = now; divideRef.current.advNode = n }
+        if (n.role === 'contrarian') { divideRef.current.contr = now; divideRef.current.contrNode = n }
         const { adv, contr, advNode, contrNode } = divideRef.current
         if (adv && contr && Math.abs(adv - contr) < 3000 && advNode && contrNode) {
-          doRoomDivides(d3, advNode, contrNode, svgRef.current)
+          doRoomDivides(d3, advNode, contrNode)
           divideRef.current = { adv: 0, contr: 0, advNode: null, contrNode: null }
         }
       }
       requestAnimationFrame(animateArrival)
     }
+  }
+
+  // ── trimOldNodes ────────────────────────────────────────────────────────────
+  function trimOldNodes(d3) {
+    const active = nodesRef.current.filter(n => !n._ghost)
+    const toRemove = active.slice(0, NODE_TRIM)
+    const removeIds = new Set(toRemove.map(n => n.id))
+    for (const n of toRemove) n._ghost = true
+    for (const l of linksRef.current) {
+      const src = typeof l.source === 'object' ? l.source.id : l.source
+      const tgt = typeof l.target === 'object' ? l.target.id : l.target
+      if (removeIds.has(src) || removeIds.has(tgt)) l._ghost = true
+    }
+    const ghostCount = nodesRef.current.filter(n => n._ghost).length
+    setHiddenCount(ghostCount)
+    simRef.current?.nodes(nodesRef.current.filter(n => !n._ghost))
+    nodeGroupRef.current?.selectAll('g').each(function(d) {
+      if (removeIds.has(d.id)) d3.select(this).attr('opacity', 0).style('pointer-events', 'none')
+    })
+    linkGroupRef.current?.selectAll('path').each(function(d) {
+      if (d._ghost) d3.select(this).attr('opacity', 0.1).attr('stroke-dasharray', '2,4')
+    })
+    // Ghost edge click: show "Earlier in conversation" preview
+    linkGroupRef.current?.selectAll('path').filter(d => d._ghost).on('click', function(event, d) {
+      event.stopPropagation()
+      const tgt = typeof d.target === 'object' ? d.target : nodesRef.current.find(n => n.id === d.target)
+      if (tgt) setDetail({ ...tgt, _ghostPreview: true })
+    })
   }
 
   // ── Animation helpers ───────────────────────────────────────────────────────
@@ -479,32 +630,27 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     }
   }
 
-  function emitRipple(d3, svgEl, node) {
+  function emitRipple(d3, node) {
+    if (!zoomContainerRef.current) return
     const r0 = node._r
-    d3.select(svgEl).append('circle')
+    zoomContainerRef.current.append('circle')
       .attr('cx', node.x).attr('cy', node.y).attr('r', r0)
       .attr('fill', 'none')
       .attr('stroke', ROLE_CONFIG[node.role]?.color || '#fff')
       .attr('stroke-width', 1.5).attr('opacity', 0.3)
       .attr('pointer-events', 'none')
-      .transition().duration(600)
-      .attr('r', r0 * 4).attr('opacity', 0)
-      .remove()
+      .transition().duration(600).attr('r', r0 * 4).attr('opacity', 0).remove()
   }
 
-  function shiftAdjacent(nodes, arrivedNode, amt) {
+  function shiftAdjacent(nodes, arrived, amt) {
     for (const n of nodes) {
-      if (n.id === arrivedNode.id) continue
-      const dx = n.x - arrivedNode.x, dy = n.y - arrivedNode.y
+      if (n.id === arrived.id || n._ghost) continue
+      const dx = n.x - arrived.x, dy = n.y - arrived.y
       const dist = Math.sqrt(dx * dx + dy * dy)
       if (dist < 100 && dist > 0) {
-        n.vx += (dx / dist) * amt * 0.4
-        n.vy += (dy / dist) * amt * 0.4
+        n.vx += (dx / dist) * amt * 0.4; n.vy += (dy / dist) * amt * 0.4
         simRef.current?.alpha(0.1).restart()
-        setTimeout(() => {
-          n.vx -= (dx / dist) * amt * 0.4
-          n.vy -= (dy / dist) * amt * 0.4
-        }, 400)
+        setTimeout(() => { n.vx -= (dx / dist) * amt * 0.4; n.vy -= (dy / dist) * amt * 0.4 }, 400)
       }
     }
   }
@@ -516,50 +662,40 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       const decay = Math.max(0, 1 - (Date.now() - start) / 3000)
       if (decay === 0) { sim.force('socraDrift', null); return }
       for (const n of allNodes) {
-        if (n.id === socraN.id) continue
+        if (n.id === socraN.id || n._ghost) continue
         const dx = cx - n.x, dy = cy - n.y
         const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < 150 && dist > 0) {
-          n.vx += (dx / dist) * 0.08 * decay
-          n.vy += (dy / dist) * 0.08 * decay
-        }
+        if (dist < 150 && dist > 0) { n.vx += (dx / dist) * 0.08 * decay; n.vy += (dy / dist) * 0.08 * decay }
       }
     })
     sim.alpha(0.3).restart()
   }
 
-  function doContrarianTension(d3, contrN, linkEl, allNodes, svgEl) {
-    // Pulse edge stroke-width 3× (1.5 → 4 → 1.5)
+  function doContrarianTension(d3, contrN, linkEl, allNodes) {
     if (linkEl) {
       let count = 0
       function pulse() {
         if (count >= 3) { linkEl.attr('stroke-width', 1); return }
         count++
         linkEl.transition().duration(200).attr('stroke-width', 4)
-          .transition().duration(200).attr('stroke-width', 1.5)
-          .on('end', pulse)
+          .transition().duration(200).attr('stroke-width', 1.5).on('end', pulse)
       }
       pulse()
     }
-
-    // Wobble target node via velocity impulse
     const targetNode = allNodes.find(n => n.id === contrN.replyToId)
     if (targetNode) {
       const sim = simRef.current
       targetNode.vx += 3; sim?.alpha(0.1).restart()
       setTimeout(() => { targetNode.vx -= 6; sim?.alpha(0.05).restart() }, 150)
       setTimeout(() => { targetNode.vx += 6; sim?.alpha(0.05).restart() }, 300)
-      setTimeout(() => { targetNode.vx -= 3; sim?.alpha(0.05).restart() }, 450)
+      setTimeout(() => { targetNode.vx -= 3 }, 450)
     }
-
-    // Steel arc to all Architect/Spark nodes, fades in 1.5s
-    const arcTargets = allNodes.filter(n => n.role === 'claude' || n.role === 'gpt')
-    const svg = d3.select(svgEl)
+    const arcTargets = allNodes.filter(n => (n.role === 'claude' || n.role === 'gpt') && !n._ghost)
+    if (!zoomContainerRef.current) return
     arcTargets.forEach(target => {
-      svg.append('path')
-        .attr('fill', 'none').attr('stroke', '#607080')
-        .attr('stroke-width', 1).attr('opacity', 0.15)
-        .attr('pointer-events', 'none')
+      zoomContainerRef.current.append('path')
+        .attr('fill', 'none').attr('stroke', '#607080').attr('stroke-width', 1)
+        .attr('opacity', 0.15).attr('pointer-events', 'none')
         .attr('d', () => {
           const mx = (contrN.x + target.x) / 2, my = (contrN.y + target.y) / 2
           const dx = target.x - contrN.x, dy = target.y - contrN.y
@@ -572,123 +708,115 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
 
   function doStewardApproval(d3, scribeN, allNodes, approvalLinkEl) {
     const stewardN = allNodes.find(n => n.role === 'steward')
-    if (!stewardN || !nodeGroupRef.current) return
+    if (!stewardN || !nodeGroupRef.current || !svgRef.current) return
     const svg = d3.select(svgRef.current)
-
-    // Steward node: brass glow pulse
     const stewardEl = nodeGroupRef.current.selectAll('g').filter(d => d?.id === stewardN.id)
     if (!stewardEl.empty()) {
-      const filterId = `ng-stw-pulse-${Date.now()}`
-      const f = svg.select('defs').append('filter').attr('id', filterId)
+      const fid = `ng-stw-pulse-${Date.now()}`
+      const f = svg.select('defs').append('filter').attr('id', fid)
         .attr('x', '-100%').attr('y', '-100%').attr('width', '300%').attr('height', '300%')
       f.append('feGaussianBlur').attr('stdDeviation', '14').attr('result', 'blur')
       const fm = f.append('feMerge')
       fm.append('feMergeNode').attr('in', 'blur')
       fm.append('feMergeNode').attr('in', 'SourceGraphic')
-      stewardEl.select('rect')
-        .attr('filter', `url(#${filterId})`)
+      stewardEl.select('rect').attr('filter', `url(#${fid})`)
         .transition().duration(400).attr('opacity', 1)
         .transition().duration(800).attr('opacity', 0.82)
-        .on('end', () => {
-          stewardEl.select('rect').attr('filter', 'url(#ng-steward)')
-          svg.select(`#${filterId}`).remove()
-        })
+        .on('end', () => { stewardEl.select('rect').attr('filter', 'url(#ng-steward)'); svg.select(`#${fid}`).remove() })
     }
-
-    // Self-drawing approval edge via stroke-dashoffset
     if (approvalLinkEl) {
       try {
-        const pathEl = approvalLinkEl.node()
-        const length = pathEl.getTotalLength?.() || 160
-        approvalLinkEl
-          .attr('stroke-dasharray', length).attr('stroke-dashoffset', length).attr('opacity', 0.7)
+        const length = approvalLinkEl.node().getTotalLength?.() || 160
+        approvalLinkEl.attr('stroke-dasharray', length).attr('stroke-dashoffset', length).attr('opacity', 0.7)
           .transition().duration(600).attr('stroke-dashoffset', 0)
           .on('end', () => approvalLinkEl.attr('stroke-dasharray', null))
       } catch (_) {}
     }
-
-    // Scribe node: ink blue glow for 1s
     const scribeEl = nodeGroupRef.current.selectAll('g').filter(d => d?.id === scribeN.id)
     if (!scribeEl.empty()) {
-      scribeEl.select('circle')
-        .attr('fill', '#4080c0').attr('opacity', 1)
+      scribeEl.select('circle').attr('fill', '#4080c0').attr('opacity', 1)
         .transition().duration(1000).attr('opacity', 0.6)
-        .transition().duration(800)
-        .attr('fill', ROLE_CONFIG.scribe.color).attr('opacity', 0.82)
+        .transition().duration(800).attr('fill', ROLE_CONFIG.scribe.color).attr('opacity', 0.82)
     }
   }
 
-  function doRoomDivides(d3, advN, contrN, svgEl) {
+  function doRoomDivides(d3, advN, contrN) {
     const target = nodesRef.current.find(n => n.id === (advN.replyToId || contrN.replyToId))
     const baseX = target?.x || WIDTH / 2
-    const baseY = target?.y || (svgEl.clientHeight / 2)
-
-    // Force positions: advocate left, contrarian right
+    const baseY = target?.y || heightRef.current / 2
     advN.fx = baseX - 55; advN.fy = baseY
     contrN.fx = baseX + 55; contrN.fy = baseY
     setTimeout(() => { advN.fx = null; advN.fy = null; contrN.fx = null; contrN.fy = null }, 700)
     simRef.current?.alpha(0.4).restart()
-
-    const svg = d3.select(svgEl)
-    const divEdge = svg.append('path')
+    if (!zoomContainerRef.current || !svgRef.current) return
+    const svg = d3.select(svgRef.current)
+    const divEdge = zoomContainerRef.current.append('path')
       .attr('fill', 'none').attr('stroke', 'url(#ng-divide-grad)')
-      .attr('stroke-width', 1.5).attr('opacity', 0)
-      .attr('pointer-events', 'none')
+      .attr('stroke-width', 1.5).attr('opacity', 0).attr('pointer-events', 'none')
     divEdge.transition().duration(400).attr('opacity', 0.4)
-
     let pulseId
-    let pulseStart = performance.now()
-
-    function updateGradient() {
-      svg.select('#ng-divide-grad')
-        .attr('x1', advN.x).attr('y1', advN.y)
-        .attr('x2', contrN.x).attr('y2', contrN.y)
-    }
-
+    const pulseStart = performance.now()
     function pulseDivide(ts) {
       const t = ts - pulseStart
-      const op = 0.275 + Math.sin(t / 1000) * 0.125  // oscillates 0.15–0.4
-      divEdge.attr('opacity', Math.max(0.1, op))
+      divEdge.attr('opacity', 0.275 + Math.sin(t / 1000) * 0.125)
       divEdge.attr('d', () => {
         const mx = (advN.x + contrN.x) / 2, my = (advN.y + contrN.y) / 2
         const dx = contrN.x - advN.x, dy = contrN.y - advN.y
         const len = Math.sqrt(dx * dx + dy * dy) || 1
         return `M ${advN.x} ${advN.y} Q ${mx - (dy / len) * 20} ${my + (dx / len) * 20} ${contrN.x} ${contrN.y}`
       })
-      updateGradient()
-
-      // Check if either node gained a reply (influence > 0)
-      const check = (nid) => linksRef.current.some(l => {
+      svg.select('#ng-divide-grad').attr('x1', advN.x).attr('y1', advN.y).attr('x2', contrN.x).attr('y2', contrN.y)
+      const hasReply = (nid) => linksRef.current.some(l => {
         const t = typeof l.target === 'object' ? l.target.id : l.target
         return t === nid
       })
-      if (check(advN.id) || check(contrN.id)) {
-        divEdge.transition().duration(600).attr('opacity', 0).remove()
-        return
+      if (hasReply(advN.id) || hasReply(contrN.id)) {
+        divEdge.transition().duration(600).attr('opacity', 0).remove(); return
       }
       pulseId = requestAnimationFrame(pulseDivide)
     }
     pulseId = requestAnimationFrame(pulseDivide)
   }
 
-  function updateMinimap(nodes, svgW, svgH) {
+  function updateMinimap() {
     const canvas = minimapRef.current
-    if (!canvas || !nodes.length) return
+    if (!canvas) return
+    const nodes = nodesRef.current
     const ctx = canvas.getContext('2d')
     const W = 80, H = 60
+    const svgW = WIDTH, svgH = heightRef.current
     ctx.clearRect(0, 0, W, H)
-    ctx.fillStyle = 'rgba(8,7,6,0.85)'
+    ctx.fillStyle = 'rgba(8,7,6,0.88)'
     ctx.fillRect(0, 0, W, H)
     for (const n of nodes) {
-      const x = (n.x / svgW) * W
-      const y = (n.y / svgH) * H
+      if (n._ghost || n.x == null) continue
       ctx.beginPath()
-      ctx.arc(x, y, 2, 0, Math.PI * 2)
+      ctx.arc((n.x / svgW) * W, (n.y / svgH) * H, 2, 0, Math.PI * 2)
       ctx.fillStyle = ROLE_CONFIG[n.role]?.color || '#888'
       ctx.globalAlpha = 0.72
       ctx.fill()
     }
     ctx.globalAlpha = 1
+    // Viewport rect
+    const t = currentXfRef.current
+    if (t && t.k) {
+      const rx = (-t.x / t.k) * (W / svgW)
+      const ry = (-t.y / t.k) * (H / svgH)
+      const rw = (svgW / t.k) * (W / svgW)
+      const rh = (svgH / t.k) * (H / svgH)
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.fillRect(rx, ry, rw, rh)
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'
+      ctx.lineWidth = 0.5
+      ctx.strokeRect(rx, ry, rw, rh)
+    }
+    // Hidden node count indicator
+    const ghostCount = nodes.filter(n => n._ghost).length
+    if (ghostCount > 0) {
+      ctx.fillStyle = 'rgba(200,160,96,0.8)'
+      ctx.font = 'bold 7px monospace'
+      ctx.fillText(`+${ghostCount}`, 4, 10)
+    }
   }
 
   function handleLiveToggle() {
@@ -698,13 +826,15 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     } else {
       setLiveMode(true)
       setSnapshotTime(null)
-      setRebuildKey(k => k + 1)  // full rebuild with all missed messages
+      setRebuildKey(k => k + 1)
     }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if (!open) return null
+
+  const isEmpty = messages.length < 3
 
   return (
     <div style={{
@@ -713,21 +843,39 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       background: 'rgba(8,7,6,0.94)',
       backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
       borderLeft: '1px solid var(--border)',
-      zIndex: 2000,
-      display: 'flex', flexDirection: 'column',
+      zIndex: 2000, display: 'flex', flexDirection: 'column',
       animation: 'neuronSlideIn 0.28s var(--ease, cubic-bezier(.4,0,.2,1))',
     }}>
+
       {/* Header */}
       <div style={{ height: 44, padding: '0 1rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.55rem' }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(200,160,96,0.75)' }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.55rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--mid)' }}>The Neuron</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.42rem', letterSpacing: '.08em', color: 'var(--muted)' }}>topology</span>
+          <div>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.55rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--mid)' }}>The Neuron</span>
+            {!isEmpty && (
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.38rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(58,53,48,1)', marginTop: '.05rem' }}>{shape}</div>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}>
+          {/* Zoom buttons */}
+          {[{ k: 1, icon: '⊟' }, { k: 2, icon: '⊡' }, { k: 3, icon: '⊞' }].map(({ k, icon }) => (
+            <button key={k} onClick={() => setZoomLevel(k)} data-hover
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: '.42rem', letterSpacing: '.08em',
+                background: 'transparent',
+                border: `1px solid ${zoomLevel === k ? 'var(--ember)' : 'var(--border)'}`,
+                borderRadius: '2px', padding: '.18rem .38rem', cursor: 'none',
+                color: zoomLevel === k ? 'var(--ember)' : 'var(--muted)', transition: 'all .15s',
+              }}>
+              {icon} {k}
+            </button>
+          ))}
+          <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
           {!liveMode && snapshotTime && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.38rem', letterSpacing: '.06em', color: 'var(--muted)', opacity: .55 }}>
-              Snapshot — {snapshotTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.38rem', letterSpacing: '.05em', color: 'var(--muted)', opacity: .55 }}>
+              {snapshotTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           <button onClick={handleLiveToggle} data-hover
@@ -742,43 +890,71 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
             <span style={{ width: 4, height: 4, borderRadius: '50%', background: liveMode ? 'var(--green)' : 'var(--muted)', flexShrink: 0 }} />
             {liveMode ? 'Live' : 'Paused'}
           </button>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)' }}>{messages.length}</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
         </div>
       </div>
 
-      {/* Graph */}
+      {/* Graph area */}
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <svg ref={svgRef} style={{ display: 'block', width: '100%', height: '100%' }} />
-        {!d3Ready && (
+
+        {/* Empty state */}
+        {isEmpty && (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', flexDirection: 'column', gap: '.5rem',
+            pointerEvents: 'none',
+            animation: 'neuronEmptyBreathe 4s ease-in-out infinite',
+          }}>
+            <p style={{
+              fontFamily: 'Georgia, serif', fontStyle: 'italic',
+              fontSize: '14px', color: '#3a3530', textAlign: 'center', lineHeight: 1.7,
+            }}>
+              The conversation hasn't taken shape yet.<br />Keep thinking.
+            </p>
+          </div>
+        )}
+
+        {/* D3 loading */}
+        {!d3Ready && !isEmpty && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.5rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--muted)' }}>loading graph…</span>
           </div>
         )}
-        {messages.length === 0 && d3Ready && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <span style={{ fontFamily: 'var(--font-caveat)', fontSize: '1.4rem', color: 'var(--muted)', fontStyle: 'italic', opacity: .3 }}>No messages yet.</span>
+
+        {/* Legend */}
+        {!isEmpty && (
+          <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: '.28rem' }}>
+            {[
+              { label: 'reply',    stroke: EDGE_STYLE.reply.stroke,    dash: '' },
+              { label: 'tension',  stroke: EDGE_STYLE.tension.stroke,  dash: '4,3' },
+              { label: 'approval', stroke: EDGE_STYLE.approval.stroke, dash: '2,4' },
+            ].map(e => (
+              <div key={e.label} style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                <svg width={18} height={6}>
+                  <line x1={0} y1={3} x2={18} y2={3} stroke={e.stroke} strokeWidth={1.2} strokeDasharray={e.dash} />
+                </svg>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.36rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', opacity: .6 }}>{e.label}</span>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Legend */}
-        <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-          {[
-            { label: 'reply',    stroke: EDGE_STYLE.reply.stroke,    dash: '' },
-            { label: 'tension',  stroke: EDGE_STYLE.tension.stroke,  dash: '4,3' },
-            { label: 'approval', stroke: EDGE_STYLE.approval.stroke, dash: '2,4' },
-          ].map(e => (
-            <div key={e.label} style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-              <svg width={20} height={6}>
-                <line x1={0} y1={3} x2={20} y2={3} stroke={e.stroke} strokeWidth={1.2} strokeDasharray={e.dash} />
-              </svg>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.38rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', opacity: .7 }}>{e.label}</span>
-            </div>
-          ))}
-        </div>
-
         {/* Minimap */}
         <canvas ref={minimapRef} width={80} height={60}
-          style={{ position: 'absolute', bottom: 12, right: 12, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, opacity: 0.75 }} />
+          style={{ position: 'absolute', bottom: 12, right: 12, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, opacity: isEmpty ? 0 : 0.75 }} />
+
+        {/* Hidden node count badge */}
+        {hiddenCount > 0 && (
+          <div style={{
+            position: 'absolute', bottom: 80, right: 12,
+            fontFamily: 'var(--font-mono)', fontSize: '.4rem', letterSpacing: '.08em', textTransform: 'uppercase',
+            color: 'rgba(200,160,96,0.7)', background: 'rgba(8,7,6,0.8)',
+            border: '1px solid rgba(200,160,96,0.2)', borderRadius: '2px', padding: '.2rem .4rem',
+          }}>
+            +{hiddenCount} earlier
+          </div>
+        )}
       </div>
 
       {/* Detail panel */}
@@ -792,7 +968,7 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
               <div style={{ width: 5, height: 5, borderRadius: detail.role === 'contrarian' ? 0 : '50%', background: ROLE_CONFIG[detail.role]?.color || 'var(--muted)', transform: detail.role === 'contrarian' ? 'rotate(45deg)' : 'none' }} />
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.5rem', letterSpacing: '.12em', textTransform: 'uppercase', color: ROLE_CONFIG[detail.role]?.color || 'var(--text)' }}>
-                {detail.display_name}
+                {detail._ghostPreview ? 'Earlier in conversation' : detail.display_name}
               </span>
             </div>
             <button onClick={() => setDetail(null)}
@@ -801,24 +977,27 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
             </button>
           </div>
           <p style={{
-            fontFamily: 'var(--font-caveat)', fontSize: '.95rem', color: 'var(--mid)', lineHeight: 1.4,
-            overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
-            marginBottom: '.55rem',
+            fontFamily: 'var(--font-caveat)', fontSize: '.95rem', color: detail._ghostPreview ? 'var(--muted)' : 'var(--mid)',
+            lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box',
+            WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', marginBottom: '.55rem',
+            fontStyle: detail._ghostPreview ? 'italic' : 'normal',
           }}>
             {detail.content}
           </p>
-          <button
-            onClick={() => { onScrollToMessage?.(detail.id); setDetail(null) }}
-            data-hover
-            style={{
-              fontFamily: 'var(--font-mono)', fontSize: '.48rem', letterSpacing: '.1em', textTransform: 'uppercase',
-              color: 'var(--ember)', background: 'none', border: '1px solid rgba(212,84,26,0.3)',
-              borderRadius: '2px', padding: '.28rem .65rem', cursor: 'none', transition: 'all .15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ember)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(212,84,26,0.3)' }}>
-            Show in Lattice →
-          </button>
+          {!detail._ghostPreview && (
+            <button
+              onClick={() => { onScrollToMessage?.(detail.id); setDetail(null) }}
+              data-hover
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: '.48rem', letterSpacing: '.1em', textTransform: 'uppercase',
+                color: 'var(--ember)', background: 'none', border: '1px solid rgba(212,84,26,0.3)',
+                borderRadius: '2px', padding: '.28rem .65rem', cursor: 'none', transition: 'all .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ember)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(212,84,26,0.3)' }}>
+              Show in Lattice →
+            </button>
+          )}
         </div>
       )}
     </div>

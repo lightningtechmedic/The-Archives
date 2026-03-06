@@ -1450,7 +1450,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
               </div>
             )}
             {messages.map((msg, i) => (
-              <div key={msg.id || i} id={`msg-${msg.id}`}>
+              <div key={msg.id || i} id={`msg-${msg.id}`} data-message-id={msg.id}>
                 <ChatMessage msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
                   onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
                   architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} stewardState={stewardState} advocateState={advocateState} contrarianState={contrarianState} />
@@ -2399,14 +2399,15 @@ export default function Dashboard() {
     if (data) setMessages(prev => [...prev, data])
   }
 
-  function handleScrollToMessage(msgId) {
-    const el = document.getElementById(`msg-${msgId}`)
+  function handleScrollToMessage(id) {
+    const el = document.querySelector(`[data-message-id="${id}"]`)
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    const prev = el.style.background
-    el.style.transition = 'background 0.3s'
-    el.style.background = 'rgba(196,78,24,0.13)'
-    setTimeout(() => { el.style.background = prev; el.style.transition = '' }, 1200)
+    setTimeout(() => {
+      el.style.transition = 'background 0.4s ease'
+      el.style.background = '#c44e1815'
+      setTimeout(() => { el.style.background = 'transparent' }, 800)
+    }, 400)
   }
 
   function handleAskSteward() {
