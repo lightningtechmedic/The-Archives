@@ -282,7 +282,9 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
       position: 'fixed', inset: 0, zIndex: 50,
       background: '#0b0a08',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      paddingTop: '56px', overflowY: 'auto',
+      paddingTop: 'calc(52px + env(safe-area-inset-top, 0px))',
+      paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+      overflowY: 'auto',
     }}>
       <style>{PULSE_CSS}</style>
 
@@ -291,19 +293,11 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
         <div style={{
           position: 'absolute', top: '42%', left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 320, height: 320, borderRadius: '50%',
+          width: 360, height: 360, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(212,84,26,0.14) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
       )}
-
-      {/* Brand mark */}
-      <div style={{ position: 'absolute', top: '68px', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '.45rem' }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ember)' }} />
-        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '.95rem', fontWeight: 300, fontStyle: 'italic', color: 'rgba(255,255,255,0.45)' }}>
-          The <em style={{ color: 'var(--ember)' }}>Vault</em>
-        </span>
-      </div>
 
       {/* Speech not supported */}
       {!speechOk && (
@@ -327,11 +321,11 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
           )}
 
           {/* ── Mic button area ── */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.75rem' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2.25rem' }}>
             {/* Pulse rings */}
             {isRecording && [0.8, 1.2, 1.6].map((dur, i) => (
               <div key={i} style={{
-                position: 'absolute', width: 120, height: 120, borderRadius: '50%',
+                position: 'absolute', width: 140, height: 140, borderRadius: '50%',
                 border: '1.5px solid rgba(212,84,26,0.45)',
                 animation: `voiceRing ${dur}s ease-out infinite`,
                 animationDelay: `${i * 0.28}s`,
@@ -345,7 +339,7 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
               style={{
-                width: 120, height: 120, borderRadius: '50%',
+                width: 140, height: 140, borderRadius: '50%',
                 background: isSuccess
                   ? 'rgba(80,200,100,0.18)'
                   : isRecording ? 'rgba(212,84,26,0.9)' : 'rgba(212,84,26,0.12)',
@@ -406,7 +400,7 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
           )}
 
           {/* Status line */}
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.54rem', letterSpacing: '.12em', color: 'var(--muted)', marginBottom: '1.5rem', minHeight: '1.2em', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.58rem', letterSpacing: '.12em', color: 'var(--muted)', marginBottom: '2rem', minHeight: '1.2em', textAlign: 'center' }}>
             {isRecording && fmt(duration)}
             {isProcessing && 'Transcribing…'}
             {mode === 'idle' && !permError && 'Tap or hold to record'}
@@ -425,27 +419,28 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
           )}
 
           {/* Destination selector */}
-          <div style={{ position: 'relative', marginBottom: '2.5rem' }}>
+          <div style={{ position: 'relative', marginBottom: '2.5rem', width: '100%', maxWidth: 320, padding: '0 1.5rem' }}>
             <button
               onClick={() => setDestOpen(v => !v)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '.4rem',
-                padding: '.38rem .85rem', background: 'rgba(255,255,255,0.04)',
-                border: '1px solid var(--border)', borderRadius: '4px',
+                display: 'flex', alignItems: 'center', gap: '.5rem',
+                width: '100%', minHeight: 44, padding: '0 1rem',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--border)', borderRadius: '6px',
                 color: 'var(--muted)', fontFamily: 'var(--font-mono)',
-                fontSize: '.52rem', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer',
+                fontSize: '.6rem', letterSpacing: '.1em', textTransform: 'uppercase', cursor: 'pointer',
               }}
             >
-              {destination !== 'personal' && <span style={{ color: 'var(--ember)', fontSize: '.55rem' }}>◆</span>}
-              {destLabel}
-              <span style={{ opacity: .45, fontSize: '.5rem', marginLeft: 2 }}>▾</span>
+              {destination !== 'personal' && <span style={{ color: 'var(--ember)', fontSize: '.6rem' }}>◆</span>}
+              <span style={{ flex: 1, textAlign: 'left' }}>{destLabel}</span>
+              <span style={{ opacity: .45, fontSize: '.55rem' }}>▾</span>
             </button>
 
             {destOpen && (
               <div style={{
-                position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '100%',
+                position: 'absolute', top: 'calc(100% + 4px)', left: '1.5rem', right: '1.5rem',
                 background: 'rgba(11,10,8,0.97)', border: '1px solid var(--border)',
-                borderRadius: '4px', zIndex: 60, overflow: 'hidden',
+                borderRadius: '6px', zIndex: 60, overflow: 'hidden',
               }}>
                 {[{ id: 'personal', label: 'Personal' }, ...enclaves.map(e => ({ id: e.id, label: `◆ ${e.name}` }))].map(opt => (
                   <button
@@ -457,9 +452,9 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
                     }}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
-                      padding: '.45rem .85rem', background: destination === opt.id ? 'rgba(212,84,26,0.1)' : 'transparent',
+                      padding: '.75rem 1rem', background: destination === opt.id ? 'rgba(212,84,26,0.1)' : 'transparent',
                       border: 'none', color: destination === opt.id ? 'var(--ember)' : 'var(--muted)',
-                      fontFamily: 'var(--font-mono)', fontSize: '.52rem', letterSpacing: '.1em',
+                      fontFamily: 'var(--font-mono)', fontSize: '.6rem', letterSpacing: '.1em',
                       textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
                     }}
                   >
@@ -484,18 +479,19 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
                     key={note.id}
                     onClick={() => onOpenNote(note)}
                     style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '.55rem 0', background: 'transparent', border: 'none',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                      width: '100%', textAlign: 'left', minHeight: 56,
+                      padding: '.65rem 0', background: 'transparent', border: 'none',
                       borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer',
                     }}
                   >
-                    <p style={{ fontFamily: 'var(--font-caveat)', fontSize: '1rem', color: 'var(--text)', marginBottom: '.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <p style={{ fontFamily: 'var(--font-caveat)', fontSize: '1.1rem', color: 'var(--text)', marginBottom: '.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {note.title || 'Untitled'}
                     </p>
                     <div style={{ display: 'flex', gap: '.5rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.44rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>{noteDest}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.44rem', color: 'rgba(255,255,255,0.2)' }}>·</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.44rem', color: 'rgba(255,255,255,0.2)' }}>{relTime(note.created_at)}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.48rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>{noteDest}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.48rem', color: 'rgba(255,255,255,0.2)' }}>·</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.48rem', color: 'rgba(255,255,255,0.2)' }}>{relTime(note.created_at)}</span>
                     </div>
                   </button>
                 )
@@ -508,7 +504,7 @@ export default function VoiceCapture({ user, enclaves, onOpenNote }) {
       {/* Save toast */}
       {toast && (
         <div style={{
-          position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(212,84,26,0.95)', border: '1px solid rgba(212,84,26,0.6)',
           borderRadius: '6px', padding: '.75rem 1.25rem', zIndex: 70,
           animation: 'voiceFadeUp .3s ease', textAlign: 'center', maxWidth: 300,

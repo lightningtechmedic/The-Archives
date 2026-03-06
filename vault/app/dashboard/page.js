@@ -421,7 +421,143 @@ function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, 
 }
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
+// ── Mobile components ─────────────────────────────────────────────────────────
+function MobileBottomNav({ mobileMode, onModeChange, boardCount, onMenuOpen }) {
+  const active = mobileMode === 'voice' ? 'voice' : 'home'
+  const items = [
+    { id: 'home',  icon: '🏠', label: 'Home',  action: () => onModeChange('dashboard') },
+    { id: 'board', icon: '📋', label: 'Board', action: () => { window.location.href = '/vault/board' } },
+    { id: 'voice', icon: '🎙', label: 'Voice', action: () => onModeChange('voice') },
+    { id: 'menu',  icon: '⚙',  label: 'Menu',  action: onMenuOpen },
+  ]
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000,
+      display: 'flex', alignItems: 'stretch',
+      background: 'rgba(11,10,8,0.96)',
+      backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+      borderTop: '1px solid var(--border)',
+      height: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+    }}>
+      {items.map(item => (
+        <button key={item.id} onClick={item.action} style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: 'transparent', border: 'none', cursor: 'pointer', gap: 4, padding: '8px 0',
+          color: active === item.id ? 'var(--ember)' : 'var(--muted)',
+        }}>
+          <span style={{ fontSize: 22, lineHeight: 1 }}>{item.icon}</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.42rem', letterSpacing: '.1em', textTransform: 'uppercase' }}>
+            {item.id === 'board' && boardCount > 0 ? `Board (${boardCount})` : item.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onSignOut }) {
+  if (!open) return null
+  const pill = (active) => ({
+    width: '100%', height: 48, display: 'flex', alignItems: 'center', gap: '.6rem',
+    padding: '0 .85rem', borderRadius: 6, marginBottom: 6,
+    background: active ? 'rgba(212,84,26,0.1)' : 'rgba(255,255,255,0.03)',
+    border: `1px solid ${active ? 'rgba(212,84,26,0.4)' : 'rgba(255,255,255,0.07)'}`,
+    color: active ? 'var(--ember)' : 'var(--muted)',
+    fontFamily: 'var(--font-mono)', fontSize: '.58rem', letterSpacing: '.1em',
+    textTransform: 'uppercase', textAlign: 'left',
+  })
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1998, background: 'rgba(0,0,0,0.55)' }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1999,
+        height: '62vh',
+        background: 'rgba(11,10,8,0.98)',
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '14px 14px 0 0',
+        paddingBottom: 'env(safe-area-inset-bottom, 20px)',
+        display: 'flex', flexDirection: 'column',
+        animation: 'slideUp .25s ease',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 1.25rem 1.25rem' }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '.5rem', color: 'var(--muted)', letterSpacing: '.08em', marginBottom: '1.25rem', paddingTop: '.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {user?.email}
+          </p>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '.46rem', letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', marginBottom: '.65rem' }}>Space</p>
+          <button onClick={() => { onEnclaveSwitch(null); onClose() }} style={pill(!activeEnclaveId)}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: !activeEnclaveId ? 'var(--ember)' : 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
+            Personal
+            {!activeEnclaveId && <span style={{ marginLeft: 'auto' }}>✓</span>}
+          </button>
+          {enclaves.map(e => (
+            <button key={e.id} onClick={() => { onEnclaveSwitch(e.id); onClose() }} style={pill(activeEnclaveId === e.id)}>
+              <span style={{ fontSize: '.65rem', color: activeEnclaveId === e.id ? 'var(--ember)' : 'rgba(212,84,26,0.5)' }}>◆</span>
+              {e.name}
+              {activeEnclaveId === e.id && <span style={{ marginLeft: 'auto' }}>✓</span>}
+            </button>
+          ))}
+          <button onClick={() => { onCreateEnclave(); onClose() }} style={{
+            width: '100%', height: 44, display: 'flex', alignItems: 'center', gap: '.5rem',
+            padding: '0 .85rem', borderRadius: 6, marginBottom: '1.5rem',
+            background: 'transparent', border: '1px dashed rgba(212,84,26,0.3)',
+            color: 'var(--ember)', fontFamily: 'var(--font-mono)', fontSize: '.56rem',
+            letterSpacing: '.1em', textTransform: 'uppercase', textAlign: 'left',
+          }}>+ Create Enclave</button>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: '1.25rem' }} />
+          <button onClick={onSignOut} style={{
+            width: '100%', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 6, background: 'rgba(180,30,30,0.08)', border: '1px solid rgba(180,30,30,0.3)',
+            color: 'rgba(255,100,100,0.8)', fontFamily: 'var(--font-mono)',
+            fontSize: '.58rem', letterSpacing: '.14em', textTransform: 'uppercase',
+          }}>Sign Out</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, isMobile, mobileMode, onMobileModeChange }) {
+  // ── Mobile topbar: clean brand + mode toggle only ──
+  if (isMobile) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 500,
+        height: 'calc(52px + env(safe-area-inset-top, 0px))',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingLeft: '1rem', paddingRight: '1rem',
+        boxSizing: 'border-box',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: 'rgba(11,10,8,0.92)',
+        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}>
+          <div className="ember-pip" />
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '.9rem', fontWeight: 300, fontStyle: 'italic', color: 'var(--text)' }}>
+            The <em style={{ color: 'var(--ember)' }}>Vault</em>
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[{ id: 'dashboard', label: 'Dashboard' }, { id: 'voice', label: '🎙 Voice' }].map(opt => (
+            <button key={opt.id} onClick={() => onMobileModeChange(opt.id)} style={{
+              minWidth: 80, height: 34, padding: '0 10px', borderRadius: 6,
+              fontFamily: 'var(--font-mono)', fontSize: '.7rem', letterSpacing: '.06em', textTransform: 'uppercase',
+              background: mobileMode === opt.id ? 'var(--ember)' : 'transparent',
+              color: mobileMode === opt.id ? '#fff' : 'rgba(212,84,26,0.7)',
+              border: mobileMode === opt.id ? '1px solid transparent' : '1px solid rgba(212,84,26,0.45)',
+              transition: 'all .2s', cursor: 'pointer',
+            }}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Desktop topbar ──
   const tbBtn = {
     display:'flex', alignItems:'center', gap:'.4rem',
     background:'transparent', border:'1px solid var(--border)', borderRadius:'4px',
@@ -944,7 +1080,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, focusMode, onFocusToggle }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, focusMode, onFocusToggle, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -959,7 +1095,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
   }
 
   return (
-    <div className="lattice-drawer" style={{ height }}>
+    <div className="lattice-drawer" style={{ height, ...(isMobile ? { bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' } : {}) }}>
       {/* Handle */}
       <div className="lattice-handle" onClick={() => setExpanded(v => !v)} data-hover>
         <div className="drawer-pill" />
@@ -1133,6 +1269,7 @@ export default function Dashboard() {
   const [focusMode, setFocusMode] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMode, setMobileMode] = useState('dashboard')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Enclaves
   const [enclaves, setEnclaves] = useState([])
@@ -1910,6 +2047,15 @@ export default function Dashboard() {
     }, 900)
   }
 
+  async function handleSignOut() {
+    reactionEngineRef.current?.destroy()
+    clearTimeout(focusTimerRef.current)
+    localStorage.removeItem('vault_scribe_active')
+    setScribeActive(false)
+    await getSupabase().auth.signOut()
+    window.location.href = '/vault/login'
+  }
+
   if (!mounted) return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <p className="panel-label animate-pulse-slow">Initializing…</p>
@@ -1917,6 +2063,8 @@ export default function Dashboard() {
   )
 
   const chatHeight = chatExpanded ? 400 : 44
+  // On mobile, add bottom nav height to editor bottom padding so content isn't obscured
+  const editorChatHeight = chatHeight + (isMobile ? 72 : 0)
   const filteredNotes = notes.filter(n => !notesSearch || (n.title || '').toLowerCase().includes(notesSearch.toLowerCase()) || (n.content || '').toLowerCase().includes(notesSearch.toLowerCase()))
 
   return (
@@ -1968,14 +2116,7 @@ export default function Dashboard() {
         scribeState={scribeState}
         onScribeSummon={summonScribe}
         isMobile={isMobile} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
-        onSignOut={async () => {
-          reactionEngineRef.current?.destroy()
-          clearTimeout(focusTimerRef.current)
-          localStorage.removeItem('vault_scribe_active')
-          setScribeActive(false)
-          await getSupabase().auth.signOut()
-          window.location.href = '/vault/login'
-        }} />
+        onSignOut={handleSignOut} />
 
       {isMobile && mobileMode === 'voice' ? (
         <VoiceCapture
@@ -2001,7 +2142,7 @@ export default function Dashboard() {
               noteImages={noteImages} setNoteImages={setNoteImages}
               noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
               saveStatus={saveStatus} user={user} supabase={getSupabase()}
-              chatHeight={chatHeight} contentRef={contentRef}
+              chatHeight={editorChatHeight} contentRef={contentRef}
               detectedReminders={detectedReminders}
               onReminderClick={phrase => setReminderCard(phrase)}
               onImageUploaded={handleImageUploaded}
@@ -2012,7 +2153,7 @@ export default function Dashboard() {
             chatHeight={chatHeight} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
             onDropToBoard={handleDropToBoard} />
 
-          <VoiceFAB setNoteContent={setNoteContent} chatHeight={chatHeight} />
+          {!isMobile && <VoiceFAB setNoteContent={setNoteContent} chatHeight={chatHeight} />}
 
           <LatticeDrawer
             expanded={chatExpanded} setExpanded={setChatExpanded}
@@ -2029,7 +2170,26 @@ export default function Dashboard() {
             activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
             sleeping={sleeping}
             scribeActive={scribeActive} scribeState={scribeState}
-            focusMode={focusMode} onFocusToggle={toggleFocusMode} />
+            focusMode={focusMode} onFocusToggle={toggleFocusMode}
+            isMobile={isMobile} />
+        </>
+      )}
+
+      {isMobile && (
+        <>
+          <MobileBottomNav
+            mobileMode={mobileMode}
+            onModeChange={setMobileModePersist}
+            boardCount={boardStickyCount}
+            onMenuOpen={() => setMobileMenuOpen(true)} />
+          <MobileMenuSheet
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            user={user} enclaves={enclaves}
+            activeEnclaveId={activeEnclaveId}
+            onEnclaveSwitch={switchActiveEnclave}
+            onCreateEnclave={() => { setMobileMenuOpen(false); setShowCreateEnclave(true) }}
+            onSignOut={handleSignOut} />
         </>
       )}
     </div>
