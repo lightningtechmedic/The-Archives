@@ -23,6 +23,7 @@ import WelcomeModal from '@/components/WelcomeModal'
 import { createReactionEngine } from '@/lib/reactionEngine'
 import VoiceCapture from '@/components/VoiceCapture'
 import AudioPlayer from '@/components/AudioPlayer'
+import TheGuideWidget from '@/components/TheGuideWidget'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -2711,6 +2712,7 @@ export default function Dashboard() {
             onSignOut={handleSignOut} />
         </>
       )}
+      <TheGuideWidget />
     </div>
   )
 }

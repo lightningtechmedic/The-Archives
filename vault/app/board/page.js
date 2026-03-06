@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { updateSticky, deleteSticky, updateColumn, deleteColumn } from '@/lib/stickies'
+import TheGuideWidget from '@/components/TheGuideWidget'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
 
@@ -1068,6 +1069,7 @@ export default function BoardPage() {
           onPin={handlePinAI}
         />
       )}
+      <TheGuideWidget />
     </div>
   )
 }

@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import TheGuideWidget from '@/components/TheGuideWidget'
 
 function formatBytes(b) {
   if (!b) return '—'
@@ -252,6 +253,7 @@ export default function FilesPage() {
             })}
           </div>
         )}
+      <TheGuideWidget />
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation' // eslint-disable-line
 import { createClient } from '@/lib/supabase'
+import TheGuideWidget from '@/components/TheGuideWidget'
 
 function formatDate(ts) {
   return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
@@ -400,8 +401,11 @@ function NotesInner() {
 
 export default function NotesPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}><p className="panel-label animate-pulse-slow">Loading…</p></div>}>
-      <NotesInner />
-    </Suspense>
+    <>
+      <Suspense fallback={<div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}><p className="panel-label animate-pulse-slow">Loading…</p></div>}>
+        <NotesInner />
+      </Suspense>
+      <TheGuideWidget />
+    </>
   )
 }

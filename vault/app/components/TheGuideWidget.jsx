@@ -1,0 +1,425 @@
+'use client'
+
+import { useState, useRef, useEffect } from 'react'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
+
+const PALETTE = {
+  bg:      '#0f0e0c',
+  surface: '#1a1815',
+  border:  '#2e2b27',
+  ember:   '#c44e18',
+  gold:    '#a07828',
+  text:    '#e8e0d5',
+  muted:   '#6a6460',
+  dim:     '#3a3530',
+  note_bg: '#1e1c19',
+}
+
+const SUGGESTED = [
+  'What is The Vault?',
+  'Who are the seven agents?',
+  'How do I create an enclave?',
+  'What is The Scribe?',
+  'How does The Dark Factory work?',
+  'What does The Steward do?',
+  'How do I use the Board?',
+  'When does The Contrarian speak?',
+]
+
+function GuideAvatar({ thinking, size = 36 }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: 'radial-gradient(circle at 35% 35%, #2a2520, #0f0e0c)',
+      border: `1.5px solid ${PALETTE.ember}`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, position: 'relative',
+      boxShadow: thinking ? `0 0 12px ${PALETTE.ember}55` : 'none',
+      transition: 'box-shadow 0.4s ease',
+    }}>
+      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="9" r="7" stroke={PALETTE.ember} strokeWidth="1.2"
+          strokeDasharray={thinking ? '2 2' : '44'}
+          style={{ transition: 'stroke-dasharray 0.5s' }} />
+        <line x1="9" y1="3" x2="9" y2="7" stroke={PALETTE.ember} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="9" y1="11" x2="9" y2="14" stroke={PALETTE.muted} strokeWidth="1" strokeLinecap="round" />
+        <line x1="3" y1="9" x2="6" y2="9" stroke={PALETTE.muted} strokeWidth="1" strokeLinecap="round" />
+        <line x1="12" y1="9" x2="15" y2="9" stroke={PALETTE.muted} strokeWidth="1" strokeLinecap="round" />
+        <circle cx="9" cy="9" r="1.5" fill={PALETTE.ember} />
+      </svg>
+      {thinking && (
+        <div style={{
+          position: 'absolute', bottom: -2, right: -2,
+          width: 8, height: 8, borderRadius: '50%',
+          background: PALETTE.ember,
+          animation: 'guideWidgetPulse 1s ease-in-out infinite',
+        }} />
+      )}
+    </div>
+  )
+}
+
+function GuideMessage({ msg, isNew }) {
+  const isGuide = msg.role === 'assistant'
+  return (
+    <div style={{
+      display: 'flex', gap: 10, marginBottom: 18,
+      flexDirection: isGuide ? 'row' : 'row-reverse',
+      animation: isNew ? 'guideWidgetFadeUp 0.25s ease forwards' : 'none',
+      opacity: isNew ? 0 : 1,
+    }}>
+      {isGuide && <GuideAvatar thinking={false} size={28} />}
+      <div style={{
+        maxWidth: '82%',
+        background: isGuide ? PALETTE.surface : PALETTE.dim,
+        border: `1px solid ${isGuide ? PALETTE.border : 'transparent'}`,
+        borderRadius: isGuide ? '2px 10px 10px 10px' : '10px 2px 10px 10px',
+        padding: '10px 14px',
+        fontSize: 13.5,
+        lineHeight: 1.65,
+        color: isGuide ? PALETTE.text : '#c8c0b5',
+        fontFamily: "'Georgia', serif",
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+      }}>
+        {isGuide && (
+          <div style={{ fontSize: 9.5, color: PALETTE.ember, fontFamily: 'monospace', letterSpacing: '0.14em', marginBottom: 5, fontWeight: 700 }}>
+            THE GUIDE
+          </div>
+        )}
+        {msg.streaming ? msg.content + '▍' : msg.content}
+        {msg.isNote && (
+          <div style={{
+            marginTop: 8, padding: '6px 10px',
+            background: PALETTE.note_bg,
+            border: `1px solid ${PALETTE.gold}44`,
+            borderRadius: 4, fontSize: 11.5,
+            color: PALETTE.gold, fontFamily: 'monospace',
+          }}>
+            ◆ Note saved
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ThinkingDots() {
+  return (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+      <GuideAvatar thinking size={28} />
+      <div style={{
+        background: PALETTE.surface, border: `1px solid ${PALETTE.border}`,
+        borderRadius: '2px 10px 10px 10px',
+        padding: '12px 16px', display: 'flex', gap: 5, alignItems: 'center',
+      }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{
+            width: 5, height: 5, borderRadius: '50%', background: PALETTE.ember,
+            animation: `guideWidgetBounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+          }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function TheGuideWidget() {
+  const [open, setOpen] = useState(false)
+  const [messages, setMessages] = useState([{
+    role: 'assistant',
+    content: "Welcome. I'm The Guide — I know The Vault inside out.\n\nAsk me about any feature, any agent, or how to do something. I can also take notes during our conversation — just say \"take a note\".",
+    id: 'welcome',
+  }])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [sessionNotes, setSessionNotes] = useState([])
+  const [showNotes, setShowNotes] = useState(false)
+  const [newIds, setNewIds] = useState(new Set())
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+  const conversationRef = useRef([])
+
+  useEffect(() => {
+    if (open) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      setTimeout(() => inputRef.current?.focus(), 120)
+    }
+  }, [open, messages, loading])
+
+  const isNoteRequest = (t) => /take a note|note this|remember this|write (this|that) down|jot (this|that)/i.test(t)
+  const extractNote = (t) => t.replace(/^(take a note|note this|remember this|write (this|that) down|jot (this|that)):?\s*/i, '').trim()
+
+  async function send(text) {
+    const userText = (text || input).trim()
+    if (!userText || loading) return
+    setInput('')
+
+    const userMsg = { role: 'user', content: userText, id: Date.now() + 'u' }
+    setMessages(prev => [...prev, userMsg])
+    setNewIds(prev => new Set([...prev, userMsg.id]))
+    setLoading(true)
+
+    // Note-taking shortcut — no API call needed
+    if (isNoteRequest(userText)) {
+      const noteContent = extractNote(userText)
+      if (noteContent) setSessionNotes(prev => [...prev, noteContent])
+      const count = sessionNotes.length + (noteContent ? 1 : 0)
+      const replyId = Date.now() + 'a'
+      const reply = {
+        role: 'assistant',
+        content: noteContent
+          ? `Noted. I have ${count} note${count !== 1 ? 's' : ''} for you this session.`
+          : "I'd be happy to take a note — what would you like me to remember?",
+        id: replyId, isNote: !!noteContent,
+      }
+      setMessages(prev => [...prev, reply])
+      setNewIds(prev => new Set([...prev, replyId]))
+      conversationRef.current = [...conversationRef.current, userMsg, reply]
+      setLoading(false)
+      return
+    }
+
+    // Show notes shortcut
+    if (/show (my )?notes|what('s| is| are) my notes|summarize (my )?notes/i.test(userText)) {
+      const replyId = Date.now() + 'a'
+      const reply = {
+        role: 'assistant',
+        content: sessionNotes.length === 0
+          ? 'No notes yet this session. Say "take a note" followed by what you want to remember.'
+          : `Your notes this session:\n\n${sessionNotes.map((n, i) => `${i + 1}. ${n}`).join('\n')}`,
+        id: replyId,
+      }
+      setMessages(prev => [...prev, reply])
+      setNewIds(prev => new Set([...prev, replyId]))
+      setLoading(false)
+      return
+    }
+
+    // Streaming API call
+    conversationRef.current = [...conversationRef.current, { role: 'user', content: userText }]
+
+    const streamId = Date.now() + 'a'
+    setMessages(prev => [...prev, { role: 'assistant', content: '', id: streamId, streaming: true }])
+    setNewIds(prev => new Set([...prev, streamId]))
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/guide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: conversationRef.current }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const reader = res.body.getReader()
+      const dec = new TextDecoder()
+      let text = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        text += dec.decode(value, { stream: true })
+        setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: text } : m))
+      }
+
+      conversationRef.current = [...conversationRef.current, { role: 'assistant', content: text }]
+      setMessages(prev => prev.map(m => m.id === streamId ? { ...m, streaming: false } : m))
+    } catch {
+      setMessages(prev => prev.map(m => m.id === streamId
+        ? { ...m, content: 'Something went quiet on my end. Try again in a moment.', streaming: false }
+        : m
+      ))
+    } finally {
+      setLoading(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes guideWidgetFadeUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes guideWidgetBounce {
+          0%, 80%, 100% { transform: translateY(0); }
+          40%           { transform: translateY(-5px); }
+        }
+        @keyframes guideWidgetPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.5; transform: scale(0.7); }
+        }
+        @keyframes guideWidgetSlideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .guide-trigger:hover { box-shadow: 0 0 18px ${PALETTE.ember}55 !important; transform: scale(1.05); }
+        .guide-trigger { transition: box-shadow 0.2s, transform 0.15s !important; }
+        .guide-suggestion:hover { background: #2e2b27 !important; border-color: ${PALETTE.ember}55 !important; color: ${PALETTE.text} !important; }
+        .guide-send:hover:not(:disabled) { background: #a83e10 !important; }
+        .guide-send:disabled { opacity: 0.35; cursor: not-allowed; }
+        .guide-messages::-webkit-scrollbar { width: 3px; }
+        .guide-messages::-webkit-scrollbar-track { background: transparent; }
+        .guide-messages::-webkit-scrollbar-thumb { background: #2e2b27; border-radius: 2px; }
+      `}</style>
+
+      <div style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 9500 }}>
+        {/* Collapsed trigger button */}
+        {!open && (
+          <button
+            className="guide-trigger"
+            onClick={() => setOpen(true)}
+            title="The Guide — ask anything about The Vault"
+            style={{
+              width: 48, height: 48, borderRadius: '50%', border: 'none',
+              background: PALETTE.bg, cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: `0 2px 16px rgba(0,0,0,0.5), 0 0 0 1.5px ${PALETTE.ember}`,
+            }}
+          >
+            <GuideAvatar thinking={false} size={48} />
+          </button>
+        )}
+
+        {/* Expanded panel */}
+        {open && (
+          <div style={{
+            width: 400, height: 560,
+            display: 'flex', flexDirection: 'column',
+            background: PALETTE.bg,
+            border: `1px solid ${PALETTE.border}`,
+            borderRadius: 12,
+            boxShadow: '0 8px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(196,78,24,0.15)',
+            overflow: 'hidden',
+            animation: 'guideWidgetSlideUp 0.2s ease forwards',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '14px 16px 12px',
+              borderBottom: `1px solid ${PALETTE.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              flexShrink: 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <GuideAvatar thinking={loading} size={32} />
+                <div>
+                  <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 17, fontWeight: 600, letterSpacing: '0.02em', color: PALETTE.text, lineHeight: 1.1 }}>
+                    The Guide
+                  </div>
+                  <div style={{ fontSize: 9.5, color: loading ? PALETTE.ember : PALETTE.muted, fontFamily: 'monospace', letterSpacing: '0.1em', transition: 'color 0.3s' }}>
+                    {loading ? 'THINKING...' : 'VAULT KNOWLEDGE BASE'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {sessionNotes.length > 0 && (
+                  <button onClick={() => setShowNotes(!showNotes)} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: PALETTE.gold, fontSize: 11, fontFamily: 'monospace',
+                    display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px',
+                  }}>
+                    ◆ {sessionNotes.length}
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: PALETTE.muted, fontSize: 18, lineHeight: 1,
+                  padding: '2px 4px', borderRadius: 4,
+                  transition: 'color 0.15s',
+                }}
+                  onMouseEnter={e => e.currentTarget.style.color = PALETTE.text}
+                  onMouseLeave={e => e.currentTarget.style.color = PALETTE.muted}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Notes panel */}
+            {showNotes && sessionNotes.length > 0 && (
+              <div style={{
+                padding: '10px 14px', borderBottom: `1px solid ${PALETTE.border}`,
+                background: PALETTE.note_bg, flexShrink: 0,
+              }}>
+                <div style={{ fontSize: 9.5, color: PALETTE.gold, fontFamily: 'monospace', letterSpacing: '0.1em', marginBottom: 6, opacity: 0.7 }}>SESSION NOTES</div>
+                {sessionNotes.map((n, i) => (
+                  <div key={i} style={{ fontSize: 12.5, color: '#c8a850', lineHeight: 1.5, marginBottom: 4, fontFamily: 'monospace' }}>
+                    <span style={{ color: PALETTE.gold, marginRight: 6 }}>{i + 1}.</span>{n}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Messages */}
+            <div className="guide-messages" style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 8px' }}>
+              {messages.map(msg => (
+                <GuideMessage key={msg.id} msg={msg} isNew={newIds.has(msg.id)} />
+              ))}
+              {loading && !messages.some(m => m.streaming) && <ThinkingDots />}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Suggestions — only show on first message */}
+            {messages.length <= 1 && (
+              <div style={{ padding: '0 16px 10px', display: 'flex', flexWrap: 'wrap', gap: 6, flexShrink: 0 }}>
+                {SUGGESTED.map((q, i) => (
+                  <button key={i} className="guide-suggestion" onClick={() => send(q)} style={{
+                    background: PALETTE.surface, border: `1px solid ${PALETTE.border}`,
+                    borderRadius: 16, padding: '5px 11px', fontSize: 11.5,
+                    color: PALETTE.muted, cursor: 'pointer',
+                    fontFamily: "'Georgia', serif", transition: 'all 0.15s',
+                  }}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Input */}
+            <div style={{ padding: '10px 14px 14px', borderTop: `1px solid ${PALETTE.border}`, flexShrink: 0 }}>
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'flex-end',
+                background: PALETTE.surface, border: `1px solid ${PALETTE.border}`,
+                borderRadius: 8, padding: '8px 10px',
+              }}>
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                  placeholder="Ask anything about The Vault..."
+                  rows={1}
+                  style={{
+                    flex: 1, background: 'none', border: 'none', outline: 'none', resize: 'none',
+                    color: PALETTE.text, fontSize: 13.5, fontFamily: "'Georgia', serif",
+                    lineHeight: 1.55, maxHeight: 100, overflowY: 'auto',
+                  }}
+                  onInput={e => {
+                    e.target.style.height = 'auto'
+                    e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px'
+                  }}
+                />
+                <button
+                  className="guide-send"
+                  onClick={() => send()}
+                  disabled={!input.trim() || loading}
+                  style={{
+                    background: PALETTE.ember, border: 'none', borderRadius: 6,
+                    width: 30, height: 30, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', transition: 'background 0.15s',
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                    <path d="M7 1L13 7L7 13M1 7H13" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
