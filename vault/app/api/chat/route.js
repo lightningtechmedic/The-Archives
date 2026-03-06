@@ -1,7 +1,5 @@
 import OpenAI from 'openai'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
 const SYSTEM_PROMPT = `You are an AI embedded in The Vault — a private command center for a small, trusted team.
 You are thoughtful, direct, and intelligent. You speak with precision and economy.
 You have full memory of the conversation and build on what's been said.
@@ -9,6 +7,7 @@ Never pad responses with filler. Be the sharpest person in the room.`
 
 export async function POST(req) {
   try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const { messages } = await req.json()
 
     const formatted = messages
@@ -29,9 +28,7 @@ export async function POST(req) {
         try {
           for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content || ''
-            if (content) {
-              controller.enqueue(encoder.encode(content))
-            }
+            if (content) controller.enqueue(encoder.encode(content))
           }
         } finally {
           controller.close()
@@ -43,7 +40,6 @@ export async function POST(req) {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache',
-        'X-Content-Type-Options': 'nosniff',
       },
     })
   } catch (err) {
