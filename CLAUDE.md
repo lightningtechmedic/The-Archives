@@ -253,3 +253,45 @@ basePath: '/vault'  // ← BANNED — breaks build when builds array exists in v
 3. Check every import in modified files resolves to a real exported component
 4. Check `next.config.js` has NO `basePath`
 5. Never add `basePath` to `next.config.js` in this project
+
+---
+
+## Supabase RLS Rules
+
+### NEVER write self-referential policies
+A policy on table X must NEVER query table X inside its own USING clause.
+This causes infinite recursion and Postgres will throw:
+`"infinite recursion detected in policy for relation X"`
+
+Bad example — enclave_members policy querying enclave_members:
+```sql
+FOR SELECT USING (
+  enclave_id IN (
+    SELECT enclave_id FROM enclave_members  -- NEVER do this
+    WHERE user_id = auth.uid()
+  )
+)
+```
+
+Fix — route through a different table to break the cycle:
+```sql
+FOR SELECT USING (
+  user_id = auth.uid()
+  OR enclave_id IN (
+    SELECT id FROM enclaves WHERE created_by = auth.uid()
+  )
+)
+```
+
+### Always check column names before writing policies
+- `enclaves` table uses `created_by` — NOT `owner_id`
+- Before referencing any column in a policy, verify it exists:
+  ```sql
+  SELECT column_name FROM information_schema.columns WHERE table_name = 'X';
+  ```
+
+### RLS policy checklist before every migration
+1. Does any policy query its own table? If yes — rewrite to use a parent table
+2. Are all column names verified against `information_schema`?
+3. Are `DROP POLICY IF EXISTS` statements included before every `CREATE POLICY`?
+4. Is `ENABLE ROW LEVEL SECURITY` present for every new table?
