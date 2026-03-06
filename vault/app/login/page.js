@@ -2,134 +2,269 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 
+const ROWS = [
+  { letter: 'V', word: 'Vision of' },
+  { letter: 'A', word: 'Active' },
+  { letter: 'U', word: 'Unified' },
+  { letter: 'L', word: 'Living' },
+  { letter: 'T', word: 'Thought' },
+]
+const DELAYS      = [0, 420, 820, 1180, 1500]
+const TAGLINE_MS  = 2200
+const FADE_MS     = 4000   // tagline + hold (2200 + 1800)
+const CARD_MS     = 4600   // fade + 600
+
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  const [magicLoading, setMagicLoading] = useState(false)
-  const [magicError, setMagicError] = useState('')
+  const [rowsOn,     setRowsOn]     = useState([false,false,false,false,false])
+  const [taglineOn,  setTaglineOn]  = useState(false)
+  const [introFade,  setIntroFade]  = useState(false)
+  const [cardOn,     setCardOn]     = useState(false)
 
-  const [pwEmail, setPwEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [pwLoading, setPwLoading] = useState(false)
-  const [pwError, setPwError] = useState('')
+  const [email,     setEmail]     = useState('')
+  const [password,  setPassword]  = useState('')
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
 
-  async function handleMagicLink(e) {
-    e.preventDefault()
-    if (!email) return
-    setMagicLoading(true); setMagicError('')
-    const { error } = await createClient().auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/vault/auth/callback` },
+  const timersRef = []
+
+  const runIntro = useCallback(() => {
+    setRowsOn([false,false,false,false,false])
+    setTaglineOn(false)
+    setIntroFade(false)
+    setCardOn(false)
+
+    DELAYS.forEach((d, i) => {
+      timersRef.push(setTimeout(() => {
+        setRowsOn(prev => { const n = [...prev]; n[i] = true; return n })
+      }, d))
     })
-    setMagicLoading(false)
-    if (error) setMagicError(error.message)
-    else setSent(true)
-  }
+    timersRef.push(setTimeout(() => setTaglineOn(true),  TAGLINE_MS))
+    timersRef.push(setTimeout(() => setIntroFade(true),  FADE_MS))
+    timersRef.push(setTimeout(() => setCardOn(true),     CARD_MS))
+  }, []) // eslint-disable-line
 
-  async function handlePassword(e) {
+  useEffect(() => {
+    runIntro()
+    return () => timersRef.forEach(clearTimeout)
+  }, []) // eslint-disable-line
+
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (!pwEmail || !password) return
-    setPwLoading(true); setPwError('')
-    const { error } = await createClient().auth.signInWithPassword({ email: pwEmail, password })
-    setPwLoading(false)
-    if (error) setPwError(error.message)
+    if (!email || !password) return
+    setLoading(true); setError('')
+    const { error: err } = await createClient().auth.signInWithPassword({ email, password })
+    setLoading(false)
+    if (err) setError(err.message)
     else window.location.href = '/vault/dashboard'
   }
 
+  // ── shared transition helper ──────────────────────────────────────────────
+  const tr = (on, props) => ({
+    opacity:   on ? 1 : 0,
+    transform: on ? 'none' : props.from,
+    transition: props.tr,
+  })
+
   return (
-    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'2rem 1.5rem', position:'relative' }}>
-      {/* Ambient glow */}
-      <div aria-hidden style={{ position:'fixed', top:'30%', left:'50%', transform:'translate(-50%,-50%)', width:600, height:400, background:'radial-gradient(ellipse,rgba(212,84,26,0.07) 0%,transparent 70%)', pointerEvents:'none' }} />
-
-      <div style={{ width:'100%', maxWidth:360 }}>
-        {/* Brand */}
-        <div style={{ textAlign:'center', marginBottom:'3rem' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'.5rem', marginBottom:'1rem' }}>
-            <div className="ember-pip" />
-            <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.25em', textTransform:'uppercase', color:'var(--muted)' }}>Restricted Access</span>
-          </div>
-          <h1 style={{ fontFamily:'var(--font-serif)', fontSize:'clamp(3.5rem,10vw,5.5rem)', fontWeight:300, lineHeight:.9, letterSpacing:'-.02em', color:'rgba(255,255,255,0.92)' }}>
-            The{' '}
-            <em style={{ fontStyle:'italic', color:'var(--ember)' }}>Vault</em>
-          </h1>
-          <div style={{ width:40, height:1, background:'var(--ember)', opacity:.4, margin:'1.5rem auto 0' }} />
-        </div>
-
-        {!sent ? (
-          <>
-            {/* Magic link */}
-            <form onSubmit={handleMagicLink} style={{ display:'flex', flexDirection:'column', gap:'.85rem' }}>
-              <div>
-                <label htmlFor="email" style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', marginBottom:'.5rem' }}>
-                  Email Address
-                </label>
-                <input
-                  id="email" type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" required className="vault-input w-full"
-                  style={{ fontSize:'.88rem' }}
-                />
+    <>
+      {/* ── INTRO ── */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 500,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none',
+        opacity:   introFade ? 0 : 1,
+        transform: introFade ? 'scale(0.97)' : 'none',
+        transition: 'opacity .8s ease, transform .8s cubic-bezier(.16,1,.3,1)',
+      }}>
+        <div>
+          <div style={{ display:'flex', flexDirection:'column', gap:0, alignItems:'flex-start' }}>
+            {ROWS.map((r, i) => (
+              <div key={r.letter} style={{
+                display: 'flex', alignItems: 'baseline', gap: '1.2rem',
+                ...tr(rowsOn[i], { from: 'translateY(12px)', tr: `opacity .6s cubic-bezier(.16,1,.3,1) ${i * 0}ms, transform .6s cubic-bezier(.16,1,.3,1)` }),
+              }}>
+                <span style={{
+                  fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300,
+                  fontSize: 'clamp(4rem,8vw,6.5rem)', lineHeight: 1,
+                  color: 'var(--ember)', width: '5.5rem', textAlign: 'center',
+                  textShadow: rowsOn[i] ? '0 0 40px rgba(212,84,26,0.3)' : '0 0 40px rgba(212,84,26,0)',
+                  transition: 'text-shadow .6s ease',
+                }}>
+                  {r.letter}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontSize: '.55rem', letterSpacing: '.15em',
+                  color: 'rgba(212,84,26,0.4)', alignSelf: 'center',
+                  opacity: rowsOn[i] ? 1 : 0, transition: 'opacity .4s ease .2s',
+                }}>
+                  —
+                </span>
+                <span style={{
+                  fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300,
+                  fontSize: 'clamp(1.4rem,2.8vw,2rem)', color: 'rgba(240,236,228,0.55)',
+                  letterSpacing: '.02em', whiteSpace: 'nowrap',
+                  opacity: rowsOn[i] ? 1 : 0,
+                  transform: rowsOn[i] ? 'none' : 'translateX(-6px)',
+                  transition: 'opacity .5s ease .25s, transform .5s cubic-bezier(.16,1,.3,1) .25s',
+                }}>
+                  {r.word}
+                </span>
               </div>
-              {magicError && <p style={{ fontFamily:'var(--font-mono)', fontSize:'.55rem', color:'var(--ember)', letterSpacing:'.06em' }}>{magicError}</p>}
-              <button type="submit" disabled={magicLoading} className="vault-btn w-full justify-center" style={{ padding:'1rem', marginTop:'.25rem' }}>
-                {magicLoading ? <span style={{ opacity:.6 }}>Sending…</span> : <>Send Access Link <span style={{ fontSize:'.9rem' }}>→</span></>}
-              </button>
-            </form>
+            ))}
+          </div>
 
-            {/* Divider */}
-            <div style={{ display:'flex', alignItems:'center', gap:'1rem', margin:'2rem 0' }}>
-              <div style={{ flex:1, height:1, background:'var(--border)' }} />
-              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', color:'var(--muted)', textTransform:'uppercase' }}>or</span>
-              <div style={{ flex:1, height:1, background:'var(--border)' }} />
+          <p style={{
+            marginTop: '2rem',
+            fontFamily: 'var(--font-mono)', fontSize: '.5rem',
+            letterSpacing: '.25em', textTransform: 'uppercase',
+            color: 'rgba(240,236,228,.2)',
+            paddingLeft: '.5rem',
+            ...tr(taglineOn, { from: 'translateY(4px)', tr: 'opacity .6s ease, transform .6s ease' }),
+          }}>
+            A private space where your team thinks together
+          </p>
+        </div>
+      </div>
+
+      {/* ── LOGIN CARD ── */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem',
+        pointerEvents: cardOn ? 'all' : 'none',
+        ...tr(cardOn, { from: 'translateY(16px)', tr: 'opacity .8s cubic-bezier(.16,1,.3,1), transform .8s cubic-bezier(.16,1,.3,1)' }),
+      }}>
+        <div style={{
+          width: '100%', maxWidth: 420,
+          background: 'rgba(13,12,10,.96)',
+          border: '1px solid rgba(255,255,255,.09)',
+          borderRadius: 10,
+          padding: '2.5rem 2.5rem 2rem',
+          backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)',
+          boxShadow: '0 24px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03)',
+          position: 'relative', overflow: 'hidden',
+        }}>
+          {/* Ember glow top */}
+          <div aria-hidden style={{
+            position: 'absolute', top: -40, left: '50%', transform: 'translateX(-50%)',
+            width: 200, height: 80,
+            background: 'radial-gradient(ellipse,rgba(212,84,26,.18),transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+
+          {/* Brand */}
+          <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'2rem' }}>
+            <div className="ember-pip" />
+            <span style={{ fontFamily:'var(--font-serif)', fontStyle:'italic', fontWeight:300, fontSize:'1.4rem', color:'rgba(240,236,228,0.9)' }}>
+              The Vault
+            </span>
+          </div>
+
+          {/* VAULT acronym */}
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: '.2rem',
+            marginBottom: '2rem', padding: '.8rem 1rem',
+            background: 'rgba(212,84,26,.04)',
+            border: '1px solid rgba(212,84,26,.1)',
+            borderRadius: 6,
+          }}>
+            {ROWS.map(r => (
+              <div key={r.letter} style={{ display:'flex', alignItems:'baseline', gap:'.6rem' }}>
+                <span style={{ fontFamily:'var(--font-serif)', fontStyle:'italic', fontWeight:400, fontSize:'1.1rem', color:'var(--ember)', width:'1rem', flexShrink:0, lineHeight:1.4 }}>
+                  {r.letter}
+                </span>
+                <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(240,236,228,.38)', lineHeight:1.4 }}>
+                  {r.word}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+            <div>
+              <label style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.15em', textTransform:'uppercase', color:'rgba(240,236,228,.28)', marginBottom:'.4rem' }}>
+                Email
+              </label>
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@yourstudio.com" required
+                style={{
+                  width:'100%', background:'rgba(24,21,16,1)',
+                  border:'1px solid rgba(255,255,255,.055)', borderRadius:5,
+                  padding:'.6rem .8rem', color:'rgba(240,236,228,.8)',
+                  fontFamily:'var(--font-caveat)', fontSize:'1rem',
+                  outline:'none', transition:'border-color .2s, box-shadow .2s',
+                }}
+                onFocus={e => { e.target.style.borderColor = 'rgba(212,84,26,.3)'; e.target.style.boxShadow = '0 0 0 3px rgba(212,84,26,.06)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,.055)'; e.target.style.boxShadow = 'none' }}
+              />
             </div>
 
-            {/* Password */}
-            <form onSubmit={handlePassword} style={{ display:'flex', flexDirection:'column', gap:'.85rem' }}>
-              <div>
-                <label htmlFor="pw-email" style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', marginBottom:'.5rem' }}>
-                  Email Address
-                </label>
-                <input
-                  id="pw-email" type="email" value={pwEmail} onChange={e => setPwEmail(e.target.value)}
-                  placeholder="you@example.com" required className="vault-input w-full"
-                  style={{ fontSize:'.88rem' }}
-                />
-              </div>
-              <div>
-                <label htmlFor="password" style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', marginBottom:'.5rem' }}>
-                  Password
-                </label>
-                <input
-                  id="password" type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••" required className="vault-input w-full"
-                  style={{ fontSize:'.88rem' }}
-                />
-              </div>
-              {pwError && <p style={{ fontFamily:'var(--font-mono)', fontSize:'.55rem', color:'var(--ember)', letterSpacing:'.06em' }}>{pwError}</p>}
-              <button type="submit" disabled={pwLoading} className="vault-btn w-full justify-center" style={{ padding:'1rem', marginTop:'.25rem' }}>
-                {pwLoading ? <span style={{ opacity:.6 }}>Signing in…</span> : <>Sign In <span style={{ fontSize:'.9rem' }}>→</span></>}
-              </button>
-            </form>
-          </>
-        ) : (
-          <div style={{ border:'1px solid var(--ember-dim)', borderRadius:'3px', padding:'1.5rem', textAlign:'center' }}>
-            <div className="online-dot" style={{ margin:'0 auto .75rem' }} />
-            <p className="panel-label" style={{ color:'var(--ember)', marginBottom:'.5rem' }}>Link Sent</p>
-            <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.2rem', color:'var(--mid)', lineHeight:1.6 }}>
-              Check your inbox. The link expires in 10 minutes.
-            </p>
-            <button onClick={() => setSent(false)} className="vault-btn-ghost" style={{ marginTop:'1.25rem' }}>
-              Try a different email
-            </button>
-          </div>
-        )}
+            <div>
+              <label style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.15em', textTransform:'uppercase', color:'rgba(240,236,228,.28)', marginBottom:'.4rem' }}>
+                Password
+              </label>
+              <input
+                type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••" required
+                style={{
+                  width:'100%', background:'rgba(24,21,16,1)',
+                  border:'1px solid rgba(255,255,255,.055)', borderRadius:5,
+                  padding:'.6rem .8rem', color:'rgba(240,236,228,.8)',
+                  fontFamily:'var(--font-caveat)', fontSize:'1rem',
+                  outline:'none', transition:'border-color .2s, box-shadow .2s',
+                }}
+                onFocus={e => { e.target.style.borderColor = 'rgba(212,84,26,.3)'; e.target.style.boxShadow = '0 0 0 3px rgba(212,84,26,.06)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,.055)'; e.target.style.boxShadow = 'none' }}
+              />
+            </div>
 
-        <p style={{ textAlign:'center', marginTop:'2rem', fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.18em', color:'var(--muted)', opacity:.45, textTransform:'uppercase' }}>
-          Trusted team only
-        </p>
+            {error && (
+              <p style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.06em', color:'var(--ember)', marginTop:'-.25rem' }}>
+                {error}
+              </p>
+            )}
+
+            <button type="submit" disabled={loading} style={{
+              width:'100%', padding:'.65rem', borderRadius:5, marginTop:'.25rem',
+              fontFamily:'var(--font-mono)', fontSize:'.55rem', letterSpacing:'.15em', textTransform:'uppercase',
+              background:'var(--ember)', border:'1px solid var(--ember)', color:'white',
+              boxShadow:'0 4px 16px rgba(212,84,26,.25)',
+              transition:'all .2s', opacity: loading ? .6 : 1,
+            }}
+            onMouseEnter={e => { if (!loading) { e.target.style.background = '#c04010'; e.target.style.boxShadow = '0 4px 24px rgba(212,84,26,.4)' } }}
+            onMouseLeave={e => { e.target.style.background = 'var(--ember)'; e.target.style.boxShadow = '0 4px 16px rgba(212,84,26,.25)' }}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+
+          <p style={{
+            marginTop: '1.5rem', textAlign: 'center',
+            fontFamily: 'var(--font-mono)', fontSize: '.46rem',
+            letterSpacing: '.08em', color: 'rgba(240,236,228,.18)',
+          }}>
+            Access is by invitation only — The Vault is private
+          </p>
+        </div>
       </div>
-    </div>
+
+      {/* ── Replay button ── */}
+      <button onClick={runIntro} style={{
+        position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 600,
+        fontFamily: 'var(--font-mono)', fontSize: '.46rem',
+        letterSpacing: '.12em', textTransform: 'uppercase',
+        color: 'rgba(240,236,228,.2)', border: '1px solid rgba(255,255,255,.055)',
+        background: 'transparent', padding: '.25rem .6rem', borderRadius: 3,
+        transition: 'all .2s',
+      }}
+      onMouseEnter={e => { e.target.style.color = 'rgba(240,236,228,.8)'; e.target.style.borderColor = 'rgba(255,255,255,.09)' }}
+      onMouseLeave={e => { e.target.style.color = 'rgba(240,236,228,.2)'; e.target.style.borderColor = 'rgba(255,255,255,.055)' }}>
+        ↺ replay intro
+      </button>
+    </>
   )
 }
