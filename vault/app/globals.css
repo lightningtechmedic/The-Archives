@@ -1,0 +1,260 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ember: #d4541a;
+    --ember-dim: rgba(212, 84, 26, 0.2);
+    --ember-glow: rgba(212, 84, 26, 0.08);
+    --gold: #c8973a;
+    --gold-dim: rgba(200, 151, 58, 0.2);
+    --ash: #c8c0b4;
+    --ink: #0a0a0a;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-hover: rgba(255, 255, 255, 0.12);
+    --text: rgba(255, 255, 255, 0.88);
+    --muted: rgba(255, 255, 255, 0.38);
+    --mid: rgba(255, 255, 255, 0.6);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--font-serif), Georgia, serif;
+    cursor: none;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+  ::selection { background: var(--ember-dim); color: var(--text); }
+
+  input, textarea, button { cursor: none; }
+}
+
+@layer components {
+  /* ── Noise Overlay ── */
+  .noise-overlay {
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9000;
+    opacity: 0.65;
+  }
+
+  /* ── Scanlines ── */
+  .scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.007) 2px,
+      rgba(255,255,255,0.007) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Custom Cursor ── */
+  .cursor-dot {
+    position: fixed;
+    top: 0; left: 0;
+    width: 8px; height: 8px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width 0.15s, height 0.15s, background 0.15s;
+    will-change: left, top;
+  }
+  .cursor-ring {
+    position: fixed;
+    top: 0; left: 0;
+    width: 32px; height: 32px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: width 0.2s var(--ease), height 0.2s var(--ease), opacity 0.2s;
+    opacity: 0.4;
+    will-change: left, top;
+  }
+  body.cursor-hover .cursor-dot {
+    width: 6px; height: 6px;
+    background: var(--ember);
+  }
+  body.cursor-hover .cursor-ring {
+    width: 48px; height: 48px;
+    opacity: 0.15;
+  }
+
+  /* ── Panel ── */
+  .vault-panel {
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.01);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel-label {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ember);
+  }
+
+  /* ── Input ── */
+  .vault-input {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono), monospace;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+    border-radius: 2px;
+  }
+  .vault-input:focus {
+    border-color: var(--ember-dim);
+    background: rgba(212,84,26,0.03);
+  }
+  .vault-input::placeholder { color: var(--muted); }
+
+  .vault-textarea {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-serif), Georgia, serif;
+    font-size: 1rem;
+    font-weight: 300;
+    line-height: 1.8;
+    outline: none;
+    resize: none;
+    transition: border-color 0.2s;
+    border-radius: 2px;
+  }
+  .vault-textarea:focus {
+    border-color: var(--ember-dim);
+  }
+  .vault-textarea::placeholder { color: var(--muted); }
+
+  /* ── Button ── */
+  .vault-btn {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    background: var(--ember);
+    color: var(--ink);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 2px;
+    transition: background 0.2s var(--ease), transform 0.2s var(--ease);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .vault-btn:hover {
+    background: #e05e20;
+    transform: translateX(2px);
+  }
+  .vault-btn:disabled {
+    opacity: 0.4;
+    transform: none;
+  }
+
+  .vault-btn-ghost {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    border-radius: 2px;
+    transition: all 0.2s var(--ease);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .vault-btn-ghost:hover {
+    color: var(--text);
+    border-color: var(--border-hover);
+  }
+
+  /* ── Ember glow ── */
+  .ember-glow {
+    box-shadow: 0 0 24px rgba(212,84,26,0.08), inset 0 0 16px rgba(212,84,26,0.03);
+  }
+
+  /* ── Online dot ── */
+  .online-dot {
+    width: 6px; height: 6px;
+    background: #50c864;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: pulseSlow 2s ease-in-out infinite;
+  }
+
+  /* ── Message bubbles ── */
+  .msg-user {
+    font-family: var(--font-serif), Georgia, serif;
+    font-size: 0.95rem;
+    font-weight: 300;
+    line-height: 1.7;
+    color: var(--text);
+  }
+  .msg-ai {
+    font-family: var(--font-serif), Georgia, serif;
+    font-size: 0.95rem;
+    font-weight: 300;
+    line-height: 1.7;
+    color: rgba(200,151,58,0.9);
+  }
+  .msg-label {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.55rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .msg-timestamp {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    opacity: 0.6;
+  }
+}
+
+@layer utilities {
+  .font-serif { font-family: var(--font-serif), Georgia, serif; }
+  .font-mono  { font-family: var(--font-mono), monospace; }
+  .text-ember { color: var(--ember); }
+  .text-gold  { color: var(--gold); }
+  .text-ash   { color: var(--ash); }
+  .text-muted { color: var(--muted); }
+  .text-mid   { color: var(--mid); }
+  .border-vault { border-color: var(--border); }
+  .bg-panel   { background: rgba(255,255,255,0.015); }
+}
