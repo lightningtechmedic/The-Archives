@@ -381,32 +381,53 @@ export default function BoardPage() {
   // ── Auth + load ──
   useEffect(() => {
     let active = true
-    let initialized = false
-    const { data: { subscription } } = getSupabase().auth.onAuthStateChange(async (_, session) => {
-      if (!session) { window.location.href = '/vault/login'; return }
-      if (initialized || !active) return
-      initialized = true
+
+    async function load() {
+      const sb = getSupabase()
+
+      // Use getSession() — reliable on first render; onAuthStateChange
+      // can fire null before storage is read, causing a false redirect.
+      const { data: { session }, error: sessionError } = await sb.auth.getSession()
+      if (!active) return
+      if (sessionError || !session) {
+        window.location.href = '/vault/login'
+        return
+      }
+
       const uid = session.user.id
       setUser(session.user)
-      const sb = getSupabase()
+
       try {
         const [colsRes, sticsRes] = await Promise.all([
           sb.from('sticky_columns').select('*').eq('user_id', uid).order('position'),
           sb.from('stickies').select('*').eq('user_id', uid).order('position'),
         ])
-        if (colsRes.error) console.error('sticky_columns fetch error:', colsRes.error)
-        if (sticsRes.error) console.error('stickies fetch error:', sticsRes.error)
+
         if (!active) return
-        setColumns(colsRes.data || [])
-        setStickies(sticsRes.data || [])
+
+        if (colsRes.error) {
+          console.error('sticky_columns fetch error:', colsRes.error)
+          setLoadError('Could not load columns: ' + colsRes.error.message)
+        } else {
+          setColumns(colsRes.data || [])
+        }
+
+        if (sticsRes.error) {
+          console.error('stickies fetch error:', sticsRes.error)
+          setLoadError(prev => prev || ('Could not load stickies: ' + sticsRes.error.message))
+        } else {
+          setStickies(sticsRes.data || [])
+        }
       } catch (err) {
         console.error('Board load error:', err)
         if (active) setLoadError(err?.message || 'Failed to load board')
       } finally {
         if (active) setMounted(true)
       }
-    })
-    return () => { active = false; subscription.unsubscribe() }
+    }
+
+    load()
+    return () => { active = false }
   }, []) // eslint-disable-line
 
   // ── Hotkey: S ──
@@ -534,9 +555,20 @@ export default function BoardPage() {
 
   if (!mounted) return (
     <div style={{ minHeight:'100vh', background:'#0b0a08', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <p style={{ fontFamily:"'Space Mono',monospace", fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(240,236,228,0.25)' }}>
-        {loadError ? `Error: ${loadError}` : 'Loading board…'}
-      </p>
+      {loadError ? (
+        <div style={{ textAlign:'center', maxWidth:420, padding:'0 2rem' }}>
+          <p style={{ fontFamily:"'Space Mono',monospace", fontSize:'.52rem', letterSpacing:'.14em', textTransform:'uppercase', color:'rgba(212,84,26,0.7)', marginBottom:'.75rem' }}>
+            Board error
+          </p>
+          <p style={{ fontFamily:"'Caveat',cursive", fontSize:'1.15rem', color:'rgba(240,236,228,0.45)', lineHeight:1.5 }}>
+            {loadError}
+          </p>
+        </div>
+      ) : (
+        <p style={{ fontFamily:"'Space Mono',monospace", fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(240,236,228,0.2)' }}>
+          Loading board…
+        </p>
+      )}
     </div>
   )
 
@@ -591,10 +623,13 @@ export default function BoardPage() {
 
           {/* Empty state */}
           {sortedColumns.length === 0 && (
-            <div style={{ position:'absolute', inset:44, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+            <div style={{ position:'absolute', inset:52, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
               <div style={{ textAlign:'center' }}>
-                <p style={{ fontFamily:"'Caveat',cursive", fontSize:'2rem', color:'rgba(240,236,228,0.12)', fontStyle:'italic', lineHeight:1.3 }}>
-                  Nothing here yet.<br />Press S to create your first sticky.
+                <p style={{ fontFamily:"'Caveat',cursive", fontSize:'2.2rem', color:'rgba(240,236,228,0.13)', fontStyle:'italic', lineHeight:1.5 }}>
+                  Nothing here yet.
+                </p>
+                <p style={{ fontFamily:"'Caveat',cursive", fontSize:'1.5rem', color:'rgba(240,236,228,0.1)', lineHeight:1.4, marginTop:'.25rem' }}>
+                  Press <span style={{ color:'rgba(212,84,26,0.45)', fontStyle:'normal' }}>S</span> to drop your first thought.
                 </p>
               </div>
             </div>
