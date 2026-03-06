@@ -203,9 +203,9 @@ function EnclaveSwitcher({ enclaves, activeEnclaveId, onSwitch, onCreateNew, onS
           display:'flex', alignItems:'center', gap:'.5rem',
           background: isEnclave ? 'rgba(212,84,26,0.1)' : 'rgba(255,255,255,0.04)',
           border: `1px solid ${isEnclave ? 'rgba(212,84,26,0.4)' : 'rgba(255,255,255,0.1)'}`,
-          borderRadius:'5px', padding:'.38rem .85rem',
+          borderRadius:'5px', padding:'.35rem .8rem',
           color: isEnclave ? 'var(--ember)' : 'var(--mid)',
-          fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.1em',
+          fontFamily:'var(--font-mono)', fontSize:'.55rem', letterSpacing:'.1em',
           textTransform:'uppercase', transition:'all .2s', whiteSpace:'nowrap',
         }}
         onMouseEnter={e => { e.currentTarget.style.borderColor = isEnclave ? 'rgba(212,84,26,0.65)' : 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = isEnclave ? 'var(--ember)' : 'var(--text)' }}
@@ -413,7 +413,7 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
     display:'flex', alignItems:'center', gap:'.4rem',
     background:'transparent', border:'1px solid var(--border)', borderRadius:'4px',
     padding:'.38rem .75rem', color:'var(--muted)',
-    fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.1em',
+    fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.18em',
     textTransform:'uppercase', transition:'all .2s', whiteSpace:'nowrap',
   }
   return (
@@ -422,7 +422,7 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
       <div style={{ display:'flex', alignItems:'center', gap:'.75rem', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'.55rem' }}>
           <div className="ember-pip" />
-          <span style={{ fontFamily:'var(--font-serif)', fontSize:'1.2rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', whiteSpace:'nowrap' }}>
+          <span style={{ fontFamily:'var(--font-serif)', fontSize:'1.1rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', whiteSpace:'nowrap' }}>
             The <em style={{ color:'var(--ember)' }}>Vault</em>
           </span>
         </div>
@@ -470,7 +470,7 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           })}
         </div>
 
-        <button className="vault-btn-ghost" onClick={onSignOut} style={{ padding:'.35rem .7rem', fontSize:'.55rem' }}>Out</button>
+        <button className="vault-btn-ghost" onClick={onSignOut} style={{ padding:'.3rem .7rem', fontSize:'.5rem' }}>Out</button>
       </div>
     </div>
   )
@@ -486,14 +486,14 @@ function NoteRow({ note, active, onOpen }) {
       onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'.4rem', marginBottom:'.2rem' }}>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.15rem', color: active ? 'var(--text)' : 'var(--mid)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{note.title || 'Untitled'}</p>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.85rem', color: active ? 'var(--text)' : 'var(--mid)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{note.title || 'Untitled'}</p>
         {isEnclave && (
           <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.06em', color:'var(--ember)', flexShrink:0, display:'flex', alignItems:'center', gap:'.2rem' }}>
             <span style={{ fontSize:'.55rem' }}>◆</span>
           </span>
         )}
       </div>
-      <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--muted)', lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>
+      <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.75rem', color:'var(--muted)', lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>
         {(note.content || '').replace(/\[img:[^\]]*\]/g, '').trim() || 'Empty'}
       </p>
       <p className="msg-timestamp" style={{ marginTop:'.2rem' }}>{new Date(note.updated_at).toLocaleDateString([], { month:'short', day:'numeric' })}</p>
@@ -595,7 +595,7 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
       onDragOver={e => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
       onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) uploadImage(f) }}
-      style={{ position:'relative', flex:1, display:'flex', flexDirection:'column', alignItems:'center', paddingTop:'52px', paddingBottom: chatHeight + 64 + 'px', overflow:'hidden' }}
+      style={{ position:'relative', flex:1, display:'flex', flexDirection:'column', alignItems:'center', paddingTop:'56px', paddingBottom: chatHeight + 64 + 'px', overflow:'hidden' }}
     >
       {/* Ghost watermark */}
       <div style={{ position:'absolute', top:'15%', left:'50%', transform:'translateX(-50%)', fontSize:'22vw', fontFamily:'var(--font-serif)', fontWeight:300, fontStyle:'italic', color:'var(--ember)', opacity:.042, pointerEvents:'none', userSelect:'none', zIndex:0 }}>
@@ -657,12 +657,12 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
 
         {/* Title */}
         <textarea value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder="Note title…" rows={1}
-          style={{ background:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'clamp(2rem,5vw,3.2rem)', fontWeight:700, color:'var(--text)', lineHeight:1.1, padding:0, marginBottom:'1.5rem', flexShrink:0, overflow:'hidden' }}
+          style={{ background:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'2.8rem', fontWeight:700, color:'var(--text)', lineHeight:1.1, padding:0, marginBottom:'1.5rem', flexShrink:0, overflow:'hidden' }}
           onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }} />
 
         {/* Body */}
         <textarea ref={contentRef} value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Start writing…" className="ruled-editor"
-          style={{ flex:1, backgroundColor:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'1.25rem', color:'var(--text)', lineHeight:'2.3rem', padding:0, minHeight:'200px' }} />
+          style={{ flex:1, backgroundColor:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'1.15rem', color:'var(--text)', lineHeight:'2.3rem', padding:0, minHeight:'200px' }} />
 
         {/* Scrapbook images */}
         {noteImages.length > 0 && (
@@ -683,7 +683,13 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
 }
 
 // ── Floating Toolbar ──────────────────────────────────────────────────────────
-function FloatingToolbar({ contentRef, setNoteContent, chatHeight, onImageClick }) {
+const COLOR_HEX = { ember:'#d4541a', gold:'#c8973a', cyan:'#3ad4c8', paper:'rgba(240,236,228,0.9)', charcoal:'#2a2825' }
+
+function FloatingToolbar({ contentRef, setNoteContent, chatHeight, onImageClick, onDropToBoard }) {
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [stickyText, setStickyText] = useState('')
+  const [stickyColor, setStickyColor] = useState('paper')
+
   function apply(tag) {
     const ta = contentRef.current; if (!ta) return
     const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e)
@@ -692,18 +698,59 @@ function FloatingToolbar({ contentRef, setNoteContent, chatHeight, onImageClick 
     setNoteContent(ta.value.slice(0, s) + rep + ta.value.slice(e))
     setTimeout(() => { ta.focus(); ta.selectionStart = s; ta.selectionEnd = s + rep.length }, 0)
   }
+
+  function openPopover() {
+    const ta = contentRef.current
+    const sel = ta ? ta.value.slice(ta.selectionStart, ta.selectionEnd).trim() : ''
+    setStickyText(sel)
+    setStickyColor('paper')
+    setPopoverOpen(true)
+  }
+
+  async function dropToBoard() {
+    if (!stickyText.trim()) return
+    await onDropToBoard(stickyText.trim(), stickyColor)
+    setPopoverOpen(false)
+    setStickyText('')
+  }
+
   const btns = [
     { tag:'bold', label:'B', style:{ fontWeight:700 } }, { tag:'italic', label:'I', style:{ fontStyle:'italic' } },
     { tag:'underline', label:'U', style:{ textDecoration:'underline' } }, { sep:true },
     { tag:'h1', label:'H₁', style:{} }, { tag:'quote', label:'❝', style:{} }, { sep:true },
     { tag:'image', label:'🖼', cls:'ember', onClick: onImageClick }, { tag:'code', label:'#', style:{} },
   ]
+
   return (
-    <div className="floating-toolbar" style={{ bottom: chatHeight + 16 }}>
-      {btns.map((b, i) => b.sep ? <div key={i} className="tb-sep" /> : (
-        <button key={i} className={`tb-btn${b.cls ? ' '+b.cls : ''}`} style={b.style}
-          onClick={() => b.onClick ? b.onClick() : apply(b.tag)} title={b.tag}>{b.label}</button>
-      ))}
+    <div style={{ position:'fixed', left:'50%', transform:'translateX(-50%)', bottom: chatHeight + 16, zIndex:150, display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+      {popoverOpen && (
+        <div style={{ background:'rgba(11,10,8,0.97)', border:'1px solid var(--border)', borderRadius:'8px', padding:'1rem', width:'244px', boxShadow:'0 8px 32px rgba(0,0,0,0.5)', backdropFilter:'blur(16px)', display:'flex', flexDirection:'column', gap:'.7rem' }}>
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)' }}>Drop to Board</p>
+          <div style={{ display:'flex', gap:'.45rem', alignItems:'center' }}>
+            {Object.entries(COLOR_HEX).map(([id, hex]) => (
+              <button key={id} onClick={() => setStickyColor(id)}
+                style={{ width:18, height:18, borderRadius:'50%', background:hex, border: stickyColor === id ? '2px solid rgba(255,255,255,0.8)' : '2px solid transparent', transition:'border .15s', cursor:'none', flexShrink:0 }} />
+            ))}
+          </div>
+          <textarea value={stickyText} onChange={e => setStickyText(e.target.value)} rows={3}
+            placeholder="capture a thought…"
+            style={{ background:'rgba(255,255,255,0.04)', border:'1px solid var(--border)', borderRadius:'4px', color:'var(--text)', fontFamily:'var(--font-caveat)', fontSize:'1.05rem', lineHeight:1.4, padding:'.4rem .55rem', resize:'none', outline:'none' }}
+            onFocus={e => e.target.style.borderColor = 'var(--ember-dim)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          <div style={{ display:'flex', gap:'.5rem' }}>
+            <button className="vault-btn" onClick={dropToBoard} disabled={!stickyText.trim()} style={{ flex:1, padding:'.45rem', fontSize:'.5rem', justifyContent:'center' }}>Drop to Board</button>
+            <button className="vault-btn-ghost" onClick={() => setPopoverOpen(false)} style={{ padding:'.45rem .8rem', fontSize:'.5rem' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      <div className="floating-toolbar" style={{ position:'relative', transform:'none', left:'auto', bottom:'auto' }}>
+        {btns.map((b, i) => b.sep ? <div key={i} className="tb-sep" /> : (
+          <button key={i} className={`tb-btn${b.cls ? ' '+b.cls : ''}`} style={b.style}
+            onClick={() => b.onClick ? b.onClick() : apply(b.tag)} title={b.tag}>{b.label}</button>
+        ))}
+        <div className="tb-sep" />
+        <button className="tb-btn ember" onClick={openPopover} title="drop to board" style={{ fontSize:'.85rem' }}>📌</button>
+      </div>
     </div>
   )
 }
@@ -759,10 +806,10 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
       {avatar}
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:'flex', alignItems:'baseline', gap:'.5rem', marginBottom:'.1rem' }}>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.56rem', letterSpacing:'.12em', textTransform:'uppercase', color: aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.6)') }}>{label}</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.12em', textTransform:'uppercase', color: aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.6)') }}>{label}</span>
           <span className="msg-timestamp">{formatTime(msg.created_at)}</span>
         </div>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.2rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
           {msg.content}
           {msg.streaming && <span style={{ color: aiMeta?.color || 'var(--ember)', marginLeft:1 }} className="animate-pulse-slow">▋</span>}
         </p>
@@ -863,7 +910,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
       {/* Handle */}
       <div className="lattice-handle" onClick={() => setExpanded(v => !v)} data-hover>
         <div className="drawer-pill" />
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.16em', textTransform:'uppercase', color:'var(--mid)' }}>Lattice</span>
+        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.55rem', letterSpacing:'.16em', textTransform:'uppercase', color:'var(--mid)' }}>Lattice</span>
         {activeEnclave && (
           <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--ember)', opacity:.8 }}>
             ◆ {activeEnclave.name}
@@ -913,6 +960,19 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
               ))}
             </div>
           )}
+
+          {/* Context indicator */}
+          <div style={{ padding:'0 1rem .2rem' }}>
+            {activeEnclave ? (
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--ember)' }}>
+                <span style={{ marginRight:'.35rem' }}>◆</span>{activeEnclave.name} — AI has access to shared notes
+              </span>
+            ) : (
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', opacity:.6 }}>
+                Personal — AI context is this note only
+              </span>
+            )}
+          </div>
 
           {/* Dormancy indicator */}
           {sleeping && (
@@ -995,6 +1055,7 @@ export default function Dashboard() {
   const [pinnedIds, setPinnedIds] = useState(new Set())
   const [pinToast, setPinToast] = useState(false)
   const [boardPinToast, setBoardPinToast] = useState(false)
+  const [boardDropToast, setBoardDropToast] = useState(false)
   const [boardStickyCount, setBoardStickyCount] = useState(0)
 
   // Avatar states
@@ -1495,6 +1556,27 @@ export default function Dashboard() {
     }
   }
 
+  // ── Drop note text to board ──
+  async function handleDropToBoard(content, color) {
+    const sb = getSupabase()
+    const { data: cols } = await sb.from('sticky_columns')
+      .select('id').eq('user_id', user.id).order('position').limit(1)
+    const columnId = cols?.[0]?.id || null
+    await sb.from('stickies').insert({
+      user_id: user.id,
+      column_id: columnId,
+      content: content.slice(0, 280),
+      color: color || 'paper',
+      rotation: parseFloat((Math.random() * 6 - 3).toFixed(2)),
+      source_type: 'note',
+      source_note_id: activeNote?.id || null,
+      position: 0,
+    })
+    setBoardStickyCount(prev => prev + 1)
+    setBoardDropToast(true)
+    setTimeout(() => setBoardDropToast(false), 2400)
+  }
+
   // ── Enclave actions ──
   async function handleCreateEnclave(name, setLoading, setError) {
     setLoading(true)
@@ -1595,6 +1677,7 @@ export default function Dashboard() {
       )}
       {pinToast && <div className="pin-toast">📌 Pinned to note</div>}
       {boardPinToast && <div className="pin-toast" style={{ bottom:'3.5rem' }}>🗂 Pinned to board</div>}
+      {boardDropToast && <div className="pin-toast" style={{ bottom:'6rem' }}>📌 Dropped to board</div>}
       {enclaveToast && (
         <div className="pin-toast" style={{ bottom:'auto', top:'3.5rem', right:'1rem', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(212,84,26,0.35)', color:'var(--ember)', maxWidth:'340px', fontSize:'.55rem', letterSpacing:'.08em', padding:'.65rem 1rem' }}>
           {enclaveToast}
@@ -1637,7 +1720,8 @@ export default function Dashboard() {
       </div>
 
       <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
-        chatHeight={chatHeight} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }} />
+        chatHeight={chatHeight} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
+        onDropToBoard={handleDropToBoard} />
 
       <VoiceFAB setNoteContent={setNoteContent} chatHeight={chatHeight} />
 

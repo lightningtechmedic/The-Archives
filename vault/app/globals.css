@@ -91,9 +91,9 @@
   /* ── Topbar ── */
   .topbar {
     position: fixed; top: 0; left: 0; right: 0;
-    height: 52px; z-index: 500;
+    height: 56px; z-index: 500;
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0 1.25rem;
+    padding: 0 1.4rem;
     background: rgba(11,10,8,0.88);
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
@@ -101,9 +101,9 @@
 
   /* ── Notes drawer ── */
   .notes-drawer {
-    position: fixed; top: 52px; left: 0; bottom: 0;
+    position: fixed; top: 56px; left: 0; bottom: 0;
     width: 300px; z-index: 400;
-    height: calc(100vh - 52px);
+    height: calc(100vh - 56px);
     background: rgba(11,10,8,0.96);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--border);
@@ -114,7 +114,7 @@
   .notes-drawer.open { transform: translateX(0); }
 
   .drawer-overlay {
-    position: fixed; inset: 0; top: 52px;
+    position: fixed; inset: 0; top: 56px;
     background: rgba(0,0,0,0.45); z-index: 300;
     backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
   }
@@ -206,7 +206,7 @@
   /* ── Messages ── */
   .msg-row {
     display: flex; gap: .75rem; align-items: flex-start;
-    padding: .35rem 0; position: relative;
+    padding: .5rem 0; position: relative;
   }
   .msg-row:hover .pin-btn { opacity: 1; }
   .pin-btn {
@@ -220,7 +220,7 @@
 
   /* ── Toast ── */
   .pin-toast {
-    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
     background: rgba(11,10,8,0.96);
     border: 1px solid var(--ember-dim); border-radius: 6px;
     padding: .5rem .9rem;
@@ -276,7 +276,7 @@
   }
   .msg-timestamp {
     font-family: var(--font-mono), monospace;
-    font-size: .5rem; letter-spacing: .08em;
+    font-size: .46rem; letter-spacing: .08em;
     color: var(--muted); opacity: .65;
   }
   .online-dot {
