@@ -9,6 +9,7 @@ import { pinLatticeMsgToBoard } from '@/lib/stickies'
 import {
   AvatarArchitect,
   AvatarSpark,
+  AvatarScribe,
   AvatarSmara,
   AvatarYou,
   AvatarSocra,
@@ -33,7 +34,16 @@ const AI = {
     textColor: 'rgba(255,240,180,0.88)',
     thinkingLabel: 'making a leap…',
   },
+  scribe: {
+    label: 'The Scribe', role: 'scribe',
+    color: 'rgba(100,140,255,0.8)', dim: 'rgba(100,140,255,0.1)', border: 'rgba(100,140,255,0.35)',
+    textColor: 'rgba(210,220,255,0.88)',
+    thinkingLabel: 'crafting a response…',
+  },
 }
+
+// Triggers Scribe when message contains build/code intent or direct address
+const SCRIBE_TRIGGER_RE = /\b(build|code|implement|create|fix|ship|deploy|write|refactor|debug|push|commit|make|add|update|delete|remove|connect|integrate)\b/i
 
 // ── Reminder regex ─────────────────────────────────────────────────────────────
 const REMINDER_RE = /\b(remind(?:er|s)?(?:\s+me)?|remember\s+to|don'?t\s+forget|follow[\s-]?up(?:\s+(?:on|with))?|check\s+back|revisit|by\s+(?:eod|end\s+of\s+(?:day|week)|tomorrow|(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|week|month))|deadline[:\s]|due\s+(?:date[:\s]|by[:\s]|on[:\s]|\d+)|in\s+\d+\s+(?:days?|weeks?|months?|hours?)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|next\s+(?:monday|tuesday|wednesday|thursday|friday|week|month)|this\s+(?:friday|monday|tuesday|wednesday|thursday))\b/gi
@@ -408,7 +418,7 @@ function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, 
 }
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon }) {
   const tbBtn = {
     display:'flex', alignItems:'center', gap:'.4rem',
     background:'transparent', border:'1px solid var(--border)', borderRadius:'4px',
@@ -456,6 +466,12 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
         <div style={{ display:'flex', alignItems:'center', gap:3, padding:'0 .3rem', borderLeft:'1px solid var(--border)', borderRight:'1px solid var(--border)' }}>
           <AvatarArchitect size={28} state={architectState} />
           <AvatarSpark size={28} state={sparkState} />
+          <div
+            title={scribeActive ? 'The Scribe — active' : scribeAvailable ? 'The Scribe — summon with /scribe' : 'The Scribe — needs enclave notes to summon'}
+            onClick={scribeAvailable ? onScribeSummon : undefined}
+            style={{ opacity: scribeActive ? 1 : scribeAvailable ? 0.55 : 0.22, cursor: scribeAvailable ? 'none' : 'default', transition:'opacity .3s', boxShadow: scribeActive ? '0 0 10px rgba(100,140,255,0.5)' : 'none', borderRadius:'4px' }}>
+            <AvatarScribe size={28} state={scribeActive ? scribeState : 'idle'} />
+          </div>
         </div>
 
         <div style={{ display:'flex', alignItems:'center' }}>
@@ -784,25 +800,27 @@ function VoiceFAB({ setNoteContent, chatHeight }) {
 }
 
 // ── Chat Message ──────────────────────────────────────────────────────────────
-function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState }) {
+function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState }) {
   const role = msg.role === 'user' ? 'human' : msg.role
   const isArchitect = role === 'claude'
   const isSpark = role === 'gpt'
-  const isAI = isArchitect || isSpark
-  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : null
+  const isScribe = role === 'scribe'
+  const isAI = isArchitect || isSpark || isScribe
+  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : null
   const prof = allProfiles?.find(p => p.id === msg.user_id)
   const isMe = msg.user_id === currentUserId
-  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : (msg.display_name || prof?.display_name || 'Team')
+  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : (msg.display_name || prof?.display_name || 'Team')
 
   let avatar
   if (isArchitect)        avatar = <AvatarArchitect size={26} state={architectState} />
   else if (isSpark)       avatar = <AvatarSpark size={26} state={sparkState} />
+  else if (isScribe)      avatar = <AvatarScribe size={26} state={scribeState} />
   else if (isSmara(prof)) avatar = <AvatarSmara size={26} />
   else if (isMe)          avatar = <AvatarYou size={26} state={yourState} />
   else                    avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={26} />
 
   return (
-    <div className="msg-row" style={{ borderLeft: isAI ? `2px solid ${aiMeta.border}` : `2px solid rgba(58,212,200,0.15)`, paddingLeft:'.5rem', marginLeft:'-.5rem' }}>
+    <div className="msg-row" style={{ borderLeft: isAI ? `2px solid ${aiMeta.border}` : `2px solid rgba(58,212,200,0.15)`, paddingLeft:'.5rem', marginLeft:'-.5rem', background: isScribe ? 'rgba(10,12,20,0.6)' : 'transparent', borderRadius: isScribe ? '2px' : 0 }}>
       {avatar}
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:'flex', alignItems:'baseline', gap:'.5rem', marginBottom:'.1rem' }}>
@@ -831,10 +849,12 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
   )
 }
 
-function ThinkingDot({ model, architectState, sparkState }) {
+function ThinkingDot({ model, architectState, sparkState, scribeState }) {
   const meta = AI[model]
   const avatarEl = model === 'claude'
     ? <AvatarArchitect size={26} state={architectState} />
+    : model === 'scribe'
+    ? <AvatarScribe size={26} state={scribeState || 'thinking'} />
     : <AvatarSpark size={26} state={sparkState} />
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'.5rem', paddingLeft:'.5rem', borderLeft:`2px solid ${meta.border}`, marginLeft:'-.5rem' }}>
@@ -891,7 +911,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -921,6 +941,11 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             {ai.label}
           </span>
         ))}
+        {scribeActive && (
+          <span style={{ padding:'.18rem .45rem', border:`1px solid ${AI.scribe.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.scribe.color, background:AI.scribe.dim }}>
+            {AI.scribe.label}
+          </span>
+        )}
         <div style={{ flex:1 }} />
         <button onClick={e => { e.stopPropagation(); setAutoAI(v => !v) }}
           style={{ display:'flex', alignItems:'center', gap:'.3rem', padding:'.22rem .55rem', background:'transparent', border:`1px solid ${autoAI ? 'rgba(80,200,100,0.4)' : 'var(--border)'}`, borderRadius:'2px', color: autoAI ? 'var(--green)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
@@ -944,9 +969,9 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             {messages.map((msg, i) => (
               <ChatMessage key={msg.id || i} msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
                 onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
-                architectState={architectState} sparkState={sparkState} yourState={yourState} />
+                architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} />
             ))}
-            {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} />}
+            {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} />}
             <div ref={messagesEndRef} />
           </div>
 
@@ -1063,6 +1088,8 @@ export default function Dashboard() {
   const [sparkState, setSparkState] = useState('idle')
   const [yourState, setYourState] = useState('idle')
   const [sleeping, setSleeping] = useState(false)
+  const [scribeActive, setScribeActive] = useState(false)
+  const [scribeState, setScribeState] = useState('idle')
 
   // Enclaves
   const [enclaves, setEnclaves] = useState([])
@@ -1088,6 +1115,7 @@ export default function Dashboard() {
   const sleepModeRef = useRef(false)
   const lastProvocationRef = useRef(0)
   const sleepStartRef = useRef(0)
+  const scribeActiveRef = useRef(false)
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { activeNoteRef.current = activeNote }, [activeNote])
@@ -1183,6 +1211,10 @@ export default function Dashboard() {
           ])
           if (active) { setEnclaveNotes(eNotes || []); setActiveEnclaveMembers(membersData || []) }
         }
+
+        // Restore scribe active state from localStorage
+        const savedScribe = typeof window !== 'undefined' ? localStorage.getItem('vault_scribe_active') : null
+        if (savedScribe === 'true') { scribeActiveRef.current = true; setScribeActive(true) }
 
         setMounted(true)
 
@@ -1429,8 +1461,9 @@ export default function Dashboard() {
     const placeholder = { id: tempId, role: model, display_name: meta.label, content: '', streaming: true, created_at: new Date().toISOString() }
     setMessages(prev => [...prev, placeholder])
     setThinking(model)
+    if (model === 'scribe') setScribeState('thinking')
 
-    let text = ''
+    let text = '', firstToken = true
     try {
       const res = await fetch(`${API_BASE}/api/chat/${model}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1440,6 +1473,7 @@ export default function Dashboard() {
       const reader = res.body.getReader(), dec = new TextDecoder()
       while (true) {
         const { done, value } = await reader.read(); if (done) break
+        if (firstToken && model === 'scribe') { setScribeState('writing'); firstToken = false }
         text += dec.decode(value, { stream: true })
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, content: text } : m))
       }
@@ -1449,6 +1483,7 @@ export default function Dashboard() {
     }
 
     setThinking(null)
+    if (model === 'scribe') { setScribeState('done'); setTimeout(() => setScribeState('idle'), 850) }
     const { data: saved } = await getSupabase().from('messages').insert({ user_id: null, display_name: meta.label, content: text, role: model }).select().single()
     const final = saved || { ...placeholder, content: text, streaming: false }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false } : m))
@@ -1460,6 +1495,13 @@ export default function Dashboard() {
     const content = chatInput.trim(); setChatInput('')
     lastMsgTimeRef.current = Date.now()
     lastActivityRef.current = Date.now()
+
+    // /scribe command — toggle summon/dismiss
+    if (content === '/scribe') {
+      if (scribeActiveRef.current) dismissScribe()
+      else summonScribe()
+      return
+    }
 
     // Your avatar fires
     setYourState('sending')
@@ -1497,6 +1539,15 @@ export default function Dashboard() {
     if (CONTRAST_RE.test(sparkText) || CONTRAST_RE.test(archText)) {
       setArchitectState('disagreeing')
       setTimeout(() => setArchitectState('idle'), 3000)
+    }
+
+    // Route to Scribe if active and message has build intent or direct address
+    if (scribeActiveRef.current) {
+      const directAddress = /\bscribe\b/i.test(content)
+      const buildIntent = SCRIBE_TRIGGER_RE.test(content)
+      if (directAddress || buildIntent) {
+        await triggerAI('scribe', [...historyRef.current], noteContext, publicNotes)
+      }
     }
 
     setAiLocked(false)
@@ -1554,6 +1605,37 @@ export default function Dashboard() {
       setSparkState('excited')
       setTimeout(() => setSparkState('idle'), 1200)
     }
+  }
+
+  // ── Summon / dismiss The Scribe ──
+  async function summonScribe() {
+    scribeActiveRef.current = true
+    setScribeActive(true)
+    localStorage.setItem('vault_scribe_active', 'true')
+    setEnclaveToast('The Scribe has joined the Lattice')
+    setTimeout(() => setEnclaveToast(''), 2800)
+
+    const { noteContext, publicNotes } = await buildNoteContext()
+    const entranceHistory = [
+      ...historyRef.current.slice(-12),
+      { role: 'human', content: 'You have been summoned to the Lattice. Introduce yourself in 2 sentences maximum, referencing what you have been reading. End with: Ready when you are.', display_name: 'System' },
+    ]
+    await new Promise(r => setTimeout(r, 1500))
+    setAiLocked(true)
+    await triggerAI('scribe', entranceHistory, noteContext, publicNotes)
+    setAiLocked(false)
+  }
+
+  function dismissScribe() {
+    scribeActiveRef.current = false
+    setScribeActive(false)
+    localStorage.removeItem('vault_scribe_active')
+    const exitMsg = "Stepping back. The work is done — or I'm here when you're ready."
+    getSupabase().from('messages').insert({
+      user_id: null, display_name: AI.scribe.label, content: exitMsg, role: 'scribe',
+    }).select().single().then(({ data }) => {
+      if (data) setMessages(prev => [...prev, data])
+    })
   }
 
   // ── Drop note text to board ──
@@ -1693,7 +1775,11 @@ export default function Dashboard() {
         onCreateEnclave={() => setShowCreateEnclave(true)}
         onEnclaveSettings={() => setShowEnclaveSettings(true)}
         boardCount={boardStickyCount}
-        onSignOut={async () => { await getSupabase().auth.signOut(); window.location.href = '/vault/login' }} />
+        scribeActive={scribeActive}
+        scribeAvailable={enclaveNotes.length > 0 && messages.length >= 3}
+        scribeState={scribeState}
+        onScribeSummon={summonScribe}
+        onSignOut={async () => { await getSupabase().auth.signOut(); localStorage.removeItem('vault_scribe_active'); setScribeActive(false); window.location.href = '/vault/login' }} />
 
       {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
       <NotesDrawer open={notesOpen}
@@ -1738,7 +1824,8 @@ export default function Dashboard() {
         architectState={architectState} sparkState={sparkState} yourState={yourState}
         noteTitle={noteTitle}
         activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
-        sleeping={sleeping} />
+        sleeping={sleeping}
+        scribeActive={scribeActive} scribeState={scribeState} />
     </div>
   )
 }
