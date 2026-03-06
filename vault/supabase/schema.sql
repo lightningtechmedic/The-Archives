@@ -1,6 +1,6 @@
 -- ============================================================
--- THE VAULT — Supabase Schema
--- Run this in your Supabase SQL editor
+-- THE VAULT — Full Database Schema
+-- Run this in your Supabase SQL editor (fresh setup)
 -- ============================================================
 
 -- PROFILES
@@ -12,13 +12,14 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
--- MESSAGES (shared AI chat history)
+-- MESSAGES (shared three-way AI + team chat)
 create table if not exists public.messages (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete set null,
   display_name text,
+  avatar_initial text,
   content text not null,
-  role text not null check (role in ('user', 'assistant')),
+  role text not null check (role in ('user', 'assistant', 'human', 'claude', 'gpt')),
   created_at timestamptz default now()
 );
 
@@ -51,10 +52,10 @@ create table if not exists public.files (
 
 alter table public.profiles enable row level security;
 alter table public.messages enable row level security;
-alter table public.notes enable row level security;
-alter table public.files enable row level security;
+alter table public.notes     enable row level security;
+alter table public.files     enable row level security;
 
--- Profiles
+-- Profiles: any authenticated user can read, owner can write
 create policy "Profiles viewable by authenticated users"
   on public.profiles for select
   using (auth.role() = 'authenticated');
@@ -67,7 +68,7 @@ create policy "Users can update own profile"
   on public.profiles for update
   using (auth.uid() = id);
 
--- Messages
+-- Messages: any authenticated user can read and insert
 create policy "Messages viewable by authenticated users"
   on public.messages for select
   using (auth.role() = 'authenticated');
@@ -76,7 +77,7 @@ create policy "Authenticated users can insert messages"
   on public.messages for insert
   with check (auth.role() = 'authenticated');
 
--- Notes
+-- Notes: owner has full control; shared notes readable by all
 create policy "Notes viewable by owner or if shared"
   on public.notes for select
   using (auth.uid() = user_id or (is_shared = true and auth.role() = 'authenticated'));
@@ -93,7 +94,7 @@ create policy "Users can delete own notes"
   on public.notes for delete
   using (auth.uid() = user_id);
 
--- Files
+-- Files: owner has full control; shared files readable by all
 create policy "Files viewable by owner or if shared"
   on public.files for select
   using (auth.uid() = user_id or (is_shared = true and auth.role() = 'authenticated'));
@@ -134,9 +135,9 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- ============================================================
--- REALTIME (enable for messages)
+-- REALTIME
+-- Enable via Supabase dashboard > Realtime, or run below.
 -- ============================================================
 
--- Run in SQL editor OR enable via Supabase dashboard > Realtime
 alter publication supabase_realtime add table public.messages;
 alter publication supabase_realtime add table public.profiles;
