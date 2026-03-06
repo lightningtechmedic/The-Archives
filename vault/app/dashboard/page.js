@@ -390,7 +390,11 @@ function QuickNotePanel({ userId, supabase }) {
 
 export default function Dashboard() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabaseRef = useRef(null)
+  function getSupabase() {
+    if (!supabaseRef.current) supabaseRef.current = createClient()
+    return supabaseRef.current
+  }
 
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -421,48 +425,54 @@ export default function Dashboard() {
     let active = true
     let initialized = false
 
+    const supabase = getSupabase()
+
     async function init(u) {
-      const [{ data: prof }, { data: profs }, { data: msgs }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', u.id).single(),
-        supabase.from('profiles').select('*'),
-        supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(100),
-      ])
+      try {
+        const [{ data: prof }, { data: profs }, { data: msgs }] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', u.id).single(),
+          supabase.from('profiles').select('*'),
+          supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(100),
+        ])
 
-      if (!active) return
-      setUser(u)
-      setProfile(prof)
-      setAllProfiles(profs || [])
-      setMessages(msgs || [])
-      if (!prof?.display_name) setNeedsName(true)
-      setMounted(true)
+        if (!active) return
+        setUser(u)
+        setProfile(prof)
+        setAllProfiles(profs || [])
+        setMessages(msgs || [])
+        if (!prof?.display_name) setNeedsName(true)
+        setMounted(true)
 
-      // Realtime: new messages
-      supabase.channel('messages-realtime')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-          setMessages(prev => {
-            if (prev.find(m => m.id === payload.new.id)) return prev
-            return [...prev, payload.new]
-          })
-        })
-        .subscribe()
-
-      // Presence
-      const presenceChannel = supabase.channel('online-users', {
-        config: { presence: { key: u.id } },
-      })
-      presenceChannel
-        .on('presence', { event: 'sync' }, () => {
-          setOnlineUsers(Object.values(presenceChannel.presenceState()).flat())
-        })
-        .subscribe(async status => {
-          if (status === 'SUBSCRIBED') {
-            await presenceChannel.track({
-              user_id: u.id,
-              display_name: prof?.display_name || u.email,
-              avatar_initial: prof?.avatar_initial || u.email?.[0]?.toUpperCase(),
+        // Realtime: new messages
+        supabase.channel('messages-realtime')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            setMessages(prev => {
+              if (prev.find(m => m.id === payload.new.id)) return prev
+              return [...prev, payload.new]
             })
-          }
+          })
+          .subscribe()
+
+        // Presence
+        const presenceChannel = supabase.channel('online-users', {
+          config: { presence: { key: u.id } },
         })
+        presenceChannel
+          .on('presence', { event: 'sync' }, () => {
+            setOnlineUsers(Object.values(presenceChannel.presenceState()).flat())
+          })
+          .subscribe(async status => {
+            if (status === 'SUBSCRIBED') {
+              await presenceChannel.track({
+                user_id: u.id,
+                display_name: prof?.display_name || u.email,
+                avatar_initial: prof?.avatar_initial || u.email?.[0]?.toUpperCase(),
+              })
+            }
+          })
+      } catch (err) {
+        console.error('[Dashboard] init() failed:', err)
+      }
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -480,7 +490,7 @@ export default function Dashboard() {
   async function saveDisplayName(name, setLoading) {
     setLoading(true)
     const initial = name[0].toUpperCase()
-    await supabase.from('profiles').update({ display_name: name, avatar_initial: initial }).eq('id', user.id)
+    await getSupabase().from('profiles').update({ display_name: name, avatar_initial: initial }).eq('id', user.id)
     setProfile(prev => ({ ...prev, display_name: name, avatar_initial: initial }))
     setAllProfiles(prev => prev.map(p => p.id === user.id ? { ...p, display_name: name, avatar_initial: initial } : p))
     setNeedsName(false)
@@ -505,7 +515,7 @@ export default function Dashboard() {
       return [...prev, optimistic]
     })
 
-    const { data: saved } = await supabase.from('messages').insert({
+    const { data: saved } = await getSupabase().from('messages').insert({
       user_id: user.id,
       display_name: optimistic.display_name,
       avatar_initial: optimistic.avatar_initial,
@@ -570,7 +580,7 @@ export default function Dashboard() {
     setThinking(null)
 
     // Persist to Supabase
-    const { data: saved } = await supabase.from('messages').insert({
+    const { data: saved } = await getSupabase().from('messages').insert({
       user_id: null,
       display_name: meta.label,
       avatar_initial: meta.initial,
@@ -629,7 +639,7 @@ export default function Dashboard() {
   }
 
   async function handleSignOut() {
-    await supabase.auth.signOut()
+    await getSupabase().auth.signOut()
     router.push('/login')
   }
 
@@ -863,7 +873,7 @@ export default function Dashboard() {
         </div>
 
         {/* RIGHT: Notes */}
-        <QuickNotePanel userId={user?.id} supabase={supabase} />
+        <QuickNotePanel userId={user?.id} supabase={getSupabase()} />
       </div>
     </div>
   )
