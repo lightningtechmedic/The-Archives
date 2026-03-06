@@ -8,12 +8,13 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "14.2.3",
-    "react": "^18",
-    "react-dom": "^18",
+    "@anthropic-ai/sdk": "^0.26.1",
     "@supabase/ssr": "^0.3.0",
     "@supabase/supabase-js": "^2.43.1",
-    "openai": "^4.47.1"
+    "next": "14.2.3",
+    "openai": "^4.47.1",
+    "react": "^18",
+    "react-dom": "^18"
   },
   "devDependencies": {
     "autoprefixer": "^10.0.1",
