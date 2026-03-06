@@ -41,12 +41,21 @@ const REMINDER_RE = /\b(remind(?:er|s)?(?:\s+me)?|remember\s+to|don'?t\s+forget|
 // ── Contrast words for disagreement detection ─────────────────────────────────
 const CONTRAST_RE = /\b(actually|however|but\s+i|disagree|rather|on\s+the\s+other|in\s+contrast|yet\s+i|i'd\s+argue|contrary|wait[,—]|hold\s+on|not\s+quite|i\s+see\s+it\s+differently)\b/i
 
-// ── Spark provocations (auto-fire after 10 min idle) ─────────────────────────
+// ── Spark provocations (auto-fire, guarded) ───────────────────────────────────
 const PROVOCATIONS = [
   "Nothing for a while. What are we actually trying to solve here?",
   "Long silence. Either deep thought or the draft got away from you. Which is it?",
   "I have a question. What happens if none of this works?",
   "Still here. The Architect and I have been having a quiet debate. Want in?",
+]
+
+// ── Spark wake messages (fire once on return from sleep) ──────────────────────
+const WAKE_MESSAGES = [
+  "Back. What did we miss?",
+  "Still thinking about what you left open.",
+  "The thread picked back up.",
+  "You're back. Good.",
+  "Picking up where we left off.",
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -835,7 +844,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -902,6 +911,15 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
                   Ask {meta.label}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Dormancy indicator */}
+          {sleeping && (
+            <div style={{ padding:'0 1rem .35rem', textAlign:'center' }}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', opacity:.5 }}>
+                ● The Architect and The Spark are resting — start typing to wake them
+              </span>
             </div>
           )}
 
@@ -983,6 +1001,7 @@ export default function Dashboard() {
   const [architectState, setArchitectState] = useState('idle')
   const [sparkState, setSparkState] = useState('idle')
   const [yourState, setYourState] = useState('idle')
+  const [sleeping, setSleeping] = useState(false)
 
   // Enclaves
   const [enclaves, setEnclaves] = useState([])
@@ -1004,6 +1023,10 @@ export default function Dashboard() {
   const pinPendingRef = useRef(false)
   const avatarTimersRef = useRef({})
   const activeEnclaveIdRef = useRef(null)
+  const lastActivityRef = useRef(Date.now())
+  const sleepModeRef = useRef(false)
+  const lastProvocationRef = useRef(0)
+  const sleepStartRef = useRef(0)
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { activeNoteRef.current = activeNote }, [activeNote])
@@ -1129,26 +1152,76 @@ export default function Dashboard() {
     return () => { active = false; subscription.unsubscribe() }
   }, []) // eslint-disable-line
 
-  // ── Idle detection (10 min → avatar states + Spark provocation) ──
+  // ── Activity tracking — update lastActivityRef on any user interaction ──
   useEffect(() => {
     if (!user) return
-    const idleInterval = setInterval(() => {
-      const idleMs = Date.now() - lastMsgTimeRef.current
-      if (idleMs >= 10 * 60 * 1000 && !aiLocked) {
+    function onActivity() {
+      lastActivityRef.current = Date.now()
+      if (!sleepModeRef.current) return
+      // Wake up
+      sleepModeRef.current = false
+      setSleeping(false)
+      const sleptMs = Date.now() - sleepStartRef.current
+      if (sleptMs >= 8 * 60 * 1000) {
+        // Fire a single wake message after 3s delay
+        setTimeout(() => {
+          if (aiLocked) return
+          const phrase = WAKE_MESSAGES[Math.floor(Math.random() * WAKE_MESSAGES.length)]
+          getSupabase().from('messages').insert({
+            user_id: null, display_name: AI.gpt.label, content: phrase, role: 'gpt',
+          }).select().single().then(({ data }) => {
+            if (data) setMessages(prev => [...prev, data])
+          })
+        }, 3000)
+      }
+      setYourState('idle')
+      setArchitectState('idle')
+      setSparkState('idle')
+    }
+    window.addEventListener('keydown', onActivity)
+    window.addEventListener('click', onActivity)
+    return () => {
+      window.removeEventListener('keydown', onActivity)
+      window.removeEventListener('click', onActivity)
+    }
+  }, [user, aiLocked]) // eslint-disable-line
+
+  // ── Sleep / wake cycle + provocation guard ────────────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    const sleepInterval = setInterval(() => {
+      const now = Date.now()
+      const inactiveMs = now - lastActivityRef.current
+
+      // ── Enter sleep after 8 min inactivity ──
+      if (inactiveMs >= 8 * 60 * 1000 && !sleepModeRef.current) {
+        sleepModeRef.current = true
+        sleepStartRef.current = now
+        setSleeping(true)
         setYourState('silent')
         setArchitectState('silent')
         setSparkState('bored')
-        // Spark provokes after a beat
-        const phrase = PROVOCATIONS[Math.floor(Math.random() * PROVOCATIONS.length)]
-        getSupabase().from('messages').insert({
-          user_id: null, display_name: AI.gpt.label, content: phrase, role: 'gpt',
-        }).select().single().then(({ data }) => {
-          if (data) setMessages(prev => [...prev, data])
-        })
-        lastMsgTimeRef.current = Date.now() // reset to avoid repeat
+        return // skip provocation check while entering sleep
       }
+
+      // ── Idle provocation — only when awake and user recently active ──
+      if (sleepModeRef.current) return
+      const userRecentlyActive = inactiveMs < 3 * 60 * 1000
+      if (!userRecentlyActive) return
+      if (aiLocked) return
+      const sinceLastProvocation = now - lastProvocationRef.current
+      if (sinceLastProvocation < 15 * 60 * 1000) return
+
+      // Fire one provocation
+      lastProvocationRef.current = now
+      const phrase = PROVOCATIONS[Math.floor(Math.random() * PROVOCATIONS.length)]
+      getSupabase().from('messages').insert({
+        user_id: null, display_name: AI.gpt.label, content: phrase, role: 'gpt',
+      }).select().single().then(({ data }) => {
+        if (data) setMessages(prev => [...prev, data])
+      })
     }, 60000)
-    return () => clearInterval(idleInterval)
+    return () => clearInterval(sleepInterval)
   }, [user, aiLocked]) // eslint-disable-line
 
   // ── Reminder polling ──
@@ -1325,6 +1398,7 @@ export default function Dashboard() {
     if (!chatInput.trim() || aiLocked) return
     const content = chatInput.trim(); setChatInput('')
     lastMsgTimeRef.current = Date.now()
+    lastActivityRef.current = Date.now()
 
     // Your avatar fires
     setYourState('sending')
@@ -1579,7 +1653,8 @@ export default function Dashboard() {
         onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
         architectState={architectState} sparkState={sparkState} yourState={yourState}
         noteTitle={noteTitle}
-        activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />
+        activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
+        sleeping={sleeping} />
     </div>
   )
 }
