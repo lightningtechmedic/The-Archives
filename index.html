@@ -529,40 +529,40 @@
     100% { transform: translateX(-50%); }
   }
 
-  /* ── Vault entry ── */
-  .vault-entry {
-    position: fixed;
-    bottom: 2.2rem;
-    right: 2.5rem;
-    z-index: 500;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: .45rem;
+  /* ── Period easter egg CTA ── */
+  .period-cta {
+    color: inherit;
     text-decoration: none;
     cursor: none;
+    position: relative;
+    display: inline-block;
+    transition: text-shadow .6s ease;
   }
-  .vault-entry-glyph {
-    font-size: .55rem;
-    color: var(--ember);
-    opacity: .15;
-    transition: opacity 1.1s ease;
-    display: block;
-    line-height: 1;
+  .period-cta:hover {
+    text-shadow: 0 0 28px rgba(212,84,26,.7), 0 0 8px rgba(212,84,26,.4);
+    transition: text-shadow 1.6s ease 1.5s;
   }
-  .vault-entry-label {
+  .period-cta::after {
+    content: 'enter';
+    position: absolute;
+    bottom: -1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
     font-family: var(--mono);
     font-size: .5rem;
     letter-spacing: .2em;
     color: var(--ember);
-    border-bottom: 1px solid var(--ember);
+    border-bottom: 1px solid rgba(212,84,26,.55);
     padding-bottom: .15rem;
     opacity: 0;
-    transform: translateY(-3px);
-    transition: opacity 1.1s ease, transform 1.1s ease;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: opacity .5s ease;
   }
-  .vault-entry:hover .vault-entry-glyph { opacity: 1; }
-  .vault-entry:hover .vault-entry-label { opacity: 1; transform: translateY(0); }
+  .period-cta:hover::after {
+    opacity: 1;
+    transition: opacity 1s ease 1.5s;
+  }
 
   /* ── Animations ── */
   @keyframes fadeUp {
@@ -590,11 +590,6 @@
 </head>
 <body>
 
-<a class="vault-entry" href="/vault/login" tabindex="-1" aria-hidden="true">
-  <span class="vault-entry-glyph">◆</span>
-  <span class="vault-entry-label">enter</span>
-</a>
-
 <div class="cursor" id="cursor"></div>
 <div class="cursor-ring" id="cursorRing"></div>
 
@@ -609,7 +604,7 @@
 
 <section class="hero">
   <p class="hero-eyebrow">Carbon Studio — The Archive</p>
-  <h1 class="hero-title">Bridging Imagination<br>& <em>Reality.</em></h1>
+  <h1 class="hero-title">Bridging Imagination<br>& <em>Reality<a class="period-cta" href="/vault/login" tabindex="-1" aria-hidden="true">.</a></em></h1>
   <p class="hero-sub">A collective of intelligent systems built to see further, move faster, and operate at a level most aren't playing at yet.</p>
 </section>
 
@@ -769,7 +764,7 @@
     requestAnimationFrame(animateRing);
   })();
 
-  document.querySelectorAll('a, .card, .vault-entry').forEach(el => {
+  document.querySelectorAll('a, .card').forEach(el => {
     el.addEventListener('mouseenter', () => document.body.classList.add('hovering'));
     el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
   });
