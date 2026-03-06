@@ -178,7 +178,6 @@ function EnclaveSwitcher({ enclaves, activeEnclaveId, onSwitch, onCreateNew, onS
   const [open, setOpen] = useState(false)
   const active = enclaves.find(e => e.id === activeEnclaveId)
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return
     function onDoc(e) { if (!e.target.closest('[data-enclave-switcher]')) setOpen(false) }
@@ -186,96 +185,107 @@ function EnclaveSwitcher({ enclaves, activeEnclaveId, onSwitch, onCreateNew, onS
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
+  const isEnclave = !!activeEnclaveId
+
   return (
     <div style={{ position:'relative' }} data-enclave-switcher>
       <button onClick={() => setOpen(v => !v)}
-        style={{ display:'flex', alignItems:'center', gap:'.4rem',
-          background: activeEnclaveId ? 'rgba(58,212,200,0.06)' : 'transparent',
-          border:`1px solid ${activeEnclaveId ? 'rgba(58,212,200,0.35)' : 'var(--border)'}`,
-          borderRadius:'4px', padding:'.3rem .75rem',
-          color: activeEnclaveId ? 'var(--cyan)' : 'var(--muted)',
-          fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em',
-          textTransform:'uppercase', transition:'all .2s', minWidth:'90px', justifyContent:'space-between' }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.6)' : 'var(--border-h)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--text)' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.35)' : 'var(--border)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--muted)' }}>
-        <span style={{ display:'flex', alignItems:'center', gap:'.35rem' }}>
-          {activeEnclaveId
-            ? <span style={{ fontSize:'.6rem', lineHeight:1 }}>◆</span>
-            : <span style={{ width:5, height:5, borderRadius:'50%', background:'var(--muted)', flexShrink:0 }} />
-          }
-          {active?.name || 'Personal'}
-        </span>
-        <span style={{ fontSize:'.44rem', opacity:.45, marginLeft:'.2rem' }}>▾</span>
+        style={{
+          display:'flex', alignItems:'center', gap:'.5rem',
+          background: isEnclave ? 'rgba(212,84,26,0.1)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${isEnclave ? 'rgba(212,84,26,0.4)' : 'rgba(255,255,255,0.1)'}`,
+          borderRadius:'5px', padding:'.38rem .85rem',
+          color: isEnclave ? 'var(--ember)' : 'var(--mid)',
+          fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.1em',
+          textTransform:'uppercase', transition:'all .2s', whiteSpace:'nowrap',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = isEnclave ? 'rgba(212,84,26,0.65)' : 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = isEnclave ? 'var(--ember)' : 'var(--text)' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = isEnclave ? 'rgba(212,84,26,0.4)' : 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = isEnclave ? 'var(--ember)' : 'var(--mid)' }}>
+        {isEnclave
+          ? <><span style={{ fontSize:'.65rem' }}>◆</span>{active?.name}</>
+          : <>Personal</>
+        }
+        <span style={{ fontSize:'.5rem', opacity:.5 }}>▾</span>
       </button>
 
       {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:4000,
-          background:'rgba(11,10,8,0.98)', border:'1px solid var(--border)',
-          borderRadius:'4px', minWidth:'200px', overflow:'hidden',
-          boxShadow:'0 8px 40px rgba(0,0,0,0.7)', backdropFilter:'blur(20px)' }}>
-
+        <div style={{
+          position:'absolute', top:'calc(100% + 8px)', left:0, zIndex:4000,
+          background:'rgba(11,10,8,0.98)', border:'1px solid rgba(255,255,255,0.09)',
+          borderRadius:'6px', minWidth:'210px', overflow:'hidden',
+          boxShadow:'0 12px 48px rgba(0,0,0,0.75)', backdropFilter:'blur(20px)',
+        }}>
           {/* Personal */}
           <button onClick={() => { onSwitch(null); setOpen(false) }}
-            style={{ width:'100%', padding:'.55rem .85rem', background:'transparent',
+            style={{
+              width:'100%', padding:'.65rem .9rem', background:'transparent',
               color: !activeEnclaveId ? 'var(--text)' : 'var(--muted)',
-              fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em',
+              fontFamily:'var(--font-mono)', fontSize:'.55rem', letterSpacing:'.1em',
               textTransform:'uppercase', textAlign:'left', display:'flex', alignItems:'center',
-              justifyContent:'space-between', borderBottom:'1px solid var(--border)', transition:'all .15s' }}
+              justifyContent:'space-between', borderBottom:'1px solid rgba(255,255,255,0.055)', transition:'background .12s',
+            }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <span style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
-              <span style={{ width:5, height:5, borderRadius:'50%', background: !activeEnclaveId ? 'var(--text)' : 'var(--muted)' }} />
+              <span style={{ width:6, height:6, borderRadius:'50%', background: !activeEnclaveId ? 'var(--text)' : 'rgba(255,255,255,0.2)', flexShrink:0 }} />
               Personal
             </span>
-            {!activeEnclaveId && <span style={{ color:'var(--ember)', fontSize:'.6rem' }}>✓</span>}
+            {!activeEnclaveId && <span style={{ color:'var(--ember)', fontSize:'.7rem' }}>✓</span>}
           </button>
 
           {/* Enclave list */}
           {enclaves.map(e => (
             <button key={e.id} onClick={() => { onSwitch(e.id); setOpen(false) }}
-              style={{ width:'100%', padding:'.55rem .85rem',
-                background: activeEnclaveId === e.id ? 'rgba(58,212,200,0.06)' : 'transparent',
-                color: activeEnclaveId === e.id ? 'var(--cyan)' : 'var(--muted)',
-                fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em',
+              style={{
+                width:'100%', padding:'.65rem .9rem',
+                background: activeEnclaveId === e.id ? 'rgba(212,84,26,0.08)' : 'transparent',
+                color: activeEnclaveId === e.id ? 'var(--ember)' : 'var(--muted)',
+                fontFamily:'var(--font-mono)', fontSize:'.55rem', letterSpacing:'.1em',
                 textTransform:'uppercase', textAlign:'left', display:'flex',
-                alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
-              onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(58,212,200,0.04)'}
-              onMouseLeave={ev => ev.currentTarget.style.background = activeEnclaveId === e.id ? 'rgba(58,212,200,0.06)' : 'transparent'}>
+                alignItems:'center', justifyContent:'space-between', transition:'background .12s',
+              }}
+              onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(212,84,26,0.06)'}
+              onMouseLeave={ev => ev.currentTarget.style.background = activeEnclaveId === e.id ? 'rgba(212,84,26,0.08)' : 'transparent'}>
               <span style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
-                <span style={{ fontSize:'.55rem', color: activeEnclaveId === e.id ? 'var(--cyan)' : 'var(--muted)' }}>◆</span>
+                <span style={{ fontSize:'.6rem', color: activeEnclaveId === e.id ? 'var(--ember)' : 'rgba(212,84,26,0.45)' }}>◆</span>
                 {e.name}
               </span>
-              <span style={{ display:'flex', alignItems:'center', gap:'.4rem' }}>
-                {activeEnclaveId === e.id && <span style={{ color:'var(--ember)', fontSize:'.6rem' }}>✓</span>}
+              <span style={{ display:'flex', alignItems:'center', gap:'.45rem' }}>
+                {activeEnclaveId === e.id && <span style={{ color:'var(--ember)', fontSize:'.7rem' }}>✓</span>}
                 <span onClick={ev => { ev.stopPropagation(); setOpen(false); onSettings() }}
                   title="Manage enclave"
-                  style={{ fontSize:'.6rem', opacity:.4, transition:'opacity .15s' }}
-                  onMouseEnter={ev => ev.currentTarget.style.opacity = '1'}
-                  onMouseLeave={ev => ev.currentTarget.style.opacity = '.4'}>⚙</span>
+                  style={{ fontSize:'.65rem', opacity:.35, transition:'opacity .15s', lineHeight:1 }}
+                  onMouseEnter={ev => ev.currentTarget.style.opacity = '0.9'}
+                  onMouseLeave={ev => ev.currentTarget.style.opacity = '0.35'}>⚙</span>
               </span>
             </button>
           ))}
 
-          {/* Divider + actions */}
-          <div style={{ borderTop:'1px solid var(--border)' }}>
+          {/* Footer actions */}
+          <div style={{ borderTop:'1px solid rgba(255,255,255,0.055)' }}>
             <button onClick={() => { setOpen(false); onCreateNew() }}
-              style={{ width:'100%', padding:'.55rem .85rem', background:'transparent',
-                color:'var(--ember)', fontFamily:'var(--font-mono)', fontSize:'.5rem',
+              style={{
+                width:'100%', padding:'.65rem .9rem', background:'transparent',
+                color:'var(--ember)', fontFamily:'var(--font-mono)', fontSize:'.55rem',
                 letterSpacing:'.1em', textTransform:'uppercase', textAlign:'left',
-                display:'flex', alignItems:'center', gap:'.4rem', transition:'all .15s' }}
+                display:'flex', alignItems:'center', gap:'.45rem', transition:'background .12s',
+              }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--ember-glow)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               + Create Enclave
             </button>
-            {enclaves.length > 0 && (
+            {activeEnclaveId && (
               <button onClick={() => { setOpen(false); onSettings() }}
-                style={{ width:'100%', padding:'.55rem .85rem', background:'transparent',
-                  color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem',
+                style={{
+                  width:'100%', padding:'.65rem .9rem', background:'transparent',
+                  color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.55rem',
                   letterSpacing:'.1em', textTransform:'uppercase', textAlign:'left',
-                  display:'flex', alignItems:'center', gap:'.4rem', borderTop:'1px solid var(--border)', transition:'all .15s' }}
+                  display:'flex', alignItems:'center', gap:'.45rem',
+                  borderTop:'1px solid rgba(255,255,255,0.055)', transition:'background .12s',
+                }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                ⚙ Manage Enclaves
+                ⚙ Manage Enclave
               </button>
             )}
           </div>
@@ -289,22 +299,31 @@ function EnclaveSwitcher({ enclaves, activeEnclaveId, onSwitch, onCreateNew, onS
 function CreateEnclaveModal({ onCreate, onClose }) {
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  function submit() {
+    if (!name.trim() || loading) return
+    setError('')
+    onCreate(name.trim(), setLoading, setError)
+  }
   return (
     <div style={{ position:'fixed', inset:0, zIndex:8000, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
-      <div style={{ width:'100%', maxWidth:'380px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.2)', borderRadius:'4px', padding:'2rem' }}>
-        <p className="panel-label" style={{ marginBottom:'.5rem', color:'var(--cyan)' }}>New Enclave</p>
+      <div style={{ width:'100%', maxWidth:'380px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(212,84,26,0.25)', borderRadius:'4px', padding:'2rem' }}>
+        <p className="panel-label" style={{ marginBottom:'.5rem' }}>New Enclave</p>
         <h2 style={{ fontFamily:'var(--font-caveat)', fontSize:'2rem', color:'var(--text)', fontWeight:600, marginBottom:'1.25rem', lineHeight:1 }}>
-          Name your <span style={{ color:'var(--cyan)', fontStyle:'italic' }}>group</span>
+          Name your <span style={{ color:'var(--ember)', fontStyle:'italic' }}>group</span>
         </h2>
-        <input type="text" value={name} onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && name.trim() && !loading && onCreate(name.trim(), setLoading)}
+        <input type="text" value={name} onChange={e => { setName(e.target.value); setError('') }}
+          onKeyDown={e => e.key === 'Enter' && submit()}
           placeholder="e.g. Core Team" autoFocus maxLength={48}
-          className="vault-input w-full" style={{ marginBottom:'1rem' }} />
+          className="vault-input w-full" style={{ marginBottom: error ? '.5rem' : '1rem' }} />
+        {error && (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', color:'var(--ember)', marginBottom:'.75rem', letterSpacing:'.06em' }}>{error}</p>
+        )}
         <div style={{ display:'flex', gap:'.5rem' }}>
-          <button onClick={onClose} className="vault-btn-ghost" style={{ flex:1, padding:'.6rem', fontSize:'.5rem' }}>Cancel</button>
-          <button onClick={() => name.trim() && onCreate(name.trim(), setLoading)}
+          <button onClick={onClose} className="vault-btn-ghost" style={{ flex:1, padding:'.65rem', fontSize:'.55rem' }}>Cancel</button>
+          <button onClick={submit}
             disabled={!name.trim() || loading} className="vault-btn"
-            style={{ flex:2, padding:'.6rem', fontSize:'.5rem', borderColor:'var(--cyan)', color:'var(--cyan)' }}>
+            style={{ flex:2, padding:'.65rem', fontSize:'.55rem' }}>
             {loading ? 'Creating…' : 'Create Enclave →'}
           </button>
         </div>
@@ -381,59 +400,68 @@ function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, 
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
 function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount }) {
+  const tbBtn = {
+    display:'flex', alignItems:'center', gap:'.4rem',
+    background:'transparent', border:'1px solid var(--border)', borderRadius:'4px',
+    padding:'.38rem .75rem', color:'var(--muted)',
+    fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.1em',
+    textTransform:'uppercase', transition:'all .2s', whiteSpace:'nowrap',
+  }
   return (
     <div className="topbar">
-      <div style={{ display:'flex', alignItems:'center', gap:'.65rem' }}>
-        <div className="ember-pip" />
-        <span style={{ fontFamily:'var(--font-serif)', fontSize:'1.1rem', fontWeight:300, fontStyle:'italic', color:'var(--text)' }}>
-          The <em style={{ color:'var(--ember)' }}>Vault</em>
-        </span>
+      {/* Left: brand + switcher */}
+      <div style={{ display:'flex', alignItems:'center', gap:'.75rem', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'.55rem' }}>
+          <div className="ember-pip" />
+          <span style={{ fontFamily:'var(--font-serif)', fontSize:'1.2rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', whiteSpace:'nowrap' }}>
+            The <em style={{ color:'var(--ember)' }}>Vault</em>
+          </span>
+        </div>
+        <div style={{ width:1, height:18, background:'rgba(255,255,255,0.08)', flexShrink:0 }} />
+        <EnclaveSwitcher enclaves={enclaves} activeEnclaveId={activeEnclaveId}
+          onSwitch={onEnclaveSwitch} onCreateNew={onCreateEnclave} onSettings={onEnclaveSettings} />
       </div>
 
-      <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', maxWidth:'300px' }}>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center' }}>
+      {/* Center: note title */}
+      <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', maxWidth:'280px', pointerEvents:'none' }}>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center' }}>
           {noteTitle || 'Untitled'}
         </p>
       </div>
 
-      <div style={{ display:'flex', alignItems:'center', gap:'.6rem' }}>
-        <EnclaveSwitcher enclaves={enclaves} activeEnclaveId={activeEnclaveId}
-          onSwitch={onEnclaveSwitch} onCreateNew={onCreateEnclave} onSettings={onEnclaveSettings} />
-        <button onClick={onNotesToggle} data-hover
-          style={{ display:'flex', alignItems:'center', gap:'.4rem', background:'transparent', border:'1px solid var(--border)', borderRadius:'4px', padding:'.3rem .65rem', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', transition:'all .2s' }}
+      {/* Right: actions */}
+      <div style={{ display:'flex', alignItems:'center', gap:'.55rem', flexShrink:0 }}>
+        <button onClick={onNotesToggle} data-hover style={tbBtn}
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
           Notes
-          {notesCount > 0 && <span style={{ background:'var(--ember)', color:'#0b0a08', borderRadius:'3px', padding:'0 .3rem', fontSize:'.48rem', fontWeight:700 }}>{notesCount}</span>}
+          {notesCount > 0 && <span style={{ background:'var(--ember)', color:'#0b0a08', borderRadius:'3px', padding:'0 .3rem', fontSize:'.52rem', fontWeight:700, lineHeight:'1.35' }}>{notesCount}</span>}
         </button>
-        <button onClick={() => { window.location.href = '/vault/board' }} data-hover
-          style={{ display:'flex', alignItems:'center', gap:'.4rem', background:'transparent', border:'1px solid var(--border)', borderRadius:'4px', padding:'.3rem .65rem', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', transition:'all .2s' }}
+        <button onClick={() => { window.location.href = '/vault/board' }} data-hover style={tbBtn}
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
           Board
-          {boardCount > 0 && <span style={{ background:'rgba(212,84,26,0.2)', color:'var(--ember)', borderRadius:'3px', padding:'0 .3rem', fontSize:'.48rem', fontWeight:700 }}>{boardCount}</span>}
+          {boardCount > 0 && <span style={{ background:'rgba(212,84,26,0.2)', color:'var(--ember)', borderRadius:'3px', padding:'0 .3rem', fontSize:'.52rem', fontWeight:700, lineHeight:'1.35' }}>{boardCount}</span>}
         </button>
 
-        {/* AI presence — always visible */}
-        <div style={{ display:'flex', alignItems:'center', gap:3, padding:'0 .25rem', borderLeft:'1px solid var(--border)', borderRight:'1px solid var(--border)', marginLeft:2, marginRight:2 }}>
-          <AvatarArchitect size={26} state={architectState} />
-          <AvatarSpark size={26} state={sparkState} />
+        <div style={{ display:'flex', alignItems:'center', gap:3, padding:'0 .3rem', borderLeft:'1px solid var(--border)', borderRight:'1px solid var(--border)' }}>
+          <AvatarArchitect size={28} state={architectState} />
+          <AvatarSpark size={28} state={sparkState} />
         </div>
 
-        {/* Human presence */}
         <div style={{ display:'flex', alignItems:'center' }}>
           {onlineUsers.slice(0, 4).map((u, i) => {
             const prof = allProfiles.find(p => p.id === u.user_id)
             const isMe = prof?.id === user?.id
             return (
               <div key={u.user_id || i} style={{ marginLeft: i > 0 ? '-6px' : 0, zIndex: 10 - i }}>
-                {getAvatar(prof, isMe, 26, isMe ? yourState : 'idle')}
+                {getAvatar(prof, isMe, 28, isMe ? yourState : 'idle')}
               </div>
             )
           })}
         </div>
 
-        <button className="vault-btn-ghost" onClick={onSignOut} style={{ padding:'.3rem .6rem', fontSize:'.48rem' }}>Out</button>
+        <button className="vault-btn-ghost" onClick={onSignOut} style={{ padding:'.35rem .7rem', fontSize:'.55rem' }}>Out</button>
       </div>
     </div>
   )
@@ -449,15 +477,14 @@ function NoteRow({ note, active, onOpen }) {
       onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'.4rem', marginBottom:'.2rem' }}>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.05rem', color: active ? 'var(--text)' : 'var(--mid)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{note.title || 'Untitled'}</p>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.15rem', color: active ? 'var(--text)' : 'var(--mid)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{note.title || 'Untitled'}</p>
         {isEnclave && (
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.06em', color:'var(--cyan)', flexShrink:0, display:'flex', alignItems:'center', gap:'.2rem' }}>
-            <span style={{ fontSize:'.5rem' }}>◆</span>
-            {vis}
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.06em', color:'var(--ember)', flexShrink:0, display:'flex', alignItems:'center', gap:'.2rem' }}>
+            <span style={{ fontSize:'.55rem' }}>◆</span>
           </span>
         )}
       </div>
-      <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.9rem', color:'var(--muted)', lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>
+      <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--muted)', lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>
         {(note.content || '').replace(/\[img:[^\]]*\]/g, '').trim() || 'Empty'}
       </p>
       <p className="msg-timestamp" style={{ marginTop:'.2rem' }}>{new Date(note.updated_at).toLocaleDateString([], { month:'short', day:'numeric' })}</p>
@@ -469,8 +496,8 @@ function NotesDrawer({ open, notes, sharedNotes, enclaveNotes, activeEnclave, ac
   return (
     <div className={`notes-drawer${open ? ' open' : ''}`}>
       <div style={{ padding:'.85rem 1rem', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-        <h2 style={{ fontFamily:'var(--font-caveat)', fontSize:'1.8rem', color:'var(--text)', fontWeight:600, marginBottom:'.6rem', lineHeight:1 }}>notes</h2>
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="vault-input w-full" style={{ fontSize:'.75rem', padding:'.4rem .7rem' }} />
+        <h2 style={{ fontFamily:'var(--font-caveat)', fontSize:'2rem', color:'var(--text)', fontWeight:600, marginBottom:'.65rem', lineHeight:1 }}>notes</h2>
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="vault-input w-full" style={{ fontSize:'.8rem', padding:'.45rem .75rem' }} />
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'.4rem' }}>
         {notes.length === 0 && !search && (
@@ -559,7 +586,7 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
       onDragOver={e => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
       onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) uploadImage(f) }}
-      style={{ position:'relative', flex:1, display:'flex', flexDirection:'column', alignItems:'center', paddingTop:'44px', paddingBottom: chatHeight + 64 + 'px', overflow:'hidden' }}
+      style={{ position:'relative', flex:1, display:'flex', flexDirection:'column', alignItems:'center', paddingTop:'52px', paddingBottom: chatHeight + 64 + 'px', overflow:'hidden' }}
     >
       {/* Ghost watermark */}
       <div style={{ position:'absolute', top:'15%', left:'50%', transform:'translateX(-50%)', fontSize:'22vw', fontFamily:'var(--font-serif)', fontWeight:300, fontStyle:'italic', color:'var(--ember)', opacity:.042, pointerEvents:'none', userSelect:'none', zIndex:0 }}>
@@ -583,13 +610,22 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
         {/* Controls row */}
         <div style={{ display:'flex', alignItems:'center', gap:'.65rem', marginBottom:'1.5rem', flexShrink:0 }}>
           {activeEnclave ? (
-            <button onClick={onVisibilityToggle} data-hover
-              style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', background:'transparent', border:`1px solid ${isEnclave ? 'rgba(58,212,200,0.4)' : 'var(--border)'}`, borderRadius:'20px', color: isEnclave ? 'var(--cyan)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
-              <span style={{ width:6, height:6, borderRadius:'50%', background: isEnclave ? 'var(--cyan)' : 'var(--muted)', animation: isEnclave ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
-              {isEnclave ? `◆ ${activeEnclave.name}` : '🔒 Private'}
-            </button>
+            <div style={{ display:'flex', alignItems:'center', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'6px', padding:'3px', gap:'2px' }}>
+              <button onClick={() => isEnclave && onVisibilityToggle()} data-hover
+                style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.38rem .8rem', borderRadius:'4px', background: !isEnclave ? 'rgba(255,255,255,0.09)' : 'transparent', border:'none', color: !isEnclave ? 'var(--text)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.08em', textTransform:'uppercase', transition:'all .18s', whiteSpace:'nowrap' }}
+                onMouseEnter={e => { if (isEnclave) e.currentTarget.style.color = 'var(--text)' }}
+                onMouseLeave={e => { if (isEnclave) e.currentTarget.style.color = 'var(--muted)' }}>
+                🔒 Private
+              </button>
+              <button onClick={() => !isEnclave && onVisibilityToggle()} data-hover
+                style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.38rem .8rem', borderRadius:'4px', background: isEnclave ? 'rgba(212,84,26,0.14)' : 'transparent', border:'none', color: isEnclave ? 'var(--ember)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.08em', textTransform:'uppercase', transition:'all .18s', whiteSpace:'nowrap' }}
+                onMouseEnter={e => { if (!isEnclave) e.currentTarget.style.color = 'var(--ember)' }}
+                onMouseLeave={e => { if (!isEnclave) e.currentTarget.style.color = 'var(--muted)' }}>
+                <span style={{ fontSize:'.62rem', lineHeight:1 }}>◆</span> Share to {activeEnclave.name}
+              </button>
+            </div>
           ) : (
-            <span style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', border:'1px solid var(--border)', borderRadius:'20px', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', opacity:.5 }}>
+            <span style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.38rem .8rem', border:'1px solid var(--border)', borderRadius:'6px', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.08em', textTransform:'uppercase', opacity:.6 }}>
               🔒 Private
             </span>
           )}
@@ -603,8 +639,8 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
 
           <span style={{ flex:1 }} />
           {saveStatus && (
-            <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', color: saveStatus === 'saving' ? 'var(--muted)' : 'var(--green)', display:'flex', alignItems:'center', gap:'.3rem' }}>
-              <span style={{ width:5, height:5, borderRadius:'50%', background: saveStatus === 'saving' ? 'var(--muted)' : 'var(--green)', animation: saveStatus === 'saving' ? 'pulseSlow 1s ease-in-out infinite' : 'none' }} />
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:'.54rem', letterSpacing:'.1em', color: saveStatus === 'saving' ? 'var(--muted)' : 'var(--green)', display:'flex', alignItems:'center', gap:'.35rem' }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background: saveStatus === 'saving' ? 'var(--muted)' : 'var(--green)', animation: saveStatus === 'saving' ? 'pulseSlow 1s ease-in-out infinite' : 'none' }} />
               {saveStatus === 'saving' ? 'Saving…' : 'Saved just now'}
             </span>
           )}
@@ -714,10 +750,10 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
       {avatar}
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:'flex', alignItems:'baseline', gap:'.5rem', marginBottom:'.1rem' }}>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', color: aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.6)') }}>{label}</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.56rem', letterSpacing:'.12em', textTransform:'uppercase', color: aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.6)') }}>{label}</span>
           <span className="msg-timestamp">{formatTime(msg.created_at)}</span>
         </div>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.2rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
           {msg.content}
           {msg.streaming && <span style={{ color: aiMeta?.color || 'var(--ember)', marginLeft:1 }} className="animate-pulse-slow">▋</span>}
         </p>
@@ -818,24 +854,24 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
       {/* Handle */}
       <div className="lattice-handle" onClick={() => setExpanded(v => !v)} data-hover>
         <div className="drawer-pill" />
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--mid)' }}>Lattice</span>
+        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.16em', textTransform:'uppercase', color:'var(--mid)' }}>Lattice</span>
         {activeEnclave && (
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--cyan)', opacity:.65 }}>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--ember)', opacity:.8 }}>
             ◆ {activeEnclave.name}
           </span>
         )}
         {[AI.claude, AI.gpt].map(ai => (
-          <span key={ai.role} style={{ padding:'.15rem .4rem', border:`1px solid ${ai.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:ai.color, background:ai.dim }}>
+          <span key={ai.role} style={{ padding:'.18rem .45rem', border:`1px solid ${ai.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:ai.color, background:ai.dim }}>
             {ai.label}
           </span>
         ))}
         <div style={{ flex:1 }} />
         <button onClick={e => { e.stopPropagation(); setAutoAI(v => !v) }}
-          style={{ display:'flex', alignItems:'center', gap:'.3rem', padding:'.2rem .5rem', background:'transparent', border:`1px solid ${autoAI ? 'rgba(80,200,100,0.4)' : 'var(--border)'}`, borderRadius:'2px', color: autoAI ? 'var(--green)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
+          style={{ display:'flex', alignItems:'center', gap:'.3rem', padding:'.22rem .55rem', background:'transparent', border:`1px solid ${autoAI ? 'rgba(80,200,100,0.4)' : 'var(--border)'}`, borderRadius:'2px', color: autoAI ? 'var(--green)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
           <span style={{ width:5, height:5, borderRadius:'50%', background: autoAI ? 'var(--green)' : 'var(--muted)', animation: autoAI ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
           Auto {autoAI ? 'ON' : 'OFF'}
         </button>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--green)' }}>◆ Live</span>
+        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--green)' }}>◆ Live</span>
       </div>
 
       {/* Body */}
@@ -1385,16 +1421,19 @@ export default function Dashboard() {
   }
 
   // ── Enclave actions ──
-  async function handleCreateEnclave(name, setLoading) {
+  async function handleCreateEnclave(name, setLoading, setError) {
     setLoading(true)
     const { enclave, error } = await createEnclave(getSupabase(), user.id, name)
-    if (enclave) {
-      setEnclaves(prev => [...prev, enclave])
-      switchActiveEnclave(enclave.id)
-      setEnclaveToast(`◆ ${name} created — you're now in your enclave`)
-      setTimeout(() => setEnclaveToast(''), 3500)
+    if (error) {
+      console.error('[createEnclave]', error)
+      setError('Failed to create enclave: ' + error)
+      setLoading(false)
+      return // Keep modal open so user can retry or see the error
     }
-    if (error) console.error('[createEnclave]', error)
+    setEnclaves(prev => [...prev, enclave])
+    switchActiveEnclave(enclave.id)
+    setEnclaveToast(`◆ ${name} created — you're now in your enclave`)
+    setTimeout(() => setEnclaveToast(''), 3500)
     setLoading(false)
     setShowCreateEnclave(false)
   }
@@ -1478,7 +1517,7 @@ export default function Dashboard() {
       {pinToast && <div className="pin-toast">📌 Pinned to note</div>}
       {boardPinToast && <div className="pin-toast" style={{ bottom:'3.5rem' }}>🗂 Pinned to board</div>}
       {enclaveToast && (
-        <div className="pin-toast" style={{ bottom:'auto', top:'3.5rem', right:'1rem', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.3)', color:'var(--cyan)', maxWidth:'340px', fontSize:'.5rem', letterSpacing:'.08em', padding:'.65rem 1rem' }}>
+        <div className="pin-toast" style={{ bottom:'auto', top:'3.5rem', right:'1rem', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(212,84,26,0.35)', color:'var(--ember)', maxWidth:'340px', fontSize:'.55rem', letterSpacing:'.08em', padding:'.65rem 1rem' }}>
           {enclaveToast}
         </div>
       )}

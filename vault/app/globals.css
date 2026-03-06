@@ -91,9 +91,9 @@
   /* ── Topbar ── */
   .topbar {
     position: fixed; top: 0; left: 0; right: 0;
-    height: 44px; z-index: 500;
+    height: 52px; z-index: 500;
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0 1rem;
+    padding: 0 1.25rem;
     background: rgba(11,10,8,0.88);
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
@@ -101,9 +101,9 @@
 
   /* ── Notes drawer ── */
   .notes-drawer {
-    position: fixed; top: 44px; left: 0; bottom: 0;
-    width: 290px; z-index: 400;
-    height: calc(100vh - 44px);
+    position: fixed; top: 52px; left: 0; bottom: 0;
+    width: 300px; z-index: 400;
+    height: calc(100vh - 52px);
     background: rgba(11,10,8,0.96);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--border);
@@ -114,7 +114,7 @@
   .notes-drawer.open { transform: translateX(0); }
 
   .drawer-overlay {
-    position: fixed; inset: 0; top: 44px;
+    position: fixed; inset: 0; top: 52px;
     background: rgba(0,0,0,0.45); z-index: 300;
     backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
   }
@@ -205,8 +205,8 @@
 
   /* ── Messages ── */
   .msg-row {
-    display: flex; gap: .65rem; align-items: flex-start;
-    padding: .1rem 0; position: relative;
+    display: flex; gap: .75rem; align-items: flex-start;
+    padding: .35rem 0; position: relative;
   }
   .msg-row:hover .pin-btn { opacity: 1; }
   .pin-btn {
@@ -271,12 +271,12 @@
   /* ── Misc shared ── */
   .panel-label {
     font-family: var(--font-mono), monospace;
-    font-size: .52rem; letter-spacing: .2em;
+    font-size: .58rem; letter-spacing: .18em;
     text-transform: uppercase; color: var(--ember);
   }
   .msg-timestamp {
     font-family: var(--font-mono), monospace;
-    font-size: .46rem; letter-spacing: .08em;
+    font-size: .5rem; letter-spacing: .08em;
     color: var(--muted); opacity: .65;
   }
   .online-dot {

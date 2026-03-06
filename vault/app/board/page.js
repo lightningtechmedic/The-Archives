@@ -253,7 +253,7 @@ function BoardColumn({ column, colStickies, isIdle, onAddSticky, onDeleteSticky,
         background: 'rgba(255,255,255,0.01)',
         border: '1px solid rgba(255,255,255,0.055)',
         borderRadius: 6,
-        maxHeight: 'calc(100vh - 88px)',
+        maxHeight: 'calc(100vh - 96px)',
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.35 : 1,
@@ -306,7 +306,7 @@ function BoardColumn({ column, colStickies, isIdle, onAddSticky, onDeleteSticky,
 // ── Board TopBar ──────────────────────────────────────────────────────────────
 function BoardTopBar({ stickyCount, onSignOut }) {
   return (
-    <div style={{ height:44, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 1.25rem', borderBottom:'1px solid rgba(255,255,255,0.055)', background:'rgba(11,10,8,0.9)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', position:'relative', zIndex:100 }}>
+    <div style={{ height:52, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 1.25rem', borderBottom:'1px solid rgba(255,255,255,0.055)', background:'rgba(11,10,8,0.9)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', position:'relative', zIndex:100 }}>
       <div style={{ display:'flex', alignItems:'center', gap:'.65rem' }}>
         <div style={{ width:7, height:7, borderRadius:'50%', background:'#d4541a', boxShadow:'0 0 10px rgba(212,84,26,0.5)', animation:'pulseSlow 3s ease-in-out infinite' }} />
         <span style={{ fontFamily:"'Cormorant Garamond',Georgia,serif", fontSize:'1.1rem', fontWeight:300, fontStyle:'italic', color:'rgba(240,236,228,0.9)' }}>
