@@ -386,3 +386,5 @@
 .animate-fade-up    { animation: fadeUp .5s var(--ease) forwards; }
 .animate-fade-in    { animation: fadeIn .3s ease forwards; }
 .animate-pulse-slow { animation: pulseSlow 2s ease-in-out infinite; }
+
+@keyframes rotateCW { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
