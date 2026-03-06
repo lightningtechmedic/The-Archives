@@ -351,6 +351,7 @@ export default function BoardPage() {
   const [columns, setColumns] = useState([])
   const [stickies, setStickies] = useState([])
   const [mounted, setMounted] = useState(false)
+  const [loadError, setLoadError] = useState(null)
   const [activeItem, setActiveItem] = useState(null)
   const [isIdle, setIsIdle] = useState(false)
   const idleRef = useRef(null)
@@ -385,16 +386,24 @@ export default function BoardPage() {
       if (!session) { window.location.href = '/vault/login'; return }
       if (initialized || !active) return
       initialized = true
+      const uid = session.user.id
       setUser(session.user)
       const sb = getSupabase()
-      const [{ data: cols }, { data: stics }] = await Promise.all([
-        sb.from('sticky_columns').select('*').eq('user_id', session.user.id).order('position'),
-        sb.from('stickies').select('*').eq('user_id', session.user.id).order('position'),
-      ])
-      if (active) {
-        setColumns(cols || [])
-        setStickies(stics || [])
-        setMounted(true)
+      try {
+        const [colsRes, sticsRes] = await Promise.all([
+          sb.from('sticky_columns').select('*').eq('user_id', uid).order('position'),
+          sb.from('stickies').select('*').eq('user_id', uid).order('position'),
+        ])
+        if (colsRes.error) console.error('sticky_columns fetch error:', colsRes.error)
+        if (sticsRes.error) console.error('stickies fetch error:', sticsRes.error)
+        if (!active) return
+        setColumns(colsRes.data || [])
+        setStickies(sticsRes.data || [])
+      } catch (err) {
+        console.error('Board load error:', err)
+        if (active) setLoadError(err?.message || 'Failed to load board')
+      } finally {
+        if (active) setMounted(true)
       }
     })
     return () => { active = false; subscription.unsubscribe() }
@@ -526,7 +535,7 @@ export default function BoardPage() {
   if (!mounted) return (
     <div style={{ minHeight:'100vh', background:'#0b0a08', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <p style={{ fontFamily:"'Space Mono',monospace", fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(240,236,228,0.25)' }}>
-        Loading board…
+        {loadError ? `Error: ${loadError}` : 'Loading board…'}
       </p>
     </div>
   )

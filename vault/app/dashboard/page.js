@@ -14,6 +14,7 @@ import {
   AvatarSocra,
   AvatarGeneric,
 } from '@/components/Avatars'
+import WelcomeModal from '@/components/WelcomeModal'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -908,6 +909,7 @@ export default function Dashboard() {
   const [allProfiles, setAllProfiles] = useState([])
   const [onlineUsers, setOnlineUsers] = useState([])
   const [needsName, setNeedsName] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   // Notes
@@ -1036,6 +1038,7 @@ export default function Dashboard() {
         setUser(u); setProfile(prof); setAllProfiles(profs || [])
         setMessages(msgs || []); setNotes(myNotes || []); setSharedNotes(sNotes || [])
         if (!prof?.display_name) setNeedsName(true)
+        if (!u.user_metadata?.has_seen_welcome) setShowWelcome(true)
         if (myNotes?.length > 0) openNote(myNotes[0])
 
         // Load enclaves
@@ -1449,6 +1452,7 @@ export default function Dashboard() {
   return (
     <div style={{ height:'100vh', overflow:'hidden', position:'relative' }}>
       {needsName && <DisplayNameModal onSave={saveDisplayName} />}
+      {showWelcome && !needsName && <WelcomeModal supabase={getSupabase()} onDismiss={() => setShowWelcome(false)} />}
       {visConfirmOpen && (
         <VisibilityConfirmModal
           enclaveName={enclaves.find(e => e.id === activeEnclaveId)?.name}
