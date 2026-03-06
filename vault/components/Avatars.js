@@ -1046,6 +1046,242 @@ export function AvatarSteward({ size = 30, state = 'idle' }) {
   return <CanvasAvatar drawFn={drawSteward} size={size} state={state} />
 }
 
+// ════════════════════════════════════════════════════════════════
+// THE ADVOCATE — compass + arc, always measuring, never complete
+// idle: slow rotation 8s, arc trails 200deg behind right arm
+// thinking: faster sweep, pivot warms
+// speaking: arc briefly closes to full circle (0.4s), holds, opens
+// concern: arc retracts to 140deg, arm reverses slightly
+// approval: arc extends to 220deg, pivot glows warm brass
+// ════════════════════════════════════════════════════════════════
+export function drawAdvocate(ctx, w, h, t, age, state = 'idle') {
+  const s = w / 88
+  const cx = w / 2
+
+  // Background
+  ctx.fillStyle = '#0e0c0a'
+  rrect(ctx, 0, 0, w, h, 8 * s); ctx.fill()
+
+  // Faint grid
+  ctx.strokeStyle = 'rgba(184,149,106,0.025)'
+  ctx.lineWidth = 0.5 * s
+  const gs = 14 * s
+  for (let x = 0; x <= w; x += gs) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke() }
+  for (let y = 0; y <= h; y += gs) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke() }
+
+  // Border
+  ctx.strokeStyle = 'rgba(184,149,106,0.22)'
+  ctx.lineWidth = 1.1 * s
+  rrect(ctx, 0.55 * s, 0.55 * s, w - 1.1 * s, h - 1.1 * s, 7.45 * s); ctx.stroke()
+
+  // Compass pivot — upper-center area with room for arc below
+  const pivX = cx
+  const pivY = h * 0.40
+  const armLen = 14 * s
+  const arcR   = 18 * s
+  const spread = 40 * Math.PI / 180
+
+  // Rotation: slow in idle, faster in thinking
+  const rotPeriod = state === 'thinking' ? 3.0 : 8.0
+  const baseAngle = (t / rotPeriod) * Math.PI * 2
+
+  // In concern state, nudge backward slightly to suggest reversal
+  const angleOffset = state === 'concern' ? -0.08 * Math.abs(Math.sin(age * 1.5)) : 0
+  const rightAngle = baseAngle + angleOffset
+  const leftAngle  = rightAngle - spread
+
+  // Arc span
+  let arcSpan = 200 * Math.PI / 180
+  let pivotGlow = 0
+
+  if (state === 'thinking') {
+    pivotGlow = 0.12 + 0.08 * Math.abs(Math.sin(t * 3))
+  } else if (state === 'speaking') {
+    const cycle = age % 1.1
+    if      (cycle < 0.4) arcSpan = lerp(200, 360, ease(cycle / 0.4))  * Math.PI / 180
+    else if (cycle < 0.7) arcSpan = Math.PI * 2
+    else                  arcSpan = lerp(360, 200, ease((cycle - 0.7) / 0.4)) * Math.PI / 180
+    pivotGlow = 0.28 + 0.14 * Math.abs(Math.sin(t * 4))
+  } else if (state === 'concern') {
+    arcSpan = 140 * Math.PI / 180
+  } else if (state === 'approval') {
+    arcSpan = lerp(200, 220, Math.abs(Math.sin(t * 1.5))) * Math.PI / 180
+    pivotGlow = 0.22 + 0.18 * Math.abs(Math.sin(t * 2.5))
+  }
+
+  // Arc — trails behind right arm
+  ctx.strokeStyle = 'rgba(240,236,228,0.6)'
+  ctx.lineWidth = 1.2 * s
+  ctx.lineCap = 'butt'
+  ctx.beginPath()
+  ctx.arc(pivX, pivY, arcR, rightAngle - arcSpan, rightAngle, false)
+  ctx.stroke()
+
+  // Compass arms
+  ctx.strokeStyle = 'rgba(184,149,106,0.88)'
+  ctx.lineWidth = 1.5 * s
+  ctx.lineCap = 'round'
+
+  // Left arm
+  ctx.beginPath()
+  ctx.moveTo(pivX, pivY)
+  ctx.lineTo(pivX + Math.cos(leftAngle) * armLen, pivY + Math.sin(leftAngle) * armLen)
+  ctx.stroke()
+
+  // Right arm
+  ctx.beginPath()
+  ctx.moveTo(pivX, pivY)
+  ctx.lineTo(pivX + Math.cos(rightAngle) * armLen, pivY + Math.sin(rightAngle) * armLen)
+  ctx.stroke()
+
+  // Fine tips at arm ends
+  ctx.fillStyle = 'rgba(184,149,106,0.65)'
+  ctx.beginPath()
+  ctx.arc(pivX + Math.cos(leftAngle) * armLen, pivY + Math.sin(leftAngle) * armLen, 1.1 * s, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(pivX + Math.cos(rightAngle) * armLen, pivY + Math.sin(rightAngle) * armLen, 1.1 * s, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Pivot circle — slightly brighter
+  if (pivotGlow > 0) {
+    ctx.shadowBlur = 8 * s
+    ctx.shadowColor = `rgba(184,149,106,${pivotGlow * 2.5})`
+  }
+  ctx.fillStyle = 'rgba(210,182,134,0.95)'
+  ctx.beginPath()
+  ctx.arc(pivX, pivY, 3 * s, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.shadowBlur = 0
+}
+
+export function AvatarAdvocate({ size = 30, state = 'idle' }) {
+  return <CanvasAvatar drawFn={drawAdvocate} size={size} state={state} />
+}
+
+// ════════════════════════════════════════════════════════════════
+// THE CONTRARIAN — balance scale, always weighing, never settled
+// idle: 1.5° sway, 4s period, always 3.5° tilted left baseline
+// thinking: tips 12° left → corrects to 8° right → settles
+// speaking: approaches level (~0.8°), slow drift — closest to still
+// concern: sharp 20° tip to left, fulcrum brightens, holds
+// agreement: settles very near level (0.5°), deliberate
+// ════════════════════════════════════════════════════════════════
+export function drawContrarian(ctx, w, h, t, age, state = 'idle') {
+  const s = w / 88
+  const cx = w / 2
+
+  // Background
+  ctx.fillStyle = '#0a0c0e'
+  rrect(ctx, 0, 0, w, h, 8 * s); ctx.fill()
+
+  // Faint grid
+  ctx.strokeStyle = 'rgba(138,154,170,0.025)'
+  ctx.lineWidth = 0.5 * s
+  const gs = 14 * s
+  for (let x = 0; x <= w; x += gs) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke() }
+  for (let y = 0; y <= h; y += gs) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke() }
+
+  // Border
+  ctx.strokeStyle = 'rgba(138,154,170,0.2)'
+  ctx.lineWidth = 1.1 * s
+  rrect(ctx, 0.55 * s, 0.55 * s, w - 1.1 * s, h - 1.1 * s, 7.45 * s); ctx.stroke()
+
+  const steelColor  = 'rgba(138,154,170,0.88)'
+  const steelDim    = 'rgba(138,154,170,0.5)'
+  const steelFaint  = 'rgba(138,154,170,0.22)'
+  const beamHalfW   = 16 * s
+  const chainLen    = 9 * s
+  const panW        = 10 * s
+  const pivotY      = h * 0.42
+
+  // Tilt angle: positive = left pan lower (clockwise rotation)
+  let tiltDeg = 3.5
+  let fulcrumGlow = false
+
+  if (state === 'idle') {
+    tiltDeg = 3.5 + 1.5 * Math.sin(t * Math.PI / 2)
+  } else if (state === 'thinking') {
+    const cycle = age % 3.5
+    if      (cycle < 1.2) tiltDeg = lerp(3.5,  12, ease(Math.min(cycle / 1.0, 1)))
+    else if (cycle < 2.5) tiltDeg = lerp(12,   -8, ease(Math.min((cycle - 1.2) / 1.3, 1)))
+    else                  tiltDeg = lerp(-8,   3.5, ease(Math.min((cycle - 2.5) / 1.0, 1)))
+  } else if (state === 'speaking') {
+    const grow = Math.min(age / 0.8, 1)
+    tiltDeg = lerp(3.5, 0.8 + 0.4 * Math.sin(t * 0.8), ease(grow))
+  } else if (state === 'concern') {
+    const grow = Math.min(age / 0.5, 1)
+    tiltDeg = lerp(3.5, 20, ease(grow))
+    fulcrumGlow = true
+  } else if (state === 'agreement') {
+    const grow = Math.min(age / 1.5, 1)
+    tiltDeg = lerp(3.5, 0.5 + 0.2 * Math.sin(t * 0.6), ease(grow))
+  }
+
+  const tiltAngle = tiltDeg * Math.PI / 180
+  const cosA = Math.cos(tiltAngle), sinA = Math.sin(tiltAngle)
+
+  // Beam endpoints in world space (rotates around pivot)
+  const lx = cx - beamHalfW * cosA, ly = pivotY - beamHalfW * sinA
+  const rx = cx + beamHalfW * cosA, ry = pivotY + beamHalfW * sinA
+
+  // Pans hang vertically from beam ends
+  const lpY = ly + chainLen
+  const rpY = ry + chainLen
+
+  // Fulcrum triangle (apex at pivot, base below)
+  if (fulcrumGlow) {
+    ctx.shadowBlur = 8 * s
+    ctx.shadowColor = 'rgba(138,154,170,0.45)'
+  }
+  ctx.fillStyle = fulcrumGlow ? 'rgba(168,190,210,0.92)' : steelColor
+  ctx.beginPath()
+  ctx.moveTo(cx, pivotY)
+  ctx.lineTo(cx - 4 * s, pivotY + 7 * s)
+  ctx.lineTo(cx + 4 * s, pivotY + 7 * s)
+  ctx.closePath()
+  ctx.fill()
+  ctx.shadowBlur = 0
+
+  // Stand (vertical rod + base)
+  ctx.strokeStyle = steelFaint
+  ctx.lineWidth = 1.2 * s
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(cx, pivotY + 7 * s)
+  ctx.lineTo(cx, pivotY + 16 * s)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(cx - 7 * s, pivotY + 16 * s)
+  ctx.lineTo(cx + 7 * s, pivotY + 16 * s)
+  ctx.stroke()
+
+  // Beam
+  ctx.strokeStyle = steelColor
+  ctx.lineWidth = 1.5 * s
+  ctx.beginPath()
+  ctx.moveTo(lx, ly); ctx.lineTo(rx, ry)
+  ctx.stroke()
+
+  // Chains (hang straight down from beam ends)
+  ctx.strokeStyle = steelDim
+  ctx.lineWidth = 1 * s
+  ctx.lineCap = 'butt'
+  ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx, lpY); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx, rpY); ctx.stroke()
+
+  // Pans
+  ctx.strokeStyle = steelColor
+  ctx.lineWidth = 2 * s
+  ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(lx - panW / 2, lpY); ctx.lineTo(lx + panW / 2, lpY); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(rx - panW / 2, rpY); ctx.lineTo(rx + panW / 2, rpY); ctx.stroke()
+}
+
+export function AvatarContrarian({ size = 30, state = 'idle' }) {
+  return <CanvasAvatar drawFn={drawContrarian} size={size} state={state} />
+}
+
 // Generic fallback
 export function AvatarGeneric({ initial = '?', size = 30 }) {
   return (

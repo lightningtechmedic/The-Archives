@@ -15,6 +15,8 @@ import {
   AvatarSocra,
   AvatarGeneric,
   AvatarSteward,
+  AvatarAdvocate,
+  AvatarContrarian,
 } from '@/components/Avatars'
 import { getEnclaveBudget, getEnclaveSpend, getBuildHistory, logBuild } from '@/lib/steward'
 import WelcomeModal from '@/components/WelcomeModal'
@@ -50,6 +52,18 @@ const AI = {
     color: 'rgba(200,180,140,0.85)', dim: 'rgba(200,180,140,0.08)', border: 'rgba(200,180,140,0.3)',
     textColor: 'rgba(230,220,200,0.88)',
     thinkingLabel: 'weighing the long view…',
+  },
+  advocate: {
+    label: 'The Advocate', role: 'advocate',
+    color: 'rgba(184,149,106,0.88)', dim: 'rgba(184,149,106,0.08)', border: 'rgba(184,149,106,0.4)',
+    textColor: 'rgba(240,225,200,0.88)',
+    thinkingLabel: 'considering the experience…',
+  },
+  contrarian: {
+    label: 'The Contrarian', role: 'contrarian',
+    color: 'rgba(138,154,170,0.88)', dim: 'rgba(138,154,170,0.08)', border: 'rgba(138,154,170,0.4)',
+    textColor: 'rgba(210,220,230,0.88)',
+    thinkingLabel: 'weighing this…',
   },
 }
 
@@ -752,7 +766,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, isMobile, mobileMode, onMobileModeChange }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -862,6 +876,16 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
             title={stewardActive ? 'The Steward — reviewing' : activeEnclaveId ? 'The Steward — budget gatekeeper' : 'The Steward — active in enclaves'}
             style={{ opacity: stewardActive ? 1 : activeEnclaveId ? 0.5 : 0.2, transition:'opacity .3s', borderRadius:'4px', boxShadow: stewardActive ? '0 0 10px rgba(200,180,140,0.4)' : 'none' }}>
             <AvatarSteward size={28} state={stewardAvatarState} />
+          </div>
+          <div
+            title="The Advocate — speaks for the person on the other side"
+            style={{ opacity: advocateAvatarState !== 'idle' ? 1 : 0.28, transition:'opacity .4s', borderRadius:'4px', boxShadow: advocateAvatarState !== 'idle' ? '0 0 10px rgba(184,149,106,0.4)' : 'none' }}>
+            <AvatarAdvocate size={28} state={advocateAvatarState} />
+          </div>
+          <div
+            title="The Contrarian — tests the reasoning"
+            style={{ opacity: contrarianAvatarState !== 'idle' ? 1 : 0.18, transition:'opacity .4s', borderRadius:'4px', boxShadow: contrarianAvatarState !== 'idle' ? '0 0 10px rgba(138,154,170,0.35)' : 'none' }}>
+            <AvatarContrarian size={28} state={contrarianAvatarState} />
           </div>
         </div>
 
@@ -1197,28 +1221,32 @@ function VoiceFAB({ setNoteContent, chatHeight }) {
 }
 
 // ── Chat Message ──────────────────────────────────────────────────────────────
-function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState }) {
+function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState }) {
   const role = msg.role === 'user' ? 'human' : msg.role
-  const isArchitect = role === 'claude'
-  const isSpark = role === 'gpt'
-  const isScribe = role === 'scribe'
-  const isSteward = role === 'steward'
-  const isAI = isArchitect || isSpark || isScribe || isSteward
+  const isArchitect  = role === 'claude'
+  const isSpark      = role === 'gpt'
+  const isScribe     = role === 'scribe'
+  const isSteward    = role === 'steward'
+  const isAdvocate   = role === 'advocate'
+  const isContrarian = role === 'contrarian'
+  const isAI = isArchitect || isSpark || isScribe || isSteward || isAdvocate || isContrarian
   const isReaction = !!msg.isReaction
-  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : null
+  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : isAdvocate ? AI.advocate : isContrarian ? AI.contrarian : null
   const prof = allProfiles?.find(p => p.id === msg.user_id)
   const isMe = msg.user_id === currentUserId
-  const baseLabel = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : (msg.display_name || prof?.display_name || 'Team')
+  const baseLabel = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : (msg.display_name || prof?.display_name || 'Team')
   const label = isReaction ? `${baseLabel} ↩` : baseLabel
 
   let avatar
-  if (isArchitect)        avatar = <AvatarArchitect size={isReaction ? 22 : 26} state={architectState} />
-  else if (isSpark)       avatar = <AvatarSpark size={isReaction ? 22 : 26} state={sparkState} />
-  else if (isScribe)      avatar = <AvatarScribe size={26} state={scribeState} />
-  else if (isSteward)     avatar = <AvatarSteward size={26} state={stewardState || 'idle'} />
-  else if (isSmara(prof)) avatar = <AvatarSmara size={26} />
-  else if (isMe)          avatar = <AvatarYou size={26} state={yourState} />
-  else                    avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={26} />
+  if (isArchitect)         avatar = <AvatarArchitect size={isReaction ? 22 : 26} state={architectState} />
+  else if (isSpark)        avatar = <AvatarSpark size={isReaction ? 22 : 26} state={sparkState} />
+  else if (isScribe)       avatar = <AvatarScribe size={26} state={scribeState} />
+  else if (isSteward)      avatar = <AvatarSteward size={26} state={stewardState || 'idle'} />
+  else if (isAdvocate)     avatar = <AvatarAdvocate size={26} state={advocateState || 'idle'} />
+  else if (isContrarian)   avatar = <AvatarContrarian size={26} state={contrarianState || 'idle'} />
+  else if (isSmara(prof))  avatar = <AvatarSmara size={26} />
+  else if (isMe)           avatar = <AvatarYou size={26} state={yourState} />
+  else                     avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={26} />
 
   return (
     <div className="msg-row" style={{
@@ -1319,7 +1347,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, focusMode, onFocusToggle, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1360,6 +1388,18 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             The Steward — reviewing
           </span>
         )}
+        {advocateState !== 'idle' && (
+          <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.advocate.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.advocate.color, background:AI.advocate.dim }}>
+            <AvatarAdvocate size={16} state={advocateState} />
+            The Advocate
+          </span>
+        )}
+        {contrarianState !== 'idle' && (
+          <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.contrarian.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.contrarian.color, background:AI.contrarian.dim }}>
+            <AvatarContrarian size={16} state={contrarianState} />
+            The Contrarian
+          </span>
+        )}
         <div style={{ flex:1 }} />
         {focusMode && (
           <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(100,140,255,0.7)' }}>◉ Focus</span>
@@ -1390,7 +1430,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             {messages.map((msg, i) => (
               <ChatMessage key={msg.id || i} msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
                 onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
-                architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} stewardState={stewardState} />
+                architectState={architectState} sparkState={sparkState} yourState={yourState} scribeState={scribeState} stewardState={stewardState} advocateState={advocateState} contrarianState={contrarianState} />
             ))}
             {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} />}
             <div ref={messagesEndRef} />
@@ -1512,6 +1552,8 @@ export default function Dashboard() {
   const [scribeActive, setScribeActive] = useState(false)
   const [scribeState, setScribeState] = useState('idle')
   const [stewardAvatarState, setStewardAvatarState] = useState('idle')
+  const [advocateAvatarState, setAdvocateAvatarState] = useState('idle')
+  const [contrarianAvatarState, setContrarianAvatarState] = useState('idle')
   const [focusMode, setFocusMode] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMode, setMobileMode] = useState('dashboard')
@@ -1972,8 +2014,10 @@ export default function Dashboard() {
     let text = ''
     let placeholderAdded = false
 
-    if (model === 'claude') setArchitectState('processing')
-    else if (model === 'gpt') setSparkState('excited')
+    if (model === 'claude')      setArchitectState('processing')
+    else if (model === 'gpt')       setSparkState('excited')
+    else if (model === 'advocate')  setAdvocateAvatarState('thinking')
+    else if (model === 'contrarian') setContrarianAvatarState('thinking')
 
     try {
       const { noteContext, publicNotes } = await buildNoteContext()
@@ -2002,8 +2046,10 @@ export default function Dashboard() {
       return null
     }
 
-    if (model === 'claude') setArchitectState('idle')
-    if (model === 'gpt') setTimeout(() => setSparkState('idle'), 1200)
+    if (model === 'claude')      setArchitectState('idle')
+    if (model === 'gpt')         setTimeout(() => setSparkState('idle'), 1200)
+    if (model === 'advocate')    setTimeout(() => setAdvocateAvatarState('idle'), 3000)
+    if (model === 'contrarian')  setTimeout(() => setContrarianAvatarState('idle'), 3500)
 
     if (!text.trim()) return null
 
@@ -2447,6 +2493,8 @@ export default function Dashboard() {
         onScribeSummon={summonScribe}
         stewardActive={awaitingStewardEstimate}
         stewardAvatarState={stewardAvatarState}
+        advocateAvatarState={advocateAvatarState}
+        contrarianAvatarState={contrarianAvatarState}
         isMobile={isMobile} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
         onSignOut={handleSignOut} />
 
@@ -2503,6 +2551,7 @@ export default function Dashboard() {
             sleeping={sleeping}
             scribeActive={scribeActive} scribeState={scribeState}
             stewardActive={awaitingStewardEstimate} stewardState={stewardAvatarState}
+            advocateState={advocateAvatarState} contrarianState={contrarianAvatarState}
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
             isMobile={isMobile} />
         </>

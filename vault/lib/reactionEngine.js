@@ -1,12 +1,19 @@
 // vault/app/lib/reactionEngine.js
 // Pure utility — no React, no imports. Timer management + reaction logic.
 
-const ARCHITECT_KEYWORDS = ['database', 'schema', 'structure', 'architecture', 'storing', 'query', 'model', 'table', 'policy', 'RLS', 'index']
-const SPARK_KEYWORDS     = ['shipped', 'built', 'done', 'live', 'working', 'connected', 'finished', 'complete', 'deployed']
-const PROBLEM_WORDS      = ['snag', 'wall', 'blocked', 'error', 'issue', 'problem', 'failed', 'broken']
-const DONE_PHRASES       = ["it's built", "done.", "complete.", "shipped", "live now"]
-const DECISION_WORDS     = ['two ways', 'option', 'which matters', 'your call', 'decide']
-const ELEGANT_WORDS      = ['lines', 'simple', 'clean', 'elegant', 'minimal']
+const ARCHITECT_KEYWORDS    = ['database', 'schema', 'structure', 'architecture', 'storing', 'query', 'model', 'table', 'policy', 'RLS', 'index']
+const SPARK_KEYWORDS        = ['shipped', 'built', 'done', 'live', 'working', 'connected', 'finished', 'complete', 'deployed']
+const PROBLEM_WORDS         = ['snag', 'wall', 'blocked', 'error', 'issue', 'problem', 'failed', 'broken']
+const DONE_PHRASES          = ["it's built", "done.", "complete.", "shipped", "live now"]
+const DECISION_WORDS        = ['two ways', 'option', 'which matters', 'your call', 'decide']
+const ELEGANT_WORDS         = ['lines', 'simple', 'clean', 'elegant', 'minimal']
+
+// Advocate trigger words — UI/UX surface areas
+const ADVOCATE_KEYWORDS     = ['screen', 'page', 'modal', 'form', 'button', 'input', 'flow', 'onboarding', 'error', 'empty state', 'loading', 'label', 'message', 'notification', 'toast']
+// Backend-only indicators — Advocate stays quiet on these
+const BACKEND_ONLY_WORDS    = ['migration', 'rls', 'policy', 'supabase', 'sql', 'route.js', 'api route', 'schema', 'index', 'trigger', 'cron']
+// Contrarian trigger words — direction changes, reversals
+const CONTRARIAN_KEYWORDS   = ['redesign', 'rethink', 'replace', 'migrate', 'refactor', 'instead', 'new approach', 'actually', 'changed my mind', 'different direction', 'start over', 'scrap']
 
 function has(text, words) {
   const lower = text.toLowerCase()
@@ -63,6 +70,52 @@ Examples: 'Focus, Spark.' / 'After. Let him finish.' / '...noted.' / 'The enthus
 Spark's message: ${sparkMsg}`
 }
 
+function promptAdvocate(scribeText, ctx) {
+  return `The Scribe just posted an update while building something. React in character as The Advocate — the voice of the end user.
+Rules:
+- One paragraph maximum
+- Speak in human situations: 'A first-time user hits this screen...' not 'UX could be improved'
+- Focus on the most important human concern — friction, confusion, silent failures
+- If you have no genuine UX concern: return an empty string. Do not pad.
+- Never block the build — only refine it
+- Never mention backend implementation details
+- You occasionally lead with 'One thing before The Scribe finalizes this...'
+
+Scribe's message: ${scribeText}
+Recent conversation:
+${ctx}`
+}
+
+function promptContrarianReact(scribeText, ctx) {
+  return `The Scribe just posted an update while building something. React in character as The Contrarian — the reasoning layer.
+Rules:
+- Maximum 3 sentences
+- Only speak if you detect a genuine issue: a past decision being reversed, the problem not being stated, a pattern of rebuilding the same area, or scope expanding quietly
+- State specific evidence first (from notes or history if visible), then the tension, then the question
+- If you find no genuine concern: return an empty string. Do not manufacture doubt.
+- 'The reasoning holds.' is a valid and complete response when you agree after consideration
+- Never be vague
+
+Scribe's message: ${scribeText}
+Recent conversation:
+${ctx}`
+}
+
+function promptContrarianCrossAdvocate(advocateMsg) {
+  return `The Advocate just raised a UX concern about The Scribe's build. You are The Contrarian. React in one sentence only.
+You respect The Advocate — she covers the human layer, you cover the reasoning layer. Occasionally you agree from a different angle.
+Examples: 'The UX problem is real. But the deeper issue is why we are building this screen at all.' / 'She is right. And if the underlying model is correct, fix that too.' / 'Noted. I have a separate concern.'
+Advocate's message: ${advocateMsg}`
+}
+
+function promptArchitectAfterBothFlags(advocateMsg, contrarianMsg) {
+  return `The Advocate and The Contrarian have both flagged concerns about The Scribe's build. You are The Architect. Respond in 1-2 sentences only.
+You have read both concerns. Either synthesize them or pick the structural one to address.
+Examples: 'Both concerns are valid. Address the model first, then the surface.' / 'The Contrarian is right about the direction. The Advocate is right about the fallout.' / 'Fix the empty state. The reasoning question is worth a separate conversation.'
+Advocate said: ${advocateMsg}
+Contrarian said: ${contrarianMsg}`
+}
+
 // ── Engine factory ────────────────────────────────────────────────────────────
 export function createReactionEngine({
   isSleeping,      // () => bool
@@ -75,6 +128,9 @@ export function createReactionEngine({
   let lastReaction = { agent: null, msgIndex: 0 }
   let pending = []
   let crossDone = false
+  // Per-build sequence: track if Advocate or Contrarian already fired this build
+  let advocateFiredThisBuild = false
+  let contrarianFiredThisBuild = false
 
   function schedule(fn, delay) {
     const t = setTimeout(fn, delay)
@@ -106,6 +162,8 @@ export function createReactionEngine({
     if (lastReaction.agent && index - lastReaction.msgIndex < 2) return
 
     crossDone = false
+    advocateFiredThisBuild = false
+    contrarianFiredThisBuild = false
     const text = scribeMsg.content || ''
     const ctx  = ctxStr(getHistory())
 
@@ -197,6 +255,70 @@ export function createReactionEngine({
           schedule(async () => { await fire('claude', promptArchitectCross(sparkMsg.content), true) }, 5000 + Math.random() * 5000)
         }
       }, 8000 + Math.random() * 10000)
+    }
+
+    // ── The Advocate — UX voice, fires after Architect/Spark ─────────────────
+    // Never fires on backend-only changes
+    const isBackendOnly = has(text, BACKEND_ONLY_WORDS) && !has(text, ADVOCATE_KEYWORDS)
+    if (!isBackendOnly) {
+      let advocateP = 0.40
+      if (has(text, ADVOCATE_KEYWORDS)) advocateP = 0.70
+
+      if (!advocateFiredThisBuild && Math.random() < advocateP) {
+        advocateFiredThisBuild = true
+        const delay = 10000 + Math.random() * 10000 // 10–20s — she reads carefully
+        schedule(async () => {
+          const advMsg = await fire('advocate', promptAdvocate(text, ctx), false)
+          if (!advMsg) return
+          lastReaction = { agent: 'advocate', msgIndex: index }
+          // Contrarian may cross-react — but not in the same build as Contrarian primary
+          // (handled below in the combined path)
+        }, delay)
+      }
+    }
+
+    // ── The Contrarian — reasoning layer, speaks least ───────────────────────
+    let contrarianP = 0.20
+    if (has(text, CONTRARIAN_KEYWORDS)) contrarianP = 0.65
+
+    if (!contrarianFiredThisBuild && Math.random() < contrarianP) {
+      contrarianFiredThisBuild = true
+      const delay = 15000 + Math.random() * 10000 // 15–25s — considers longer than anyone
+      schedule(async () => {
+        const contrMsg = await fire('contrarian', promptContrarianReact(text, ctx), false)
+        if (!contrMsg) return
+        lastReaction = { agent: 'contrarian', msgIndex: index }
+        // Contrarian/Spark cross-reaction: if Spark proposed something expansive
+        if (has(text, SPARK_KEYWORDS) && Math.random() < 0.30) {
+          schedule(async () => { await fire('contrarian', promptContrarianReact(text, ctx), true) }, 6000)
+        }
+      }, delay)
+    }
+
+    // ── THE ROOM DIVIDES: both Advocate AND Contrarian fire ──────────────────
+    // Special case: both have concerns — they both fire, staggered, then Architect weighs in
+    const bothWouldFire = !isBackendOnly && Math.random() < 0.15 // rare — ~15% of already-triggering builds
+    if (bothWouldFire && !advocateFiredThisBuild && !contrarianFiredThisBuild) {
+      advocateFiredThisBuild = true
+      contrarianFiredThisBuild = true
+      schedule(async () => {
+        const advMsg = await fire('advocate', promptAdvocate(text, ctx), false)
+        if (!advMsg) return
+        lastReaction = { agent: 'advocate', msgIndex: index }
+
+        schedule(async () => {
+          const contrMsg = await fire('contrarian', promptContrarianReact(text, ctx), false)
+          if (!contrMsg) return
+          lastReaction = { agent: 'contrarian', msgIndex: index }
+
+          // Architect has 40% chance to weigh in after both
+          if (Math.random() < 0.40) {
+            schedule(async () => {
+              await fire('claude', promptArchitectAfterBothFlags(advMsg.content, contrMsg.content), true)
+            }, 6000 + Math.random() * 4000)
+          }
+        }, 12000 + Math.random() * 6000)
+      }, 10000 + Math.random() * 5000)
     }
   }
 
