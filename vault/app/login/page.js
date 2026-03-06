@@ -1,12 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 export default function LoginPage() {
-  const router = useRouter()
-
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [magicLoading, setMagicLoading] = useState(false)
@@ -27,7 +24,7 @@ export default function LoginPage() {
     const { error: err } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/vault/auth/callback`,
       },
     })
 
@@ -50,7 +47,7 @@ export default function LoginPage() {
 
     setPwLoading(false)
     if (err) setPwError(err.message)
-    else router.push('/dashboard')
+    else window.location.href = '/vault/dashboard'
   }
 
   return (

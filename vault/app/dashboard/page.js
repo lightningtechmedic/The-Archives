@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 
 // ── Constants ─────────────────────────────────────────────
@@ -305,8 +304,8 @@ function UserListPanel({ onlineUsers, allProfiles }) {
       </div>
 
       <div style={{ padding: '0.75rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-        <Link href="/notes" className="vault-btn-ghost" style={{ justifyContent: 'center', textDecoration: 'none' }}>Notes</Link>
-        <Link href="/files" className="vault-btn-ghost" style={{ justifyContent: 'center', textDecoration: 'none' }}>Files</Link>
+        <a href="/vault/notes" className="vault-btn-ghost" style={{ justifyContent: 'center', textDecoration: 'none' }}>Notes</a>
+        <a href="/vault/files" className="vault-btn-ghost" style={{ justifyContent: 'center', textDecoration: 'none' }}>Files</a>
       </div>
     </div>
   )
@@ -362,7 +361,7 @@ function QuickNotePanel({ userId, supabase }) {
       <div className="flex-1 overflow-y-auto" style={{ padding: '0.4rem' }}>
         {notes.length > 0 && <p className="panel-label px-2 py-1" style={{ color: 'var(--muted)' }}>Recent</p>}
         {notes.map(note => (
-          <Link key={note.id} href={`/notes?id=${note.id}`} style={{ textDecoration: 'none' }}>
+          <a key={note.id} href={`/vault/notes?id=${note.id}`} style={{ textDecoration: 'none' }}>
             <div
               data-hover
               style={{ padding: '0.5rem', borderRadius: '2px', transition: 'background 0.15s' }}
@@ -374,13 +373,13 @@ function QuickNotePanel({ userId, supabase }) {
               </p>
               <p className="msg-timestamp mt-0.5">{formatTime(note.created_at)}</p>
             </div>
-          </Link>
+          </a>
         ))}
       </div>
       <div style={{ padding: '0.6rem', borderTop: '1px solid var(--border)' }}>
-        <Link href="/notes" style={{ textDecoration: 'none' }}>
+        <a href="/vault/notes" style={{ textDecoration: 'none' }}>
           <button className="vault-btn-ghost w-full justify-center">View all →</button>
-        </Link>
+        </a>
       </div>
     </div>
   )
@@ -476,7 +475,7 @@ export default function Dashboard() {
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) { router.push('/login'); return }
+      if (!session) { window.location.href = '/vault/login'; return }
       if (initialized) return
       initialized = true
       init(session.user)
@@ -640,7 +639,7 @@ export default function Dashboard() {
 
   async function handleSignOut() {
     await getSupabase().auth.signOut()
-    router.push('/login')
+    window.location.href = '/vault/login'
   }
 
   // ── Render ────────────────────────────────────────────────
