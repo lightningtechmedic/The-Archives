@@ -1423,19 +1423,23 @@ export default function Dashboard() {
   // ── Enclave actions ──
   async function handleCreateEnclave(name, setLoading, setError) {
     setLoading(true)
-    const { enclave, error } = await createEnclave(getSupabase(), user.id, name)
+    const { data: { user: currentUser } } = await getSupabase().auth.getUser()
+    const { data: enclave, error } = await createEnclave(getSupabase(), { name, userId: currentUser.id })
     if (error) {
       console.error('[createEnclave]', error)
-      setError('Failed to create enclave: ' + error)
+      setError('Failed to create enclave: ' + (error.message || error))
       setLoading(false)
       return // Keep modal open so user can retry or see the error
     }
-    setEnclaves(prev => [...prev, enclave])
-    switchActiveEnclave(enclave.id)
-    setEnclaveToast(`◆ ${name} created — you're now in your enclave`)
-    setTimeout(() => setEnclaveToast(''), 3500)
     setLoading(false)
     setShowCreateEnclave(false)
+    // Delay state refresh to avoid triggering RLS policy chain in the same tick
+    setTimeout(() => {
+      setEnclaves(prev => [...prev, enclave])
+      switchActiveEnclave(enclave.id)
+      setEnclaveToast(`◆ ${name} created — you're now in your enclave`)
+      setTimeout(() => setEnclaveToast(''), 3500)
+    }, 100)
   }
 
   async function handleInviteMember(email) {

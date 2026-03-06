@@ -1,18 +1,27 @@
 // vault/lib/enclaves.js — Supabase helpers for the Enclave system
 
-export async function createEnclave(supabase, userId, name) {
-  const { data: enclave, error } = await supabase
+export async function createEnclave(supabase, { name, description, userId }) {
+  // Step 1 — insert enclave
+  const { data: enclave, error: enclaveError } = await supabase
     .from('enclaves')
     .insert({ name: name.trim(), created_by: userId })
     .select()
     .single()
-  if (error || !enclave) return { enclave: null, error: error?.message || 'Failed to create enclave' }
 
-  // Add creator as owner
-  await supabase.from('enclave_members').insert({
-    enclave_id: enclave.id, user_id: userId, role: 'owner',
-  })
-  return { enclave: { ...enclave, role: 'owner' }, error: null }
+  if (enclaveError) return { data: null, error: enclaveError }
+
+  // Step 2 — add creator as owner member
+  const { error: memberError } = await supabase
+    .from('enclave_members')
+    .insert({
+      enclave_id: enclave.id,
+      user_id: userId,
+      role: 'owner',
+    })
+
+  if (memberError) return { data: null, error: memberError }
+
+  return { data: { ...enclave, role: 'owner' }, error: null }
 }
 
 export async function getUserEnclaves(supabase, userId) {
