@@ -13,6 +13,9 @@ import {
   AvatarGeneric,
 } from '@/components/Avatars'
 
+// ── Base path for API routes ───────────────────────────────────────────────────
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
+
 // ── AI config ──────────────────────────────────────────────────────────────────
 const AI = {
   claude: {
@@ -924,7 +927,7 @@ export default function Dashboard() {
 
     let text = ''
     try {
-      const res = await fetch(`/api/chat/${model}`, {
+      const res = await fetch(`${API_BASE}/api/chat/${model}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history, noteContext: noteContext || null, publicNotes: publicNotes || [] }),
       })
