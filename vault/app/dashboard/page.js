@@ -70,6 +70,12 @@ const AI = {
 // Triggers Scribe when message contains build/code intent or direct address
 const SCRIBE_TRIGGER_RE = /\b(build|code|implement|create|fix|ship|deploy|write|refactor|debug|push|commit|make|add|update|delete|remove|connect|integrate)\b/i
 
+// Triggers Steward when user confirms a Scribe proposal ("shall I proceed?" → user says one of these)
+const STEWARD_CONFIRM_RE = /^(go|proceed|build it|do it|ship it|yes please|let's go|go ahead|sounds good|looks good|do it|yes|yep|yup|sure)$/i
+
+// Scribe asking for approval — sets scribePendingApprovalRef so next user msg can trigger Steward
+const SCRIBE_AWAIT_RE = /\b(ready when you are|shall I proceed|should I proceed|approve to proceed|want me to proceed|proceed\?|shall I start|shall I begin)\b/i
+
 // ── Reminder regex ─────────────────────────────────────────────────────────────
 const REMINDER_RE = /\b(remind(?:er|s)?(?:\s+me)?|remember\s+to|don'?t\s+forget|follow[\s-]?up(?:\s+(?:on|with))?|check\s+back|revisit|by\s+(?:eod|end\s+of\s+(?:day|week)|tomorrow|(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|week|month))|deadline[:\s]|due\s+(?:date[:\s]|by[:\s]|on[:\s]|\d+)|in\s+\d+\s+(?:days?|weeks?|months?|hours?)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|next\s+(?:monday|tuesday|wednesday|thursday|friday|week|month)|this\s+(?:friday|monday|tuesday|wednesday|thursday))\b/gi
 
@@ -1595,6 +1601,7 @@ export default function Dashboard() {
   const reactionEngineRef = useRef(null)
   const triggerReactionRef = useRef(null)
   const userRef = useRef(null)
+  const scribePendingApprovalRef = useRef(false)
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { aiLockedRef.current = aiLocked }, [aiLocked])
@@ -2140,12 +2147,20 @@ export default function Dashboard() {
 
     const { noteContext, publicNotes } = await buildNoteContext()
 
-    // ── Steward interception: build intent in enclave context ──
-    if (activeEnclaveIdRef.current && SCRIBE_TRIGGER_RE.test(content)) {
+    // ── Steward interception ──────────────────────────────────────────────────
+    // Fires when: (a) build intent in any active context (enclave or Scribe session)
+    //             (b) user confirms a Scribe proposal ("go", "proceed", etc.)
+    const isBuildIntent = SCRIBE_TRIGGER_RE.test(content)
+    const isConfirmation = scribePendingApprovalRef.current && scribeActiveRef.current && STEWARD_CONFIRM_RE.test(content.trim())
+    const stewardShouldFire = (isBuildIntent && (activeEnclaveIdRef.current || scribeActiveRef.current)) || isConfirmation
+
+    if (stewardShouldFire) {
+      scribePendingApprovalRef.current = false
       setStewardAvatarState('thinking')
       try {
-        const { budget_cents } = await getEnclaveBudget(activeEnclaveIdRef.current)
-        const spentCents = budget_cents != null ? await getEnclaveSpend(activeEnclaveIdRef.current) : 0
+        const enclaveId = activeEnclaveIdRef.current
+        const { budget_cents } = enclaveId ? await getEnclaveBudget(enclaveId) : { budget_cents: null }
+        const spentCents = (budget_cents != null && enclaveId) ? await getEnclaveSpend(enclaveId) : 0
         const res = await fetch(`${API_BASE}/api/chat/steward`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ request: content, budgetCents: budget_cents, spentCents }),
@@ -2153,7 +2168,7 @@ export default function Dashboard() {
         const estimate = await res.json()
         setStewardEstimate(estimate)
         setStewardAvatarState(estimate.recommendation === 'approve' ? 'done' : estimate.recommendation === 'reject' ? 'rejected' : 'concern')
-        pendingBuildRef.current = { content, noteContext, publicNotes }
+        pendingBuildRef.current = { content, noteContext, publicNotes, isConfirmation }
         setAwaitingStewardEstimate(true)
         setAiLocked(false)
         return
@@ -2189,7 +2204,13 @@ export default function Dashboard() {
       const buildIntent = SCRIBE_TRIGGER_RE.test(content)
       if (directAddress || buildIntent) {
         const scribeReply = await triggerAI('scribe', [...historyRef.current], noteContext, publicNotes)
-        if (scribeReply) reactionEngineRef.current?.onScribeMessage(scribeReply, historyRef.current.length)
+        if (scribeReply) {
+          reactionEngineRef.current?.onScribeMessage(scribeReply, historyRef.current.length)
+          // If Scribe is asking for confirmation, flag it so next user message can trigger Steward
+          if (SCRIBE_AWAIT_RE.test(scribeReply.content || '')) {
+            scribePendingApprovalRef.current = true
+          }
+        }
       }
     }
 
@@ -2226,8 +2247,19 @@ export default function Dashboard() {
       setArchitectState('disagreeing')
       setTimeout(() => setArchitectState('idle'), 3000)
     }
-    if (scribeActiveRef.current && (SCRIBE_TRIGGER_RE.test(pending.content) || /\bscribe\b/i.test(pending.content))) {
-      await triggerAI('scribe', [...historyRef.current], pending.noteContext, pending.publicNotes)
+    // Run Scribe if active and this was a build request or a confirmation of a Scribe proposal
+    if (scribeActiveRef.current && (
+      SCRIBE_TRIGGER_RE.test(pending.content) ||
+      /\bscribe\b/i.test(pending.content) ||
+      pending.isConfirmation
+    )) {
+      const scribeReply = await triggerAI('scribe', [...historyRef.current], pending.noteContext, pending.publicNotes)
+      if (scribeReply) {
+        reactionEngineRef.current?.onScribeMessage(scribeReply, historyRef.current.length)
+        if (SCRIBE_AWAIT_RE.test(scribeReply.content || '')) {
+          scribePendingApprovalRef.current = true
+        }
+      }
     }
     setAiLocked(false)
   }
@@ -2237,6 +2269,7 @@ export default function Dashboard() {
     setStewardEstimate(null)
     setStewardAvatarState('idle')
     pendingBuildRef.current = null
+    scribePendingApprovalRef.current = false
     const rejectionMsg = "Rejected. The numbers don't support it — or the timing doesn't. Come back when one of those changes."
     const { data } = await getSupabase().from('messages').insert({
       user_id: userRef.current?.id, display_name: 'The Steward', content: rejectionMsg, role: 'steward',
@@ -2250,6 +2283,7 @@ export default function Dashboard() {
     setStewardEstimate(null)
     setStewardAvatarState('idle')
     pendingBuildRef.current = null
+    scribePendingApprovalRef.current = false
     setChatInput('Steward, ')
     setChatExpanded(true)
   }
