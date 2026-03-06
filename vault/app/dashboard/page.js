@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { createEnclave, getUserEnclaves, inviteMember, removeMember, deleteEnclave } from '@/lib/enclaves'
+import { pinLatticeMsgToBoard } from '@/lib/stickies'
 import {
   AvatarArchitect,
   AvatarSpark,
@@ -175,64 +176,108 @@ function VisibilityConfirmModal({ enclaveName, onConfirm, onCancel }) {
 function EnclaveSwitcher({ enclaves, activeEnclaveId, onSwitch, onCreateNew, onSettings }) {
   const [open, setOpen] = useState(false)
   const active = enclaves.find(e => e.id === activeEnclaveId)
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e) { if (!e.target.closest('[data-enclave-switcher]')) setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
   return (
-    <div style={{ position:'relative' }}>
-      <button onClick={() => setOpen(v => !v)} data-hover
-        style={{ display:'flex', alignItems:'center', gap:'.35rem', background:'transparent',
-          border:`1px solid ${activeEnclaveId ? 'rgba(58,212,200,0.3)' : 'var(--border)'}`,
-          borderRadius:'4px', padding:'.3rem .65rem',
+    <div style={{ position:'relative' }} data-enclave-switcher>
+      <button onClick={() => setOpen(v => !v)}
+        style={{ display:'flex', alignItems:'center', gap:'.4rem',
+          background: activeEnclaveId ? 'rgba(58,212,200,0.06)' : 'transparent',
+          border:`1px solid ${activeEnclaveId ? 'rgba(58,212,200,0.35)' : 'var(--border)'}`,
+          borderRadius:'4px', padding:'.3rem .75rem',
           color: activeEnclaveId ? 'var(--cyan)' : 'var(--muted)',
-          fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em',
-          textTransform:'uppercase', transition:'all .2s' }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.5)' : 'var(--border-h)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--text)' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.3)' : 'var(--border)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--muted)' }}>
-        <span style={{ width:5, height:5, borderRadius:'50%', background: activeEnclaveId ? 'var(--cyan)' : 'var(--muted)', flexShrink:0 }} />
-        {active?.name || 'Personal'}
-        <span style={{ fontSize:'.45rem', opacity:.4 }}>▾</span>
+          fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em',
+          textTransform:'uppercase', transition:'all .2s', minWidth:'90px', justifyContent:'space-between' }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.6)' : 'var(--border-h)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--text)' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.35)' : 'var(--border)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--muted)' }}>
+        <span style={{ display:'flex', alignItems:'center', gap:'.35rem' }}>
+          {activeEnclaveId
+            ? <span style={{ fontSize:'.6rem', lineHeight:1 }}>◆</span>
+            : <span style={{ width:5, height:5, borderRadius:'50%', background:'var(--muted)', flexShrink:0 }} />
+          }
+          {active?.name || 'Personal'}
+        </span>
+        <span style={{ fontSize:'.44rem', opacity:.45, marginLeft:'.2rem' }}>▾</span>
       </button>
+
       {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:4000,
-          background:'rgba(11,10,8,0.97)', border:'1px solid var(--border)',
-          borderRadius:'4px', minWidth:'160px', overflow:'hidden',
-          boxShadow:'0 8px 32px rgba(0,0,0,0.6)' }}
-          onMouseLeave={() => setOpen(false)}>
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:4000,
+          background:'rgba(11,10,8,0.98)', border:'1px solid var(--border)',
+          borderRadius:'4px', minWidth:'200px', overflow:'hidden',
+          boxShadow:'0 8px 40px rgba(0,0,0,0.7)', backdropFilter:'blur(20px)' }}>
+
+          {/* Personal */}
           <button onClick={() => { onSwitch(null); setOpen(false) }}
-            style={{ width:'100%', padding:'.5rem .75rem', background: !activeEnclaveId ? 'rgba(255,255,255,0.04)' : 'transparent',
+            style={{ width:'100%', padding:'.55rem .85rem', background:'transparent',
               color: !activeEnclaveId ? 'var(--text)' : 'var(--muted)',
-              fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em',
-              textTransform:'uppercase', textAlign:'left', borderBottom:'1px solid var(--border)', transition:'all .15s' }}
+              fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em',
+              textTransform:'uppercase', textAlign:'left', display:'flex', alignItems:'center',
+              justifyContent:'space-between', borderBottom:'1px solid var(--border)', transition:'all .15s' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-            onMouseLeave={e => e.currentTarget.style.background = !activeEnclaveId ? 'rgba(255,255,255,0.04)' : 'transparent'}>
-            Personal
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <span style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+              <span style={{ width:5, height:5, borderRadius:'50%', background: !activeEnclaveId ? 'var(--text)' : 'var(--muted)' }} />
+              Personal
+            </span>
+            {!activeEnclaveId && <span style={{ color:'var(--ember)', fontSize:'.6rem' }}>✓</span>}
           </button>
+
+          {/* Enclave list */}
           {enclaves.map(e => (
             <button key={e.id} onClick={() => { onSwitch(e.id); setOpen(false) }}
-              style={{ width:'100%', padding:'.5rem .75rem',
+              style={{ width:'100%', padding:'.55rem .85rem',
                 background: activeEnclaveId === e.id ? 'rgba(58,212,200,0.06)' : 'transparent',
                 color: activeEnclaveId === e.id ? 'var(--cyan)' : 'var(--muted)',
-                fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em',
+                fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em',
                 textTransform:'uppercase', textAlign:'left', display:'flex',
                 alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
               onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(58,212,200,0.04)'}
               onMouseLeave={ev => ev.currentTarget.style.background = activeEnclaveId === e.id ? 'rgba(58,212,200,0.06)' : 'transparent'}>
-              {e.name}
-              {activeEnclaveId === e.id && (
+              <span style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+                <span style={{ fontSize:'.55rem', color: activeEnclaveId === e.id ? 'var(--cyan)' : 'var(--muted)' }}>◆</span>
+                {e.name}
+              </span>
+              <span style={{ display:'flex', alignItems:'center', gap:'.4rem' }}>
+                {activeEnclaveId === e.id && <span style={{ color:'var(--ember)', fontSize:'.6rem' }}>✓</span>}
                 <span onClick={ev => { ev.stopPropagation(); setOpen(false); onSettings() }}
-                  style={{ fontSize:'.6rem', opacity:.45, transition:'opacity .15s', paddingLeft:'.3rem' }}
+                  title="Manage enclave"
+                  style={{ fontSize:'.6rem', opacity:.4, transition:'opacity .15s' }}
                   onMouseEnter={ev => ev.currentTarget.style.opacity = '1'}
-                  onMouseLeave={ev => ev.currentTarget.style.opacity = '.45'}>⚙</span>
-              )}
+                  onMouseLeave={ev => ev.currentTarget.style.opacity = '.4'}>⚙</span>
+              </span>
             </button>
           ))}
-          <button onClick={() => { setOpen(false); onCreateNew() }}
-            style={{ width:'100%', padding:'.5rem .75rem', background:'transparent',
-              color:'var(--ember)', fontFamily:'var(--font-mono)', fontSize:'.48rem',
-              letterSpacing:'.1em', textTransform:'uppercase', textAlign:'left',
-              borderTop:'1px solid var(--border)', transition:'all .15s' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--ember-glow)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            + New Enclave
-          </button>
+
+          {/* Divider + actions */}
+          <div style={{ borderTop:'1px solid var(--border)' }}>
+            <button onClick={() => { setOpen(false); onCreateNew() }}
+              style={{ width:'100%', padding:'.55rem .85rem', background:'transparent',
+                color:'var(--ember)', fontFamily:'var(--font-mono)', fontSize:'.5rem',
+                letterSpacing:'.1em', textTransform:'uppercase', textAlign:'left',
+                display:'flex', alignItems:'center', gap:'.4rem', transition:'all .15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--ember-glow)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              + Create Enclave
+            </button>
+            {enclaves.length > 0 && (
+              <button onClick={() => { setOpen(false); onSettings() }}
+                style={{ width:'100%', padding:'.55rem .85rem', background:'transparent',
+                  color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem',
+                  letterSpacing:'.1em', textTransform:'uppercase', textAlign:'left',
+                  display:'flex', alignItems:'center', gap:'.4rem', borderTop:'1px solid var(--border)', transition:'all .15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                ⚙ Manage Enclaves
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -334,7 +379,7 @@ function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, 
 }
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount }) {
   return (
     <div className="topbar">
       <div style={{ display:'flex', alignItems:'center', gap:'.65rem' }}>
@@ -359,6 +404,13 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
           Notes
           {notesCount > 0 && <span style={{ background:'var(--ember)', color:'#0b0a08', borderRadius:'3px', padding:'0 .3rem', fontSize:'.48rem', fontWeight:700 }}>{notesCount}</span>}
+        </button>
+        <button onClick={() => { window.location.href = '/vault/board' }} data-hover
+          style={{ display:'flex', alignItems:'center', gap:'.4rem', background:'transparent', border:'1px solid var(--border)', borderRadius:'4px', padding:'.3rem .65rem', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', transition:'all .2s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+          Board
+          {boardCount > 0 && <span style={{ background:'rgba(212,84,26,0.2)', color:'var(--ember)', borderRadius:'3px', padding:'0 .3rem', fontSize:'.48rem', fontWeight:700 }}>{boardCount}</span>}
         </button>
 
         {/* AI presence — always visible */}
@@ -389,6 +441,7 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
 // ── Notes Drawer ──────────────────────────────────────────────────────────────
 function NoteRow({ note, active, onOpen }) {
   const vis = noteVisibilityFromRecord(note)
+  const isEnclave = vis === 'enclave' || vis === 'public'
   return (
     <div onClick={onOpen} data-hover
       style={{ padding:'.6rem .65rem', borderRadius:'2px', cursor:'none', borderLeft: active ? '2px solid var(--ember)' : '2px solid transparent', background: active ? 'rgba(212,84,26,0.05)' : 'transparent', transition:'all .15s', marginBottom:'1px' }}
@@ -396,7 +449,12 @@ function NoteRow({ note, active, onOpen }) {
       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'.4rem', marginBottom:'.2rem' }}>
         <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.05rem', color: active ? 'var(--text)' : 'var(--mid)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{note.title || 'Untitled'}</p>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.08em', textTransform:'uppercase', color: (vis === 'public' || vis === 'enclave') ? 'var(--cyan)' : 'var(--muted)', flexShrink:0 }}>{vis}</span>
+        {isEnclave && (
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.06em', color:'var(--cyan)', flexShrink:0, display:'flex', alignItems:'center', gap:'.2rem' }}>
+            <span style={{ fontSize:'.5rem' }}>◆</span>
+            {vis}
+          </span>
+        )}
       </div>
       <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.9rem', color:'var(--muted)', lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>
         {(note.content || '').replace(/\[img:[^\]]*\]/g, '').trim() || 'Empty'}
@@ -423,10 +481,17 @@ function NotesDrawer({ open, notes, sharedNotes, enclaveNotes, activeEnclave, ac
             {notes.map(note => <NoteRow key={note.id} note={note} active={note.id === activeNoteId} onOpen={() => { onOpen(note); onClose() }} />)}
           </>
         )}
-        {activeEnclave && enclaveNotes.length > 0 && (
+        {activeEnclave && (
           <>
             <p className="panel-label" style={{ padding:'.75rem .5rem .25rem', opacity:.7, color:'var(--cyan)' }}>◆ {activeEnclave.name}</p>
-            {enclaveNotes.map(note => <NoteRow key={note.id} note={note} active={note.id === activeNoteId} onOpen={() => { onOpen(note); onClose() }} />)}
+            {enclaveNotes.length === 0 ? (
+              <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--muted)', textAlign:'center', padding:'1.25rem .5rem', fontStyle:'italic', lineHeight:1.4 }}>
+                No notes in {activeEnclave.name} yet.<br />
+                Notes you share to this enclave will appear here.
+              </p>
+            ) : (
+              enclaveNotes.map(note => <NoteRow key={note.id} note={note} active={note.id === activeNoteId} onOpen={() => { onOpen(note); onClose() }} />)
+            )}
           </>
         )}
         {!activeEnclave && sharedNotes.length > 0 && (
@@ -626,7 +691,7 @@ function VoiceFAB({ setNoteContent, chatHeight }) {
 }
 
 // ── Chat Message ──────────────────────────────────────────────────────────────
-function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, architectState, sparkState, yourState }) {
+function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState }) {
   const role = msg.role === 'user' ? 'human' : msg.role
   const isArchitect = role === 'claude'
   const isSpark = role === 'gpt'
@@ -656,9 +721,19 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, archite
           {msg.streaming && <span style={{ color: aiMeta?.color || 'var(--ember)', marginLeft:1 }} className="animate-pulse-slow">▋</span>}
         </p>
       </div>
-      <button className={`pin-btn${isPinned ? ' pinned' : ''}`} onClick={() => onPin(msg)} title="Pin to note">
-        {isPinned ? '📌' : '📍'}
-      </button>
+      <div style={{ display:'flex', flexDirection:'column', gap:2, flexShrink:0 }}>
+        <button className={`pin-btn${isPinned ? ' pinned' : ''}`} onClick={() => onPin(msg)} title="Pin to note">
+          {isPinned ? '📌' : '📍'}
+        </button>
+        {onPinToBoard && (
+          <button onClick={() => onPinToBoard(msg)} title="Pin to board"
+            style={{ background:'none', border:'none', color:'rgba(212,84,26,0.3)', fontSize:'.75rem', padding:'1px 3px', lineHeight:1, cursor:'none', transition:'color .15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--ember)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(212,84,26,0.3)'}>
+            🗂
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -723,7 +798,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, architectState, sparkState, yourState, noteTitle, activeEnclave }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -775,7 +850,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             )}
             {messages.map((msg, i) => (
               <ChatMessage key={msg.id || i} msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
-                onPin={onPin} isPinned={pinnedIds.has(msg.id)}
+                onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
                 architectState={architectState} sparkState={sparkState} yourState={yourState} />
             ))}
             {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} />}
@@ -863,6 +938,8 @@ export default function Dashboard() {
   const [chatExpanded, setChatExpanded] = useState(false)
   const [pinnedIds, setPinnedIds] = useState(new Set())
   const [pinToast, setPinToast] = useState(false)
+  const [boardPinToast, setBoardPinToast] = useState(false)
+  const [boardStickyCount, setBoardStickyCount] = useState(0)
 
   // Avatar states
   const [architectState, setArchitectState] = useState('idle')
@@ -876,6 +953,7 @@ export default function Dashboard() {
   const [enclaveNotes, setEnclaveNotes] = useState([])
   const [showCreateEnclave, setShowCreateEnclave] = useState(false)
   const [showEnclaveSettings, setShowEnclaveSettings] = useState(false)
+  const [enclaveToast, setEnclaveToast] = useState('')
 
   // Refs
   const historyRef = useRef([])
@@ -1286,6 +1364,23 @@ export default function Dashboard() {
     }
   }
 
+  // ── Pin message to board ──
+  async function handlePinToBoard(msg) {
+    const color = msg.role === 'claude' ? 'ember' : msg.role === 'gpt' ? 'gold' : 'paper'
+    const { sticky } = await pinLatticeMsgToBoard(getSupabase(), {
+      userId: user.id,
+      content: msg.content,
+      color,
+    })
+    if (sticky) {
+      setBoardStickyCount(prev => prev + 1)
+      setBoardPinToast(true)
+      setTimeout(() => setBoardPinToast(false), 2400)
+      setSparkState('excited')
+      setTimeout(() => setSparkState('idle'), 1200)
+    }
+  }
+
   // ── Enclave actions ──
   async function handleCreateEnclave(name, setLoading) {
     setLoading(true)
@@ -1293,6 +1388,8 @@ export default function Dashboard() {
     if (enclave) {
       setEnclaves(prev => [...prev, enclave])
       switchActiveEnclave(enclave.id)
+      setEnclaveToast(`◆ ${name} created — you're now in your enclave`)
+      setTimeout(() => setEnclaveToast(''), 3500)
     }
     if (error) console.error('[createEnclave]', error)
     setLoading(false)
@@ -1375,6 +1472,12 @@ export default function Dashboard() {
           onSave={saveReminder} onDismiss={() => setReminderCard(null)} />
       )}
       {pinToast && <div className="pin-toast">📌 Pinned to note</div>}
+      {boardPinToast && <div className="pin-toast" style={{ bottom:'3.5rem' }}>🗂 Pinned to board</div>}
+      {enclaveToast && (
+        <div className="pin-toast" style={{ bottom:'auto', top:'3.5rem', right:'1rem', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.3)', color:'var(--cyan)', maxWidth:'340px', fontSize:'.5rem', letterSpacing:'.08em', padding:'.65rem 1rem' }}>
+          {enclaveToast}
+        </div>
+      )}
       <ReminderNotifications notifs={reminderNotifs} onGoTo={handleGoToNote} onDismiss={dismissReminder} />
 
       <TopBar noteTitle={noteTitle} notesCount={notes.length} onNotesToggle={() => setNotesOpen(v => !v)}
@@ -1384,6 +1487,7 @@ export default function Dashboard() {
         onEnclaveSwitch={switchActiveEnclave}
         onCreateEnclave={() => setShowCreateEnclave(true)}
         onEnclaveSettings={() => setShowEnclaveSettings(true)}
+        boardCount={boardStickyCount}
         onSignOut={async () => { await getSupabase().auth.signOut(); window.location.href = '/vault/login' }} />
 
       {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
@@ -1424,7 +1528,7 @@ export default function Dashboard() {
         onAskArchitect={() => askOne('claude')}
         onAskSpark={() => askOne('gpt')}
         allProfiles={allProfiles} currentUserId={user?.id}
-        onPin={pinMessage} pinnedIds={pinnedIds}
+        onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
         architectState={architectState} sparkState={sparkState} yourState={yourState}
         noteTitle={noteTitle}
         activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />

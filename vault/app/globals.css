@@ -390,3 +390,11 @@
 .animate-pulse-slow { animation: pulseSlow 2s ease-in-out infinite; }
 
 @keyframes rotateCW { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+
+/* ── Board ── */
+@keyframes stickyBloom { from { transform: scale(0); opacity:0; } 60% { transform: scale(1.08); } to { transform: scale(1); opacity:1; } }
+@keyframes boardDrift0 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(2px,-1px)} 66%{transform:translate(-1px,2px)} }
+@keyframes boardDrift1 { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-2px,1px)} 75%{transform:translate(1px,-2px)} }
+@keyframes boardDrift2 { 0%,100%{transform:translate(0,0)} 40%{transform:translate(1px,2px)} 80%{transform:translate(-2px,-1px)} }
+@keyframes boardDrift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-1px,-2px)} 90%{transform:translate(2px,1px)} }
+@keyframes pinFly { 0%{opacity:1;transform:scale(1) translate(0,0)} 100%{opacity:0;transform:scale(0.4) translate(var(--fly-x),var(--fly-y))} }
