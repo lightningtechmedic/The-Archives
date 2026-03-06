@@ -2,10 +2,10 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 
-// ── AI config (DB roles stay 'claude'/'gpt' for backwards compat) ──────────
+// ── AI config ──────────────────────────────────────────────────────────────────
 const AI = {
   claude: {
     label: 'The Architect', initial: 'A', role: 'claude',
@@ -19,7 +19,10 @@ const AI = {
   },
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Reminder regex ─────────────────────────────────────────────────────────────
+const REMINDER_RE = /\b(remind(?:er|s)?(?:\s+me)?|remember\s+to|don'?t\s+forget|follow[\s-]?up(?:\s+(?:on|with))?|check\s+back|revisit|by\s+(?:eod|end\s+of\s+(?:day|week)|tomorrow|(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|week|month))|deadline[:\s]|due\s+(?:date[:\s]|by[:\s]|on[:\s]|\d+)|in\s+\d+\s+(?:days?|weeks?|months?|hours?)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|next\s+(?:monday|tuesday|wednesday|thursday|friday|week|month)|this\s+(?:friday|monday|tuesday|wednesday|thursday))\b/gi
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
@@ -27,6 +30,9 @@ function isSmara(profile) {
   if (!profile) return false
   const n = (profile.display_name || profile.email || '').toLowerCase()
   return n.includes('smara')
+}
+function noteVisibilityFromRecord(note) {
+  return note.visibility || (note.is_shared ? 'public' : 'private')
 }
 
 // ── Animated avatars ─────────────────────────────────────────────────────────
@@ -159,11 +165,103 @@ function DisplayNameModal({ onSave }) {
   )
 }
 
+// ── Reminder Card ─────────────────────────────────────────────────────────────
+function ReminderCard({ phrase, noteTitle, onSave, onDismiss }) {
+  const [date, setDate] = useState('')
+  const [notifyAll, setNotifyAll] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    await onSave(phrase, date || null, notifyAll)
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ width:'100%', maxWidth:'380px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(212,84,26,0.35)', borderRadius:'4px', padding:'1.5rem' }}>
+        <p className="panel-label" style={{ marginBottom:'.4rem' }}>Reminder detected</p>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.4rem', color:'var(--text)', marginBottom:'1.25rem', lineHeight:1.3 }}>
+          "<span style={{ color:'var(--ember)' }}>{phrase}</span>"
+        </p>
+        {noteTitle && (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.1em', color:'var(--muted)', marginBottom:'1rem', textTransform:'uppercase' }}>
+            In: {noteTitle}
+          </p>
+        )}
+        <div style={{ display:'flex', flexDirection:'column', gap:'.85rem' }}>
+          <div>
+            <label style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', marginBottom:'.4rem' }}>
+              When (optional)
+            </label>
+            <input
+              type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
+              className="vault-input w-full" style={{ fontSize:'.8rem' }}
+            />
+          </div>
+          <div style={{ display:'flex', gap:'.5rem' }}>
+            {[{ v: false, label: 'Just me' }, { v: true, label: 'Whole team' }].map(opt => (
+              <button key={String(opt.v)} onClick={() => setNotifyAll(opt.v)}
+                style={{ flex:1, padding:'.5rem', border:`1px solid ${notifyAll === opt.v ? 'var(--ember)' : 'var(--border)'}`, borderRadius:'2px', background: notifyAll === opt.v ? 'var(--ember-glow)' : 'transparent', color: notifyAll === opt.v ? 'var(--ember)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s' }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:'.5rem' }}>
+            <button onClick={onDismiss} className="vault-btn-ghost" style={{ flex:1, padding:'.6rem', fontSize:'.5rem' }}>
+              Dismiss
+            </button>
+            <button onClick={handleSave} disabled={saving} className="vault-btn" style={{ flex:2, padding:'.6rem', fontSize:'.5rem' }}>
+              {saving ? 'Saving…' : 'Set Reminder →'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Reminder Notifications ────────────────────────────────────────────────────
+function ReminderNotifications({ notifs, onGoTo, onDismiss }) {
+  if (!notifs.length) return null
+  return (
+    <div style={{ position:'fixed', top:'3.5rem', right:'1rem', zIndex:8500, display:'flex', flexDirection:'column', gap:'.5rem', maxWidth:'300px' }}>
+      {notifs.map(r => (
+        <div key={r.id} style={{ background:'rgba(11,10,8,0.96)', border:'1px solid rgba(212,84,26,0.45)', borderRadius:'4px', padding:'.85rem', boxShadow:'0 4px 24px rgba(0,0,0,0.5)' }}>
+          <div style={{ display:'flex', alignItems:'flex-start', gap:'.5rem', marginBottom:'.5rem' }}>
+            <span style={{ fontSize:'1rem', flexShrink:0 }}>⏰</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--text)', lineHeight:1.3, marginBottom:'.2rem' }}>
+                {r.phrase}
+              </p>
+              {r.note_title && (
+                <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.08em', color:'var(--muted)', textTransform:'uppercase' }}>
+                  {r.note_title}
+                </p>
+              )}
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:'.4rem' }}>
+            {r.note_id && (
+              <button onClick={() => onGoTo(r)} className="vault-btn-ghost" style={{ flex:1, padding:'.3rem', fontSize:'.48rem' }}>
+                Go to note
+              </button>
+            )}
+            <button onClick={() => onDismiss(r.id)}
+              style={{ flex:1, padding:'.3rem', background:'transparent', border:'1px solid rgba(212,84,26,0.25)', borderRadius:'2px', color:'rgba(212,84,26,0.7)', fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s' }}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── TopBar ────────────────────────────────────────────────────────────────────
 function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut }) {
   return (
     <div className="topbar">
-      {/* Left */}
       <div style={{ display:'flex', alignItems:'center', gap:'.65rem' }}>
         <div className="ember-pip" />
         <span style={{ fontFamily:'var(--font-serif)', fontSize:'1.1rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', letterSpacing:'.01em' }}>
@@ -171,14 +269,12 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
         </span>
       </div>
 
-      {/* Center */}
       <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', maxWidth:'300px', overflow:'hidden' }}>
         <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center' }}>
           {noteTitle || 'Untitled'}
         </p>
       </div>
 
-      {/* Right */}
       <div style={{ display:'flex', alignItems:'center', gap:'.6rem' }}>
         <button
           onClick={onNotesToggle} data-hover
@@ -192,8 +288,7 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           )}
         </button>
 
-        {/* Online avatars */}
-        <div style={{ display:'flex', alignItems:'center', gap:'-.3rem' }}>
+        <div style={{ display:'flex', alignItems:'center' }}>
           {onlineUsers.slice(0, 4).map((u, i) => {
             const prof = allProfiles.find(p => p.id === u.user_id)
             const isMe = prof?.id === user?.id
@@ -214,10 +309,9 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
 }
 
 // ── Notes Drawer ──────────────────────────────────────────────────────────────
-function NotesDrawer({ open, notes, sharedNotes, activeNoteId, onOpen, onNew, onClose, search, setSearch }) {
+function NotesDrawer({ open, notes, sharedNotes, activeNoteId, reminders, onOpen, onNew, onClose, search, setSearch }) {
   return (
     <div className={`notes-drawer${open ? ' open' : ''}`}>
-      {/* Header */}
       <div style={{ padding:'.85rem 1rem', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
         <h2 style={{ fontFamily:'var(--font-caveat)', fontSize:'1.8rem', color:'var(--text)', fontWeight:600, marginBottom:'.6rem', lineHeight:1 }}>notes</h2>
         <input
@@ -226,7 +320,6 @@ function NotesDrawer({ open, notes, sharedNotes, activeNoteId, onOpen, onNew, on
         />
       </div>
 
-      {/* List */}
       <div style={{ flex:1, overflowY:'auto', padding:'.4rem' }}>
         {notes.length === 0 && !search && (
           <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', textAlign:'center', padding:'2rem .5rem', fontStyle:'italic' }}>
@@ -249,9 +342,23 @@ function NotesDrawer({ open, notes, sharedNotes, activeNoteId, onOpen, onNew, on
             ))}
           </>
         )}
+
+        {reminders.length > 0 && (
+          <>
+            <p className="panel-label" style={{ padding:'.75rem .5rem .25rem', opacity:.7 }}>Reminders</p>
+            {reminders.map(r => (
+              <div key={r.id} style={{ padding:'.5rem .65rem', borderRadius:'2px', marginBottom:'1px', borderLeft:'2px solid rgba(212,84,26,0.3)' }}>
+                <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--mid)', lineHeight:1.3 }}>{r.phrase}</p>
+                {r.reminder_date && (
+                  <p className="msg-timestamp">{new Date(r.reminder_date).toLocaleDateString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</p>
+                )}
+                {r.notify_all && <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.08em', textTransform:'uppercase', color:'var(--cyan)' }}>Team</span>}
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
-      {/* New note */}
       <div style={{ padding:'.75rem', borderTop:'1px solid var(--border)', flexShrink:0 }}>
         <button
           onClick={() => { onNew(); onClose() }} data-hover
@@ -265,6 +372,7 @@ function NotesDrawer({ open, notes, sharedNotes, activeNoteId, onOpen, onNew, on
 }
 
 function NoteRow({ note, active, onOpen, readOnly }) {
+  const vis = noteVisibilityFromRecord(note)
   return (
     <div
       onClick={onOpen} data-hover
@@ -281,8 +389,8 @@ function NoteRow({ note, active, onOpen, readOnly }) {
         <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.05rem', color: active ? 'var(--text)' : 'var(--mid)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
           {note.title || 'Untitled'}
         </p>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.08em', textTransform:'uppercase', color: note.is_shared ? 'var(--cyan)' : 'var(--muted)', flexShrink:0 }}>
-          {note.is_shared ? 'shared' : 'private'}
+        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.08em', textTransform:'uppercase', color: vis === 'public' ? 'var(--cyan)' : 'var(--muted)', flexShrink:0 }}>
+          {vis === 'public' ? 'public' : 'private'}
         </span>
       </div>
       <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.9rem', color:'var(--muted)', lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>
@@ -315,11 +423,12 @@ function ScrapbookImage({ img, onCaption, onRemove }) {
 }
 
 // ── Full Screen Editor ─────────────────────────────────────────────────────────
-function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent, noteImages, setNoteImages, isShared, setIsShared, saveStatus, user, supabase, chatHeight, contentRef }) {
+function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent, noteImages, setNoteImages, noteVisibility, onVisibilityToggle, saveStatus, user, supabase, chatHeight, contentRef, detectedReminders, onReminderClick }) {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
 
   const watermarkLetter = (noteTitle || 'N')[0].toUpperCase()
+  const isPublic = noteVisibility === 'public'
 
   async function uploadImage(file) {
     if (!file || !file.type.startsWith('image/')) return
@@ -337,21 +446,6 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
     if (file) uploadImage(file)
   }
 
-  function formatSelection(tag) {
-    const ta = contentRef.current
-    if (!ta) return
-    const start = ta.selectionStart, end = ta.selectionEnd
-    const sel = ta.value.slice(start, end)
-    let replacement = sel
-    if (tag === 'bold')       replacement = `**${sel}**`
-    else if (tag === 'italic') replacement = `*${sel}*`
-    else if (tag === 'h1')     replacement = `# ${sel}`
-    else if (tag === 'quote')  replacement = `> ${sel}`
-    const newVal = ta.value.slice(0, start) + replacement + ta.value.slice(end)
-    setNoteContent(newVal)
-    setTimeout(() => { ta.selectionStart = start; ta.selectionEnd = start + replacement.length; ta.focus() }, 0)
-  }
-
   return (
     <div
       onDragOver={e => { e.preventDefault(); setDragOver(true) }}
@@ -364,10 +458,10 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
         {watermarkLetter}
       </div>
 
-      {/* Sketch annotation */}
+      {/* Visibility annotation */}
       <div style={{ position:'absolute', left:'calc(50% - 420px)', top:'120px', transform:'rotate(-2.5deg)', pointerEvents:'none', zIndex:1, opacity:.35 }}>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--ember)', fontStyle:'italic', borderLeft:'2px solid var(--ember)', paddingLeft:'.5rem' }}>
-          {isShared ? '— shared with team' : '— private draft'}
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color: isPublic ? 'var(--cyan)' : 'var(--ember)', fontStyle:'italic', borderLeft:`2px solid ${isPublic ? 'var(--cyan)' : 'var(--ember)'}`, paddingLeft:'.5rem' }}>
+          {isPublic ? '— shared memory' : '— private draft'}
         </p>
       </div>
 
@@ -381,15 +475,25 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
       {/* Editor content */}
       <div style={{ position:'relative', zIndex:2, width:'100%', maxWidth:'740px', padding:'2.5rem 2rem 1rem', display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
 
-        {/* Share pill + save */}
+        {/* Visibility pill + reminder badge + save */}
         <div style={{ display:'flex', alignItems:'center', gap:'.65rem', marginBottom:'1.5rem', flexShrink:0 }}>
           <button
-            onClick={() => setIsShared(v => !v)} data-hover
-            style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', background:'transparent', border:`1px solid ${isShared ? 'var(--cyan)' : 'var(--border)'}`, borderRadius:'20px', color: isShared ? 'var(--cyan)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}
+            onClick={onVisibilityToggle} data-hover
+            style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', background:'transparent', border:`1px solid ${isPublic ? 'var(--cyan)' : 'var(--border)'}`, borderRadius:'20px', color: isPublic ? 'var(--cyan)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}
           >
-            <span style={{ width:6, height:6, borderRadius:'50%', background: isShared ? 'var(--cyan)' : 'var(--muted)', animation: isShared ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
-            {isShared ? 'Shared' : 'Private'}
+            <span style={{ width:6, height:6, borderRadius:'50%', background: isPublic ? 'var(--cyan)' : 'var(--muted)', animation: isPublic ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
+            {isPublic ? 'Public' : 'Private'}
           </button>
+
+          {detectedReminders.length > 0 && (
+            <button
+              onClick={() => onReminderClick(detectedReminders[0])} data-hover
+              style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.3rem .65rem', background:'var(--ember-glow)', border:'1px solid rgba(212,84,26,0.35)', borderRadius:'20px', color:'var(--ember)', fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}
+            >
+              ⏰ {detectedReminders.length} reminder{detectedReminders.length > 1 ? 's' : ''}
+            </button>
+          )}
+
           <span style={{ flex:1 }} />
           {saveStatus && (
             <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', color: saveStatus === 'saving' ? 'var(--muted)' : 'var(--green)', display:'flex', alignItems:'center', gap:'.3rem' }}>
@@ -433,12 +537,11 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
           </div>
         )}
 
-        {/* Image upload trigger (hidden, called from toolbar) */}
+        {/* Image upload (hidden) */}
         <input ref={fileInputRef} type="file" accept="image/*" style={{ display:'none' }}
           onChange={e => e.target.files[0] && uploadImage(e.target.files[0])} />
       </div>
 
-      {/* Expose file input trigger via custom event */}
       <div id="img-input-trigger" data-open={() => fileInputRef.current?.click()} style={{ display:'none' }} />
     </div>
   )
@@ -540,11 +643,11 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned }) {
   const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : (msg.display_name || prof?.display_name || 'Team')
 
   let avatar
-  if (isArchitect)   avatar = <AvatarArchitect size={26} />
-  else if (isSpark)  avatar = <AvatarSpark size={26} />
+  if (isArchitect)        avatar = <AvatarArchitect size={26} />
+  else if (isSpark)       avatar = <AvatarSpark size={26} />
   else if (isSmara(prof)) avatar = <AvatarSmara size={26} />
-  else if (isMe)     avatar = <AvatarUser size={26} />
-  else               avatar = <AvatarGeneric initial={(label || '?')[0].toUpperCase()} size={26} />
+  else if (isMe)          avatar = <AvatarUser size={26} />
+  else                    avatar = <AvatarGeneric initial={(label || '?')[0].toUpperCase()} size={26} />
 
   return (
     <div className="msg-row" style={{ borderLeft: isAI ? `2px solid ${aiMeta.border}` : `2px solid rgba(58,212,200,0.15)`, paddingLeft:'.5rem', marginLeft:'-.5rem' }}>
@@ -572,7 +675,7 @@ function ThinkingDot({ model }) {
   const meta = AI[model]
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'.5rem', paddingLeft:'.5rem', borderLeft:`2px solid ${meta.border}`, marginLeft:'-.5rem' }}>
-      <AvatarArchitect size={26} />
+      {model === 'claude' ? <AvatarArchitect size={26} /> : <AvatarSpark size={26} />}
       <div style={{ display:'flex', alignItems:'center', gap:'.4rem' }}>
         <div style={{ width:5, height:5, borderRadius:'50%', background:meta.color, animation:'pulseSlow 1.2s ease-in-out infinite' }} />
         <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', color:meta.color, opacity:.8 }}>
@@ -583,7 +686,7 @@ function ThinkingDot({ model }) {
   )
 }
 
-// ── Lattice (chat) Drawer ─────────────────────────────────────────────────────
+// ── Lattice Drawer ────────────────────────────────────────────────────────────
 function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds }) {
   const messagesEndRef = useRef(null)
 
@@ -616,7 +719,6 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
       {/* Body */}
       {expanded && (
         <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minHeight:0 }}>
-          {/* Messages */}
           <div style={{ flex:1, overflowY:'auto', padding:'1rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
             {messages.length === 0 && (
               <div style={{ margin:'auto', textAlign:'center', opacity:.25 }}>
@@ -631,7 +733,6 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Manual AI buttons */}
           {!autoAI && (
             <div style={{ display:'flex', gap:'.5rem', padding:'.4rem 1rem 0', flexShrink:0 }}>
               {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }].map(({ fn, meta }) => (
@@ -643,7 +744,6 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             </div>
           )}
 
-          {/* Input */}
           <div style={{ display:'flex', gap:'.5rem', padding:'.6rem 1rem', flexShrink:0, borderTop:'1px solid var(--border)' }}>
             <textarea
               value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={onKeyDown}
@@ -661,6 +761,28 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Visibility Confirm Modal ───────────────────────────────────────────────────
+function VisibilityConfirmModal({ onConfirm, onCancel }) {
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:8500, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ width:'100%', maxWidth:'360px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.3)', borderRadius:'4px', padding:'1.5rem' }}>
+        <p className="panel-label" style={{ marginBottom:'.4rem', color:'var(--cyan)' }}>Make public?</p>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.3rem', color:'var(--text)', lineHeight:1.4, marginBottom:'1.25rem' }}>
+          This note will enter <span style={{ color:'var(--cyan)' }}>shared memory</span> — The Architect and The Spark will have full context.
+        </p>
+        <div style={{ display:'flex', gap:'.5rem' }}>
+          <button onClick={onCancel} className="vault-btn-ghost" style={{ flex:1, padding:'.6rem', fontSize:'.5rem' }}>
+            Keep private
+          </button>
+          <button onClick={onConfirm} className="vault-btn" style={{ flex:1, padding:'.6rem', fontSize:'.5rem', borderColor:'var(--cyan)', color:'var(--cyan)' }}>
+            Make public →
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -688,10 +810,17 @@ export default function Dashboard() {
   const [noteTitle, setNoteTitle] = useState('Untitled')
   const [noteContent, setNoteContent] = useState('')
   const [noteImages, setNoteImages] = useState([])
-  const [isShared, setIsShared] = useState(false)
+  const [noteVisibility, setNoteVisibility] = useState('private')
   const [saveStatus, setSaveStatus] = useState('')
   const [notesSearch, setNotesSearch] = useState('')
   const [notesOpen, setNotesOpen] = useState(false)
+  const [visConfirmOpen, setVisConfirmOpen] = useState(false)
+
+  // Reminders
+  const [detectedReminders, setDetectedReminders] = useState([])
+  const [reminderCard, setReminderCard] = useState(null) // phrase string
+  const [reminders, setReminders] = useState([])
+  const [reminderNotifs, setReminderNotifs] = useState([])
 
   // Chat
   const [messages, setMessages] = useState([])
@@ -706,8 +835,23 @@ export default function Dashboard() {
   const historyRef = useRef([])
   const saveTimerRef = useRef(null)
   const contentRef = useRef(null)
+  const activeNoteRef = useRef(null)
+  const noteTitleRef = useRef('')
+  const noteContentRef = useRef('')
 
   useEffect(() => { historyRef.current = messages }, [messages])
+  useEffect(() => { activeNoteRef.current = activeNote }, [activeNote])
+  useEffect(() => { noteTitleRef.current = noteTitle }, [noteTitle])
+  useEffect(() => { noteContentRef.current = noteContent }, [noteContent])
+
+  // ── Reminder detection ──
+  useEffect(() => {
+    const raw = noteContent
+    if (!raw.trim()) { setDetectedReminders([]); return }
+    const matches = raw.match(REMINDER_RE) || []
+    const unique = [...new Set(matches.map(m => m.trim()))]
+    setDetectedReminders(unique)
+  }, [noteContent])
 
   // ── Auth + init ──
   useEffect(() => {
@@ -721,7 +865,11 @@ export default function Dashboard() {
           sb.from('profiles').select('*'),
           sb.from('messages').select('*').order('created_at', { ascending: true }).limit(100),
           sb.from('notes').select('*').eq('user_id', u.id).order('updated_at', { ascending: false }),
-          sb.from('notes').select('id,title,content,user_id,is_shared,created_at,updated_at').eq('is_shared', true).neq('user_id', u.id).order('updated_at', { ascending: false }),
+          sb.from('notes')
+            .select('id,title,content,user_id,is_shared,visibility,created_at,updated_at')
+            .or('visibility.eq.public,is_shared.eq.true')
+            .neq('user_id', u.id)
+            .order('updated_at', { ascending: false }),
         ])
         if (!active) return
 
@@ -729,9 +877,7 @@ export default function Dashboard() {
         setMessages(msgs || []); setNotes(myNotes || []); setSharedNotes(sNotes || [])
         if (!prof?.display_name) setNeedsName(true)
 
-        // Open most recent note
         if (myNotes && myNotes.length > 0) openNote(myNotes[0])
-
         setMounted(true)
 
         // Realtime messages
@@ -747,6 +893,9 @@ export default function Dashboard() {
           .subscribe(async s => {
             if (s === 'SUBSCRIBED') await pc.track({ user_id: u.id, display_name: prof?.display_name || u.email, avatar_initial: prof?.avatar_initial || u.email?.[0]?.toUpperCase() })
           })
+
+        // Load reminders
+        loadRemindersFor(u.id)
       } catch (err) {
         console.error('[Dashboard] init failed:', err)
       }
@@ -762,7 +911,14 @@ export default function Dashboard() {
     return () => { active = false; subscription.unsubscribe() }
   }, []) // eslint-disable-line
 
-  // ── Autosave notes ──
+  // ── Reminder periodic check ──
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(() => loadRemindersFor(user.id), 60000)
+    return () => clearInterval(interval)
+  }, [user]) // eslint-disable-line
+
+  // ── Autosave ──
   useEffect(() => {
     if (!user) return
     clearTimeout(saveTimerRef.current)
@@ -770,20 +926,33 @@ export default function Dashboard() {
       if (noteTitle || noteContent) autoSaveNote()
     }, 2500)
     return () => clearTimeout(saveTimerRef.current)
-  }, [noteTitle, noteContent, noteImages, isShared]) // eslint-disable-line
+  }, [noteTitle, noteContent, noteImages, noteVisibility]) // eslint-disable-line
 
   async function autoSaveNote() {
     setSaveStatus('saving')
     const sb = getSupabase()
     const imgStr = noteImages.map(i => `[img:${i.url}:${i.caption}]`).join('')
     const contentToSave = noteContent + (imgStr ? '\n' + imgStr : '')
+    const isPublic = noteVisibility === 'public'
 
     if (activeNote) {
-      const { data } = await sb.from('notes').update({ title: noteTitle || 'Untitled', content: contentToSave, is_shared: isShared, updated_at: new Date().toISOString() }).eq('id', activeNote.id).select().single()
+      const { data } = await sb.from('notes').update({
+        title: noteTitle || 'Untitled',
+        content: contentToSave,
+        visibility: noteVisibility,
+        is_shared: isPublic,
+        updated_at: new Date().toISOString(),
+      }).eq('id', activeNote.id).select().single()
       if (data) { setActiveNote(data); setNotes(prev => prev.map(n => n.id === data.id ? data : n)) }
     } else {
       if (!noteTitle && !noteContent) { setSaveStatus(''); return }
-      const { data } = await sb.from('notes').insert({ user_id: user.id, title: noteTitle || 'Untitled', content: contentToSave, is_shared: isShared }).select().single()
+      const { data } = await sb.from('notes').insert({
+        user_id: user.id,
+        title: noteTitle || 'Untitled',
+        content: contentToSave,
+        visibility: noteVisibility,
+        is_shared: isPublic,
+      }).select().single()
       if (data) { setActiveNote(data); setNotes(prev => [data, ...prev]) }
     }
     setSaveStatus('saved')
@@ -793,7 +962,6 @@ export default function Dashboard() {
   function openNote(note) {
     setActiveNote(note)
     setNoteTitle(note.title || '')
-    // Parse embedded images
     const IMG_RE = /\[img:(.*?):(.*?)\]/g
     const imgs = []
     let m
@@ -802,14 +970,22 @@ export default function Dashboard() {
     const text = raw.replace(IMG_RE, '').trim()
     setNoteContent(text)
     setNoteImages(imgs)
-    setIsShared(note.is_shared || false)
+    setNoteVisibility(noteVisibilityFromRecord(note))
   }
 
   function newNote() {
-    setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setIsShared(false)
+    setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setNoteVisibility('private')
   }
 
-  // ── Save display name ──
+  function handleVisibilityToggle() {
+    if (noteVisibility === 'private') {
+      setVisConfirmOpen(true)
+    } else {
+      setNoteVisibility('private')
+    }
+  }
+
+  // ── Display name ──
   async function saveDisplayName(name, setLoading) {
     setLoading(true)
     const initial = name[0].toUpperCase()
@@ -818,6 +994,58 @@ export default function Dashboard() {
     setProfile(prev => ({ ...prev, display_name: name, avatar_initial: initial }))
     setAllProfiles(prev => prev.map(p => p.id === user.id ? { ...p, display_name: name, avatar_initial: initial } : p))
     setNeedsName(false); setLoading(false)
+  }
+
+  // ── Reminders ──
+  async function loadRemindersFor(uid) {
+    const sb = getSupabase()
+    const { data } = await sb.from('reminders')
+      .select('*')
+      .eq('user_id', uid)
+      .eq('dismissed', false)
+      .order('created_at', { ascending: false })
+    const all = data || []
+    setReminders(all)
+    const now = new Date()
+    setReminderNotifs(all.filter(r => r.reminder_date && new Date(r.reminder_date) <= now))
+  }
+
+  async function saveReminder(phrase, reminderDate, notifyAll) {
+    const sb = getSupabase()
+    await sb.from('reminders').insert({
+      user_id: user.id,
+      note_id: activeNoteRef.current?.id || null,
+      note_title: noteTitleRef.current || null,
+      phrase,
+      reminder_date: reminderDate || null,
+      notify_all: notifyAll,
+    })
+    setReminderCard(null)
+    await loadRemindersFor(user.id)
+  }
+
+  async function dismissReminder(id) {
+    await getSupabase().from('reminders').update({ dismissed: true }).eq('id', id)
+    setReminderNotifs(prev => prev.filter(r => r.id !== id))
+    setReminders(prev => prev.filter(r => r.id !== id))
+  }
+
+  function handleGoToNote(reminder) {
+    const note = notes.find(n => n.id === reminder.note_id)
+    if (note) { openNote(note); setNotesOpen(false) }
+    dismissReminder(reminder.id)
+  }
+
+  // ── AI context ──
+  async function buildNoteContext() {
+    const noteCtx = { title: noteTitleRef.current, content: noteContentRef.current }
+    const sb = getSupabase()
+    const { data } = await sb.from('notes')
+      .select('id,title,content')
+      .or('visibility.eq.public,is_shared.eq.true')
+      .order('updated_at', { ascending: false })
+      .limit(10)
+    return { noteContext: noteCtx, publicNotes: data || [] }
   }
 
   // ── Chat ──
@@ -831,7 +1059,7 @@ export default function Dashboard() {
     return final
   }
 
-  async function triggerAI(model, history) {
+  async function triggerAI(model, history, noteContext, publicNotes) {
     const meta = AI[model]
     const tempId = `${Date.now()}-${model}`
     const placeholder = { id: tempId, role: model, display_name: meta.label, content: '', streaming: true, created_at: new Date().toISOString() }
@@ -840,7 +1068,11 @@ export default function Dashboard() {
 
     let text = ''
     try {
-      const res = await fetch(`/api/chat/${model}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) })
+      const res = await fetch(`/api/chat/${model}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, noteContext: noteContext || null, publicNotes: publicNotes || [] }),
+      })
       if (!res.ok) { const e = await res.json().catch(() => ({ error: 'Error' })); throw new Error(e.error || `HTTP ${res.status}`) }
       const reader = res.body.getReader()
       const dec = new TextDecoder()
@@ -868,13 +1100,21 @@ export default function Dashboard() {
     await saveHumanMessage(content)
     if (!autoAI) return
     setAiLocked(true)
-    await triggerAI('claude', [...historyRef.current])
-    await triggerAI('gpt', [...historyRef.current])
+    const { noteContext, publicNotes } = await buildNoteContext()
+    await triggerAI('claude', [...historyRef.current], noteContext, publicNotes)
+    await triggerAI('gpt', [...historyRef.current], noteContext, publicNotes)
     setAiLocked(false)
   }
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  }
+
+  async function askOne(model) {
+    setAiLocked(true)
+    const { noteContext, publicNotes } = await buildNoteContext()
+    await triggerAI(model, [...historyRef.current], noteContext, publicNotes)
+    setAiLocked(false)
   }
 
   function pinMessage(msg) {
@@ -883,7 +1123,6 @@ export default function Dashboard() {
     setPinnedIds(prev => new Set([...prev, msg.id]))
     setPinToast(true)
     setTimeout(() => setPinToast(false), 2200)
-    // Persist pin to note
     if (activeNote) {
       const imgStr = noteImages.map(i => `[img:${i.url}:${i.caption}]`).join('')
       const newContent = noteContent + quote + (imgStr ? '\n' + imgStr : '')
@@ -908,8 +1147,28 @@ export default function Dashboard() {
   return (
     <div style={{ height:'100vh', overflow:'hidden', position:'relative' }}>
       {needsName && <DisplayNameModal onSave={saveDisplayName} />}
+      {visConfirmOpen && (
+        <VisibilityConfirmModal
+          onConfirm={() => { setNoteVisibility('public'); setVisConfirmOpen(false) }}
+          onCancel={() => setVisConfirmOpen(false)}
+        />
+      )}
+      {reminderCard && (
+        <ReminderCard
+          phrase={reminderCard}
+          noteTitle={noteTitle}
+          onSave={saveReminder}
+          onDismiss={() => setReminderCard(null)}
+        />
+      )}
 
       {pinToast && <div className="pin-toast">📌 Pinned to note</div>}
+
+      <ReminderNotifications
+        notifs={reminderNotifs}
+        onGoTo={handleGoToNote}
+        onDismiss={dismissReminder}
+      />
 
       <TopBar
         noteTitle={noteTitle}
@@ -928,6 +1187,7 @@ export default function Dashboard() {
         notes={filteredNotes}
         sharedNotes={sharedNotes}
         activeNoteId={activeNote?.id}
+        reminders={reminders}
         onOpen={openNote}
         onNew={newNote}
         onClose={() => setNotesOpen(false)}
@@ -940,11 +1200,14 @@ export default function Dashboard() {
           noteTitle={noteTitle} setNoteTitle={setNoteTitle}
           noteContent={noteContent} setNoteContent={setNoteContent}
           noteImages={noteImages} setNoteImages={setNoteImages}
-          isShared={isShared} setIsShared={setIsShared}
+          noteVisibility={noteVisibility}
+          onVisibilityToggle={handleVisibilityToggle}
           saveStatus={saveStatus} user={user}
           supabase={getSupabase()}
           chatHeight={chatHeight}
           contentRef={contentRef}
+          detectedReminders={detectedReminders}
+          onReminderClick={phrase => setReminderCard(phrase)}
         />
       </div>
 
@@ -963,8 +1226,8 @@ export default function Dashboard() {
         onSend={handleSend} onKeyDown={handleKeyDown}
         thinking={thinking} aiLocked={aiLocked}
         autoAI={autoAI} setAutoAI={setAutoAI}
-        onAskArchitect={async () => { setAiLocked(true); await triggerAI('claude', [...historyRef.current]); setAiLocked(false) }}
-        onAskSpark={async () => { setAiLocked(true); await triggerAI('gpt', [...historyRef.current]); setAiLocked(false) }}
+        onAskArchitect={() => askOne('claude')}
+        onAskSpark={() => askOne('gpt')}
         allProfiles={allProfiles} currentUserId={user?.id}
         onPin={pinMessage} pinnedIds={pinnedIds}
       />
