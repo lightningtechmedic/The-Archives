@@ -168,7 +168,7 @@ function VisibilityConfirmModal({ onConfirm, onCancel }) {
 }
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState }) {
   return (
     <div className="topbar">
       <div style={{ display:'flex', alignItems:'center', gap:'.65rem' }}>
@@ -193,13 +193,20 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           {notesCount > 0 && <span style={{ background:'var(--ember)', color:'#0b0a08', borderRadius:'3px', padding:'0 .3rem', fontSize:'.48rem', fontWeight:700 }}>{notesCount}</span>}
         </button>
 
+        {/* AI presence — always visible */}
+        <div style={{ display:'flex', alignItems:'center', gap:3, padding:'0 .25rem', borderLeft:'1px solid var(--border)', borderRight:'1px solid var(--border)', marginLeft:2, marginRight:2 }}>
+          <AvatarArchitect size={26} state={architectState} />
+          <AvatarSpark size={26} state={sparkState} />
+        </div>
+
+        {/* Human presence */}
         <div style={{ display:'flex', alignItems:'center' }}>
           {onlineUsers.slice(0, 4).map((u, i) => {
             const prof = allProfiles.find(p => p.id === u.user_id)
             const isMe = prof?.id === user?.id
             return (
               <div key={u.user_id || i} style={{ marginLeft: i > 0 ? '-6px' : 0, zIndex: 10 - i }}>
-                {getAvatar(prof, isMe, 24, isMe ? yourState : 'idle')}
+                {getAvatar(prof, isMe, 26, isMe ? yourState : 'idle')}
               </div>
             )
           })}
@@ -240,7 +247,7 @@ function NotesDrawer({ open, notes, sharedNotes, activeNoteId, reminders, onOpen
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'.4rem' }}>
         {notes.length === 0 && !search && (
-          <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', textAlign:'center', padding:'2rem .5rem', fontStyle:'italic' }}>No notes yet. Create one.</p>
+          <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--mid)', textAlign:'center', padding:'2rem .5rem', fontStyle:'italic' }}>No notes yet. Create one.</p>
         )}
         {notes.length > 0 && (
           <>
@@ -315,7 +322,7 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
       style={{ position:'relative', flex:1, display:'flex', flexDirection:'column', alignItems:'center', paddingTop:'44px', paddingBottom: chatHeight + 64 + 'px', overflow:'hidden' }}
     >
       {/* Ghost watermark */}
-      <div style={{ position:'absolute', top:'15%', left:'50%', transform:'translateX(-50%)', fontSize:'22vw', fontFamily:'var(--font-serif)', fontWeight:300, fontStyle:'italic', color:'var(--ember)', opacity:.025, pointerEvents:'none', userSelect:'none', zIndex:0 }}>
+      <div style={{ position:'absolute', top:'15%', left:'50%', transform:'translateX(-50%)', fontSize:'22vw', fontFamily:'var(--font-serif)', fontWeight:300, fontStyle:'italic', color:'var(--ember)', opacity:.042, pointerEvents:'none', userSelect:'none', zIndex:0 }}>
         {(noteTitle || 'N')[0].toUpperCase()}
       </div>
 
@@ -364,7 +371,7 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
 
         {/* Body */}
         <textarea ref={contentRef} value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Start writing…" className="ruled-editor"
-          style={{ flex:1, background:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'1.25rem', color:'var(--text)', lineHeight:'2.3rem', padding:0, minHeight:'200px' }} />
+          style={{ flex:1, backgroundColor:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'1.25rem', color:'var(--text)', lineHeight:'2.3rem', padding:0, minHeight:'200px' }} />
 
         {/* Scrapbook images */}
         {noteImages.length > 0 && (
@@ -1070,7 +1077,7 @@ export default function Dashboard() {
 
       <TopBar noteTitle={noteTitle} notesCount={notes.length} onNotesToggle={() => setNotesOpen(v => !v)}
         onlineUsers={onlineUsers} allProfiles={allProfiles} profile={profile} user={user}
-        yourState={yourState}
+        yourState={yourState} architectState={architectState} sparkState={sparkState}
         onSignOut={async () => { await getSupabase().auth.signOut(); window.location.href = '/vault/login' }} />
 
       {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
