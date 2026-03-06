@@ -714,6 +714,145 @@ export function AvatarSmara({ size = 30, state = 'idle', isCollaborator = false 
   )
 }
 
+// ════════════════════════════════════════════════════════════════
+// THE SCRIBE
+// idle: ink drop pulses slowly on nib tip
+// thinking: drop swells, quill tilts 4deg
+// writing: three ink strokes left of nib + rhythmic drop
+// done: downstroke bloom then idle
+// ════════════════════════════════════════════════════════════════
+export function drawScribe(ctx, w, h, t, age, state = 'idle') {
+  const s = w / 88
+  const cx = w / 2, cy = h / 2
+
+  ctx.fillStyle = '#0a0c14'
+  rrect(ctx, 0, 0, w, h, 8 * s); ctx.fill()
+
+  ctx.strokeStyle = 'rgba(100,140,255,0.04)'
+  ctx.lineWidth = 0.5 * s
+  const gs = 14 * s
+  for (let x = 0; x <= w; x += gs) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke() }
+  for (let y = 0; y <= h; y += gs) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke() }
+
+  const bPulse = state === 'writing' ? 0.12 * Math.sin(t * 4) : 0
+  ctx.strokeStyle = `rgba(100,140,255,${0.28 + bPulse})`
+  ctx.lineWidth = 1.2 * s
+  rrect(ctx, 0.6 * s, 0.6 * s, w - 1.2 * s, h - 1.2 * s, 7.4 * s); ctx.stroke()
+
+  const cm = 4 * s, cl = 8 * s
+  ctx.strokeStyle = 'rgba(100,140,255,0.25)'
+  ctx.lineWidth = 1 * s; ctx.lineJoin = 'miter'
+  ctx.beginPath(); ctx.moveTo(cm, cm + cl); ctx.lineTo(cm, cm); ctx.lineTo(cm + cl, cm); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(w - cm - cl, cm); ctx.lineTo(w - cm, cm); ctx.lineTo(w - cm, cm + cl); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(cm, h - cm - cl); ctx.lineTo(cm, h - cm); ctx.lineTo(cm + cl, h - cm); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(w - cm - cl, h - cm); ctx.lineTo(w - cm, h - cm); ctx.lineTo(w - cm, h - cm - cl); ctx.stroke()
+
+  const tilt = state === 'thinking' ? (Math.PI / 180) * 4 * Math.sin(age * 1.8) : 0
+  const nibNeckY = cy - 13 * s
+  const nibTipY  = cy + 8 * s
+  const nibHW    = 9 * s
+  const nibMidY  = (nibNeckY + nibTipY) / 2
+
+  ctx.save()
+  ctx.translate(cx, nibMidY); ctx.rotate(tilt); ctx.translate(-cx, -nibMidY)
+
+  ctx.beginPath()
+  ctx.moveTo(cx - nibHW, nibNeckY)
+  ctx.bezierCurveTo(cx - nibHW * 1.18, nibNeckY + 14 * s, cx - nibHW * 0.25, nibTipY - 3 * s, cx, nibTipY)
+  ctx.lineTo(cx - nibHW * 0.45, nibNeckY + 11 * s)
+  ctx.bezierCurveTo(cx - nibHW * 0.75, nibNeckY + 5 * s, cx - nibHW, nibNeckY + 2 * s, cx - nibHW, nibNeckY)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(240,236,228,0.88)'; ctx.fill()
+
+  ctx.beginPath()
+  ctx.moveTo(cx + nibHW, nibNeckY)
+  ctx.bezierCurveTo(cx + nibHW * 1.18, nibNeckY + 14 * s, cx + nibHW * 0.25, nibTipY - 3 * s, cx, nibTipY)
+  ctx.lineTo(cx + nibHW * 0.45, nibNeckY + 11 * s)
+  ctx.bezierCurveTo(cx + nibHW * 0.75, nibNeckY + 5 * s, cx + nibHW, nibNeckY + 2 * s, cx + nibHW, nibNeckY)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.beginPath(); ctx.moveTo(cx - nibHW, nibNeckY); ctx.lineTo(cx + nibHW, nibNeckY)
+  ctx.strokeStyle = 'rgba(200,195,185,0.55)'; ctx.lineWidth = 1.2 * s; ctx.stroke()
+
+  ctx.beginPath(); ctx.moveTo(cx, nibNeckY + 3 * s); ctx.lineTo(cx, nibTipY)
+  ctx.strokeStyle = 'rgba(0,0,0,0.38)'; ctx.lineWidth = 0.7 * s; ctx.stroke()
+
+  ctx.restore()
+
+  const dropTipY = nibTipY + 5 * s
+  let dropS, dropA
+  if (state === 'idle') {
+    dropS = 1 + 0.38 * Math.abs(Math.sin(t * Math.PI / 2.8)); dropA = 0.9
+  } else if (state === 'thinking') {
+    dropS = 1 + Math.min(age, 1) * 0.8; dropA = 0.85
+  } else if (state === 'writing') {
+    const cycle = t % 1.2
+    dropS = 1 + 0.28 * Math.abs(Math.sin(cycle * Math.PI / 1.2)); dropA = 0.9
+  } else if (state === 'done') {
+    dropS = age < 0.2 ? 1.5 : Math.max(0, 1.5 - (age - 0.2) * 2.5)
+    dropA = Math.max(0, 1 - age / 0.6)
+  } else {
+    dropS = 1; dropA = 0.9
+  }
+
+  if (dropA > 0.01) {
+    const dr = 4 * s * dropS
+    ctx.save()
+    ctx.translate(cx, dropTipY); ctx.scale(1, 1.45)
+    ctx.globalAlpha = dropA
+    ctx.beginPath(); ctx.arc(0, 0, dr, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(100,140,255,0.92)'
+    ctx.shadowBlur = 10 * s; ctx.shadowColor = 'rgba(100,140,255,0.55)'
+    ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.restore()
+    ctx.globalAlpha = 1
+  }
+
+  if (state === 'writing') {
+    const baseX = cx - 26 * s, baseY = nibNeckY + 4 * s
+    for (let i = 0; i < 3; i++) {
+      const phase = ((t - i * 0.3) % 1.1 + 1.1) % 1.1
+      const a = phase < 0.4 ? phase / 0.4 : phase < 0.8 ? 1 - (phase - 0.4) / 0.4 : 0
+      if (a > 0) {
+        ctx.globalAlpha = a * 0.62
+        ctx.fillStyle = 'rgba(100,140,255,1)'
+        ctx.fillRect(baseX, baseY + i * 5 * s, 12 * s, 1.5 * s)
+      }
+    }
+    ctx.globalAlpha = 1
+  }
+
+  if (state === 'done' && age < 0.7) {
+    const dA = Math.max(0, 1 - age / 0.7)
+    const lineLen = 14 * s * Math.min(age / 0.2, 1)
+    ctx.save()
+    ctx.globalAlpha = dA
+    ctx.strokeStyle = 'rgba(100,140,255,1)'
+    ctx.lineWidth = 2 * s; ctx.lineCap = 'round'
+    ctx.beginPath(); ctx.moveTo(cx, nibTipY); ctx.lineTo(cx, nibTipY + lineLen); ctx.stroke()
+    if (age > 0.18) {
+      const bA = age - 0.18
+      const bLen = 6 * s * Math.min(bA / 0.28, 1)
+      const bBase = nibTipY + lineLen
+      ctx.lineWidth = 1.2 * s; ctx.globalAlpha = dA * 0.65
+      for (let i = 0; i < 4; i++) {
+        const ang = (i / 4) * Math.PI * 2
+        ctx.beginPath()
+        ctx.moveTo(cx, bBase)
+        ctx.lineTo(cx + Math.cos(ang) * bLen, bBase + Math.sin(ang) * bLen)
+        ctx.stroke()
+      }
+    }
+    ctx.restore()
+  }
+}
+
+export function AvatarScribe({ size = 30, state = 'idle' }) {
+  return <CanvasAvatar drawFn={drawScribe} size={size} state={state} />
+}
+
 // Generic fallback
 export function AvatarGeneric({ initial = '?', size = 30 }) {
   return (
