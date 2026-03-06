@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { createEnclave, getUserEnclaves, inviteMember, removeMember, deleteEnclave } from '@/lib/enclaves'
 import {
   AvatarArchitect,
   AvatarSpark,
@@ -55,7 +56,7 @@ function isSmara(profile) {
   return (profile.display_name || profile.email || '').toLowerCase().includes('smara')
 }
 function noteVisibilityFromRecord(note) {
-  return note.visibility || (note.is_shared ? 'public' : 'private')
+  return note.visibility || (note.is_shared ? 'enclave' : 'private')
 }
 function getAvatar(profile, isCurrentUser, size = 30, yourState = 'idle') {
   if (isCurrentUser) return <AvatarYou size={size} state={yourState} />
@@ -153,17 +154,179 @@ function ReminderNotifications({ notifs, onGoTo, onDismiss }) {
 }
 
 // ── Visibility Confirm ────────────────────────────────────────────────────────
-function VisibilityConfirmModal({ onConfirm, onCancel }) {
+function VisibilityConfirmModal({ enclaveName, onConfirm, onCancel }) {
   return (
     <div style={{ position:'fixed', inset:0, zIndex:8500, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
       <div style={{ width:'100%', maxWidth:'360px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.3)', borderRadius:'4px', padding:'1.5rem' }}>
-        <p className="panel-label" style={{ marginBottom:'.4rem', color:'var(--cyan)' }}>Make public?</p>
+        <p className="panel-label" style={{ marginBottom:'.4rem', color:'var(--cyan)' }}>Share with enclave?</p>
         <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.3rem', color:'var(--text)', lineHeight:1.4, marginBottom:'1.25rem' }}>
-          This note will enter <span style={{ color:'var(--cyan)' }}>shared memory</span> — The Architect and The Spark will have full context.
+          This note will enter <span style={{ color:'var(--cyan)' }}>{enclaveName || 'shared'} memory</span> — The Architect and The Spark will have full context.
         </p>
         <div style={{ display:'flex', gap:'.5rem' }}>
           <button onClick={onCancel} className="vault-btn-ghost" style={{ flex:1, padding:'.6rem', fontSize:'.5rem' }}>Keep private</button>
-          <button onClick={onConfirm} className="vault-btn" style={{ flex:1, padding:'.6rem', fontSize:'.5rem', borderColor:'var(--cyan)', color:'var(--cyan)' }}>Make public →</button>
+          <button onClick={onConfirm} className="vault-btn" style={{ flex:1, padding:'.6rem', fontSize:'.5rem', borderColor:'var(--cyan)', color:'var(--cyan)' }}>Share with enclave →</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Enclave Switcher ──────────────────────────────────────────────────────────
+function EnclaveSwitcher({ enclaves, activeEnclaveId, onSwitch, onCreateNew, onSettings }) {
+  const [open, setOpen] = useState(false)
+  const active = enclaves.find(e => e.id === activeEnclaveId)
+  return (
+    <div style={{ position:'relative' }}>
+      <button onClick={() => setOpen(v => !v)} data-hover
+        style={{ display:'flex', alignItems:'center', gap:'.35rem', background:'transparent',
+          border:`1px solid ${activeEnclaveId ? 'rgba(58,212,200,0.3)' : 'var(--border)'}`,
+          borderRadius:'4px', padding:'.3rem .65rem',
+          color: activeEnclaveId ? 'var(--cyan)' : 'var(--muted)',
+          fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em',
+          textTransform:'uppercase', transition:'all .2s' }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.5)' : 'var(--border-h)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--text)' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = activeEnclaveId ? 'rgba(58,212,200,0.3)' : 'var(--border)'; e.currentTarget.style.color = activeEnclaveId ? 'var(--cyan)' : 'var(--muted)' }}>
+        <span style={{ width:5, height:5, borderRadius:'50%', background: activeEnclaveId ? 'var(--cyan)' : 'var(--muted)', flexShrink:0 }} />
+        {active?.name || 'Personal'}
+        <span style={{ fontSize:'.45rem', opacity:.4 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:4000,
+          background:'rgba(11,10,8,0.97)', border:'1px solid var(--border)',
+          borderRadius:'4px', minWidth:'160px', overflow:'hidden',
+          boxShadow:'0 8px 32px rgba(0,0,0,0.6)' }}
+          onMouseLeave={() => setOpen(false)}>
+          <button onClick={() => { onSwitch(null); setOpen(false) }}
+            style={{ width:'100%', padding:'.5rem .75rem', background: !activeEnclaveId ? 'rgba(255,255,255,0.04)' : 'transparent',
+              color: !activeEnclaveId ? 'var(--text)' : 'var(--muted)',
+              fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em',
+              textTransform:'uppercase', textAlign:'left', borderBottom:'1px solid var(--border)', transition:'all .15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+            onMouseLeave={e => e.currentTarget.style.background = !activeEnclaveId ? 'rgba(255,255,255,0.04)' : 'transparent'}>
+            Personal
+          </button>
+          {enclaves.map(e => (
+            <button key={e.id} onClick={() => { onSwitch(e.id); setOpen(false) }}
+              style={{ width:'100%', padding:'.5rem .75rem',
+                background: activeEnclaveId === e.id ? 'rgba(58,212,200,0.06)' : 'transparent',
+                color: activeEnclaveId === e.id ? 'var(--cyan)' : 'var(--muted)',
+                fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em',
+                textTransform:'uppercase', textAlign:'left', display:'flex',
+                alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
+              onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(58,212,200,0.04)'}
+              onMouseLeave={ev => ev.currentTarget.style.background = activeEnclaveId === e.id ? 'rgba(58,212,200,0.06)' : 'transparent'}>
+              {e.name}
+              {activeEnclaveId === e.id && (
+                <span onClick={ev => { ev.stopPropagation(); setOpen(false); onSettings() }}
+                  style={{ fontSize:'.6rem', opacity:.45, transition:'opacity .15s', paddingLeft:'.3rem' }}
+                  onMouseEnter={ev => ev.currentTarget.style.opacity = '1'}
+                  onMouseLeave={ev => ev.currentTarget.style.opacity = '.45'}>⚙</span>
+              )}
+            </button>
+          ))}
+          <button onClick={() => { setOpen(false); onCreateNew() }}
+            style={{ width:'100%', padding:'.5rem .75rem', background:'transparent',
+              color:'var(--ember)', fontFamily:'var(--font-mono)', fontSize:'.48rem',
+              letterSpacing:'.1em', textTransform:'uppercase', textAlign:'left',
+              borderTop:'1px solid var(--border)', transition:'all .15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--ember-glow)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            + New Enclave
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Create Enclave Modal ──────────────────────────────────────────────────────
+function CreateEnclaveModal({ onCreate, onClose }) {
+  const [name, setName] = useState('')
+  const [loading, setLoading] = useState(false)
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:8000, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ width:'100%', maxWidth:'380px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.2)', borderRadius:'4px', padding:'2rem' }}>
+        <p className="panel-label" style={{ marginBottom:'.5rem', color:'var(--cyan)' }}>New Enclave</p>
+        <h2 style={{ fontFamily:'var(--font-caveat)', fontSize:'2rem', color:'var(--text)', fontWeight:600, marginBottom:'1.25rem', lineHeight:1 }}>
+          Name your <span style={{ color:'var(--cyan)', fontStyle:'italic' }}>group</span>
+        </h2>
+        <input type="text" value={name} onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && name.trim() && !loading && onCreate(name.trim(), setLoading)}
+          placeholder="e.g. Core Team" autoFocus maxLength={48}
+          className="vault-input w-full" style={{ marginBottom:'1rem' }} />
+        <div style={{ display:'flex', gap:'.5rem' }}>
+          <button onClick={onClose} className="vault-btn-ghost" style={{ flex:1, padding:'.6rem', fontSize:'.5rem' }}>Cancel</button>
+          <button onClick={() => name.trim() && onCreate(name.trim(), setLoading)}
+            disabled={!name.trim() || loading} className="vault-btn"
+            style={{ flex:2, padding:'.6rem', fontSize:'.5rem', borderColor:'var(--cyan)', color:'var(--cyan)' }}>
+            {loading ? 'Creating…' : 'Create Enclave →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Enclave Settings Panel ────────────────────────────────────────────────────
+function EnclaveSettingsPanel({ enclave, members, onInvite, onRemove, onDelete, onClose }) {
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:8000, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ width:'100%', maxWidth:'420px', background:'rgba(11,10,8,0.97)', border:'1px solid rgba(58,212,200,0.2)', borderRadius:'4px', padding:'2rem' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem' }}>
+          <div>
+            <p className="panel-label" style={{ marginBottom:'.25rem', color:'var(--cyan)' }}>Enclave</p>
+            <h2 style={{ fontFamily:'var(--font-caveat)', fontSize:'1.8rem', color:'var(--text)', fontWeight:600, lineHeight:1 }}>{enclave.name}</h2>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--muted)', fontSize:'1.2rem', padding:'.25rem', lineHeight:1 }}>×</button>
+        </div>
+        <p className="panel-label" style={{ marginBottom:'.6rem' }}>Members</p>
+        <div style={{ display:'flex', flexDirection:'column', gap:'.35rem', marginBottom:'1.25rem' }}>
+          {members.map(m => (
+            <div key={m.profiles?.id || m.user_id}
+              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.4rem .6rem', background:'rgba(255,255,255,0.02)', border:'1px solid var(--border)', borderRadius:'2px' }}>
+              <div>
+                <span style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--text)' }}>
+                  {m.profiles?.display_name || m.profiles?.email || 'Unknown'}
+                </span>
+                <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color: m.role === 'owner' ? 'var(--ember)' : 'var(--muted)', marginLeft:'.5rem' }}>{m.role}</span>
+              </div>
+              {m.role !== 'owner' && (
+                <button onClick={() => onRemove(m.profiles?.id)}
+                  style={{ background:'none', border:'none', color:'var(--muted)', fontSize:'.85rem', padding:'0 .2rem', lineHeight:1, transition:'color .15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--ember)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}>×</button>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="panel-label" style={{ marginBottom:'.4rem' }}>Invite by email</p>
+        <div style={{ display:'flex', gap:'.5rem', marginBottom:'.5rem' }}>
+          <input type="email" value={inviteEmail}
+            onChange={e => { setInviteEmail(e.target.value); setInviteError('') }}
+            placeholder="teammate@studio.com" className="vault-input"
+            style={{ flex:1, fontSize:'.75rem' }} />
+          <button onClick={async () => {
+            setInviting(true)
+            const r = await onInvite(inviteEmail)
+            if (r?.error) setInviteError(r.error)
+            else setInviteEmail('')
+            setInviting(false)
+          }} disabled={!inviteEmail.trim() || inviting} className="vault-btn"
+            style={{ padding:'.5rem .9rem', fontSize:'.48rem', borderColor:'var(--cyan)', color:'var(--cyan)' }}>
+            {inviting ? '…' : 'Invite'}
+          </button>
+        </div>
+        {inviteError && <p style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', color:'var(--ember)', marginBottom:'.75rem' }}>{inviteError}</p>}
+        <div style={{ borderTop:'1px solid var(--border)', paddingTop:'.75rem', marginTop:'.25rem' }}>
+          <button onClick={onDelete}
+            style={{ background:'none', border:'none', color:'rgba(212,84,26,0.4)', fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'color .15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--ember)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(212,84,26,0.4)'}>
+            Delete enclave
+          </button>
         </div>
       </div>
     </div>
@@ -171,7 +334,7 @@ function VisibilityConfirmModal({ onConfirm, onCancel }) {
 }
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings }) {
   return (
     <div className="topbar">
       <div style={{ display:'flex', alignItems:'center', gap:'.65rem' }}>
@@ -188,6 +351,8 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
       </div>
 
       <div style={{ display:'flex', alignItems:'center', gap:'.6rem' }}>
+        <EnclaveSwitcher enclaves={enclaves} activeEnclaveId={activeEnclaveId}
+          onSwitch={onEnclaveSwitch} onCreateNew={onCreateEnclave} onSettings={onEnclaveSettings} />
         <button onClick={onNotesToggle} data-hover
           style={{ display:'flex', alignItems:'center', gap:'.4rem', background:'transparent', border:'1px solid var(--border)', borderRadius:'4px', padding:'.3rem .65rem', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', transition:'all .2s' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
@@ -231,7 +396,7 @@ function NoteRow({ note, active, onOpen }) {
       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
       <div style={{ display:'flex', alignItems:'center', gap:'.4rem', marginBottom:'.2rem' }}>
         <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.05rem', color: active ? 'var(--text)' : 'var(--mid)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{note.title || 'Untitled'}</p>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.08em', textTransform:'uppercase', color: vis === 'public' ? 'var(--cyan)' : 'var(--muted)', flexShrink:0 }}>{vis}</span>
+        <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.08em', textTransform:'uppercase', color: (vis === 'public' || vis === 'enclave') ? 'var(--cyan)' : 'var(--muted)', flexShrink:0 }}>{vis}</span>
       </div>
       <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.9rem', color:'var(--muted)', lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical' }}>
         {(note.content || '').replace(/\[img:[^\]]*\]/g, '').trim() || 'Empty'}
@@ -241,7 +406,7 @@ function NoteRow({ note, active, onOpen }) {
   )
 }
 
-function NotesDrawer({ open, notes, sharedNotes, activeNoteId, reminders, onOpen, onNew, onClose, search, setSearch }) {
+function NotesDrawer({ open, notes, sharedNotes, enclaveNotes, activeEnclave, activeNoteId, reminders, onOpen, onNew, onClose, search, setSearch }) {
   return (
     <div className={`notes-drawer${open ? ' open' : ''}`}>
       <div style={{ padding:'.85rem 1rem', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
@@ -254,11 +419,17 @@ function NotesDrawer({ open, notes, sharedNotes, activeNoteId, reminders, onOpen
         )}
         {notes.length > 0 && (
           <>
-            <p className="panel-label" style={{ padding:'.5rem .5rem .25rem', opacity:.7 }}>Mine</p>
+            <p className="panel-label" style={{ padding:'.5rem .5rem .25rem', opacity:.7 }}>{activeEnclave ? 'Personal' : 'Mine'}</p>
             {notes.map(note => <NoteRow key={note.id} note={note} active={note.id === activeNoteId} onOpen={() => { onOpen(note); onClose() }} />)}
           </>
         )}
-        {sharedNotes.length > 0 && (
+        {activeEnclave && enclaveNotes.length > 0 && (
+          <>
+            <p className="panel-label" style={{ padding:'.75rem .5rem .25rem', opacity:.7, color:'var(--cyan)' }}>◆ {activeEnclave.name}</p>
+            {enclaveNotes.map(note => <NoteRow key={note.id} note={note} active={note.id === activeNoteId} onOpen={() => { onOpen(note); onClose() }} />)}
+          </>
+        )}
+        {!activeEnclave && sharedNotes.length > 0 && (
           <>
             <p className="panel-label" style={{ padding:'.75rem .5rem .25rem', opacity:.7 }}>Shared with me</p>
             {sharedNotes.map(note => <NoteRow key={note.id} note={note} active={note.id === activeNoteId} onOpen={() => { onOpen(note); onClose() }} />)}
@@ -301,10 +472,10 @@ function ScrapbookImage({ img, onCaption, onRemove }) {
 }
 
 // ── Full Screen Editor ─────────────────────────────────────────────────────────
-function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent, noteImages, setNoteImages, noteVisibility, onVisibilityToggle, saveStatus, user, supabase, chatHeight, contentRef, detectedReminders, onReminderClick, onImageUploaded }) {
+function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent, noteImages, setNoteImages, noteVisibility, onVisibilityToggle, saveStatus, user, supabase, chatHeight, contentRef, detectedReminders, onReminderClick, onImageUploaded, activeEnclave }) {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
-  const isPublic = noteVisibility === 'public'
+  const isEnclave = noteVisibility === 'enclave'
 
   async function uploadImage(file) {
     if (!file || !file.type.startsWith('image/')) return
@@ -331,8 +502,8 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
 
       {/* Visibility annotation */}
       <div style={{ position:'absolute', left:'calc(50% - 420px)', top:'120px', transform:'rotate(-2.5deg)', pointerEvents:'none', zIndex:1, opacity:.35 }}>
-        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color: isPublic ? 'var(--cyan)' : 'var(--ember)', fontStyle:'italic', borderLeft:`2px solid ${isPublic ? 'var(--cyan)' : 'var(--ember)'}`, paddingLeft:'.5rem' }}>
-          {isPublic ? '— shared memory' : '— private draft'}
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color: isEnclave ? 'var(--cyan)' : 'var(--ember)', fontStyle:'italic', borderLeft:`2px solid ${isEnclave ? 'var(--cyan)' : 'var(--ember)'}`, paddingLeft:'.5rem' }}>
+          {isEnclave ? `— ${activeEnclave?.name || 'enclave'} memory` : '— private draft'}
         </p>
       </div>
 
@@ -345,11 +516,17 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
       <div style={{ position:'relative', zIndex:2, width:'100%', maxWidth:'740px', padding:'2.5rem 2rem 1rem', display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
         {/* Controls row */}
         <div style={{ display:'flex', alignItems:'center', gap:'.65rem', marginBottom:'1.5rem', flexShrink:0 }}>
-          <button onClick={onVisibilityToggle} data-hover
-            style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', background:'transparent', border:`1px solid ${isPublic ? 'var(--cyan)' : 'var(--border)'}`, borderRadius:'20px', color: isPublic ? 'var(--cyan)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
-            <span style={{ width:6, height:6, borderRadius:'50%', background: isPublic ? 'var(--cyan)' : 'var(--muted)', animation: isPublic ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
-            {isPublic ? 'Public' : 'Private'}
-          </button>
+          {activeEnclave ? (
+            <button onClick={onVisibilityToggle} data-hover
+              style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', background:'transparent', border:`1px solid ${isEnclave ? 'rgba(58,212,200,0.4)' : 'var(--border)'}`, borderRadius:'20px', color: isEnclave ? 'var(--cyan)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background: isEnclave ? 'var(--cyan)' : 'var(--muted)', animation: isEnclave ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
+              {isEnclave ? `◆ ${activeEnclave.name}` : '🔒 Private'}
+            </button>
+          ) : (
+            <span style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', border:'1px solid var(--border)', borderRadius:'20px', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', opacity:.5 }}>
+              🔒 Private
+            </span>
+          )}
 
           {detectedReminders.length > 0 && (
             <button onClick={() => onReminderClick(detectedReminders[0])} data-hover
@@ -546,7 +723,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, architectState, sparkState, yourState, noteTitle }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, allProfiles, currentUserId, onPin, pinnedIds, architectState, sparkState, yourState, noteTitle, activeEnclave }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -566,6 +743,11 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
       <div className="lattice-handle" onClick={() => setExpanded(v => !v)} data-hover>
         <div className="drawer-pill" />
         <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--mid)' }}>Lattice</span>
+        {activeEnclave && (
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--cyan)', opacity:.65 }}>
+            ◆ {activeEnclave.name}
+          </span>
+        )}
         {[AI.claude, AI.gpt].map(ai => (
           <span key={ai.role} style={{ padding:'.15rem .4rem', border:`1px solid ${ai.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color:ai.color, background:ai.dim }}>
             {ai.label}
@@ -687,6 +869,14 @@ export default function Dashboard() {
   const [sparkState, setSparkState] = useState('idle')
   const [yourState, setYourState] = useState('idle')
 
+  // Enclaves
+  const [enclaves, setEnclaves] = useState([])
+  const [activeEnclaveId, setActiveEnclaveId] = useState(null)
+  const [activeEnclaveMembers, setActiveEnclaveMembers] = useState([])
+  const [enclaveNotes, setEnclaveNotes] = useState([])
+  const [showCreateEnclave, setShowCreateEnclave] = useState(false)
+  const [showEnclaveSettings, setShowEnclaveSettings] = useState(false)
+
   // Refs
   const historyRef = useRef([])
   const saveTimerRef = useRef(null)
@@ -697,11 +887,13 @@ export default function Dashboard() {
   const lastMsgTimeRef = useRef(Date.now())
   const pinPendingRef = useRef(false)
   const avatarTimersRef = useRef({})
+  const activeEnclaveIdRef = useRef(null)
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { activeNoteRef.current = activeNote }, [activeNote])
   useEffect(() => { noteTitleRef.current = noteTitle }, [noteTitle])
   useEffect(() => { noteContentRef.current = noteContent }, [noteContent])
+  useEffect(() => { activeEnclaveIdRef.current = activeEnclaveId }, [activeEnclaveId])
 
   // ── Reminder detection ──
   useEffect(() => {
@@ -716,6 +908,31 @@ export default function Dashboard() {
       clearTimeout(avatarTimersRef.current[setter.name])
       avatarTimersRef.current[setter.name] = setTimeout(() => setter('idle'), durationMs)
     }
+  }
+
+  // ── Enclave helpers ──
+  function switchActiveEnclave(id) {
+    setActiveEnclaveId(id)
+    activeEnclaveIdRef.current = id
+    if (id) localStorage.setItem('vault_active_enclave', id)
+    else localStorage.removeItem('vault_active_enclave')
+    if (id) loadEnclaveData(id)
+    else { setEnclaveNotes([]); setActiveEnclaveMembers([]) }
+  }
+
+  async function loadEnclaveData(enclaveId) {
+    const sb = getSupabase()
+    const [{ data: eNotes }, { data: membersData }] = await Promise.all([
+      sb.from('notes')
+        .select('id,title,content,user_id,visibility,enclave_id,created_at,updated_at')
+        .eq('enclave_id', enclaveId).eq('visibility', 'enclave')
+        .order('updated_at', { ascending: false }),
+      sb.from('enclave_members')
+        .select('role, joined_at, profiles(*)')
+        .eq('enclave_id', enclaveId),
+    ])
+    setEnclaveNotes(eNotes || [])
+    setActiveEnclaveMembers(membersData || [])
   }
 
   // ── Auth + init ──
@@ -742,6 +959,29 @@ export default function Dashboard() {
         setMessages(msgs || []); setNotes(myNotes || []); setSharedNotes(sNotes || [])
         if (!prof?.display_name) setNeedsName(true)
         if (myNotes?.length > 0) openNote(myNotes[0])
+
+        // Load enclaves
+        const userEnclaves = await getUserEnclaves(sb, u.id)
+        if (!active) return
+        setEnclaves(userEnclaves)
+
+        // Restore active enclave from localStorage
+        const savedEnclaveId = typeof window !== 'undefined' ? localStorage.getItem('vault_active_enclave') : null
+        if (savedEnclaveId && userEnclaves.find(e => e.id === savedEnclaveId)) {
+          setActiveEnclaveId(savedEnclaveId)
+          activeEnclaveIdRef.current = savedEnclaveId
+          const [{ data: eNotes }, { data: membersData }] = await Promise.all([
+            sb.from('notes')
+              .select('id,title,content,user_id,visibility,enclave_id,created_at,updated_at')
+              .eq('enclave_id', savedEnclaveId).eq('visibility', 'enclave')
+              .order('updated_at', { ascending: false }),
+            sb.from('enclave_members')
+              .select('role, joined_at, profiles(*)')
+              .eq('enclave_id', savedEnclaveId),
+          ])
+          if (active) { setEnclaveNotes(eNotes || []); setActiveEnclaveMembers(membersData || []) }
+        }
+
         setMounted(true)
 
         sb.channel('messages-rt')
@@ -815,12 +1055,13 @@ export default function Dashboard() {
     const sb = getSupabase()
     const imgStr = noteImages.map(i => `[img:${i.url}:${i.caption}]`).join('')
     const contentToSave = noteContent + (imgStr ? '\n' + imgStr : '')
-    const isPublic = noteVisibility === 'public'
+    const isEnclave = noteVisibility === 'enclave'
 
     if (activeNote) {
       const { data } = await sb.from('notes').update({
         title: noteTitle || 'Untitled', content: contentToSave,
-        visibility: noteVisibility, is_shared: isPublic,
+        visibility: noteVisibility, is_shared: isEnclave,
+        enclave_id: isEnclave ? activeEnclaveId : null,
         updated_at: new Date().toISOString(),
       }).eq('id', activeNote.id).select().single()
       if (data) { setActiveNote(data); setNotes(prev => prev.map(n => n.id === data.id ? data : n)) }
@@ -828,7 +1069,8 @@ export default function Dashboard() {
       if (!noteTitle && !noteContent) { setSaveStatus(''); return }
       const { data } = await sb.from('notes').insert({
         user_id: user.id, title: noteTitle || 'Untitled', content: contentToSave,
-        visibility: noteVisibility, is_shared: isPublic,
+        visibility: noteVisibility, is_shared: isEnclave,
+        enclave_id: isEnclave ? activeEnclaveId : null,
       }).select().single()
       if (data) { setActiveNote(data); setNotes(prev => [data, ...prev]) }
     }
@@ -851,6 +1093,7 @@ export default function Dashboard() {
   }
 
   function handleVisibilityToggle() {
+    if (!activeEnclaveId) return
     if (noteVisibility === 'private') setVisConfirmOpen(true)
     else setNoteVisibility('private')
   }
@@ -899,12 +1142,22 @@ export default function Dashboard() {
   // ── AI context ──
   async function buildNoteContext() {
     const noteCtx = { title: noteTitleRef.current, content: noteContentRef.current }
-    const { data } = await getSupabase().from('notes').select('id,title,content')
-      .or('visibility.eq.public,is_shared.eq.true').order('updated_at', { ascending: false }).limit(10)
+    const enclId = activeEnclaveIdRef.current
+    let publicNotes = []
+    if (enclId) {
+      const { data } = await getSupabase().from('notes').select('id,title,content')
+        .eq('enclave_id', enclId).eq('visibility', 'enclave')
+        .order('updated_at', { ascending: false }).limit(10)
+      publicNotes = data || []
+    } else {
+      const { data } = await getSupabase().from('notes').select('id,title,content')
+        .or('visibility.eq.public,is_shared.eq.true').order('updated_at', { ascending: false }).limit(10)
+      publicNotes = data || []
+    }
     const pinNote = pinPendingRef.current ? '(Note: a message was just pinned to the current note.)' : ''
     pinPendingRef.current = false
     if (pinNote) noteCtx.content = (noteCtx.content || '') + '\n\n' + pinNote
-    return { noteContext: noteCtx, publicNotes: data || [] }
+    return { noteContext: noteCtx, publicNotes }
   }
 
   // ── Chat ──
@@ -1033,6 +1286,39 @@ export default function Dashboard() {
     }
   }
 
+  // ── Enclave actions ──
+  async function handleCreateEnclave(name, setLoading) {
+    setLoading(true)
+    const { enclave, error } = await createEnclave(getSupabase(), user.id, name)
+    if (enclave) {
+      setEnclaves(prev => [...prev, enclave])
+      switchActiveEnclave(enclave.id)
+    }
+    if (error) console.error('[createEnclave]', error)
+    setLoading(false)
+    setShowCreateEnclave(false)
+  }
+
+  async function handleInviteMember(email) {
+    const result = await inviteMember(getSupabase(), activeEnclaveId, email)
+    if (!result.error) await loadEnclaveData(activeEnclaveId)
+    return result
+  }
+
+  async function handleRemoveMember(userId) {
+    await removeMember(getSupabase(), activeEnclaveId, userId)
+    setActiveEnclaveMembers(prev => prev.filter(m => m.profiles?.id !== userId))
+  }
+
+  async function handleDeleteEnclave() {
+    const name = enclaves.find(e => e.id === activeEnclaveId)?.name || 'this enclave'
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return
+    await deleteEnclave(getSupabase(), activeEnclaveId)
+    setEnclaves(prev => prev.filter(e => e.id !== activeEnclaveId))
+    switchActiveEnclave(null)
+    setShowEnclaveSettings(false)
+  }
+
   function handleImageUploaded(filename) {
     // Spark notices the image drop
     setTimeout(async () => {
@@ -1068,8 +1354,21 @@ export default function Dashboard() {
       {needsName && <DisplayNameModal onSave={saveDisplayName} />}
       {visConfirmOpen && (
         <VisibilityConfirmModal
-          onConfirm={() => { setNoteVisibility('public'); setVisConfirmOpen(false) }}
+          enclaveName={enclaves.find(e => e.id === activeEnclaveId)?.name}
+          onConfirm={() => { setNoteVisibility('enclave'); setVisConfirmOpen(false) }}
           onCancel={() => setVisConfirmOpen(false)} />
+      )}
+      {showCreateEnclave && (
+        <CreateEnclaveModal onCreate={handleCreateEnclave} onClose={() => setShowCreateEnclave(false)} />
+      )}
+      {showEnclaveSettings && activeEnclaveId && (
+        <EnclaveSettingsPanel
+          enclave={enclaves.find(e => e.id === activeEnclaveId) || {}}
+          members={activeEnclaveMembers}
+          onInvite={handleInviteMember}
+          onRemove={handleRemoveMember}
+          onDelete={handleDeleteEnclave}
+          onClose={() => setShowEnclaveSettings(false)} />
       )}
       {reminderCard && (
         <ReminderCard phrase={reminderCard} noteTitle={noteTitle}
@@ -1081,10 +1380,18 @@ export default function Dashboard() {
       <TopBar noteTitle={noteTitle} notesCount={notes.length} onNotesToggle={() => setNotesOpen(v => !v)}
         onlineUsers={onlineUsers} allProfiles={allProfiles} profile={profile} user={user}
         yourState={yourState} architectState={architectState} sparkState={sparkState}
+        enclaves={enclaves} activeEnclaveId={activeEnclaveId}
+        onEnclaveSwitch={switchActiveEnclave}
+        onCreateEnclave={() => setShowCreateEnclave(true)}
+        onEnclaveSettings={() => setShowEnclaveSettings(true)}
         onSignOut={async () => { await getSupabase().auth.signOut(); window.location.href = '/vault/login' }} />
 
       {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
-      <NotesDrawer open={notesOpen} notes={filteredNotes} sharedNotes={sharedNotes}
+      <NotesDrawer open={notesOpen}
+        notes={activeEnclaveId ? filteredNotes.filter(n => noteVisibilityFromRecord(n) !== 'enclave') : filteredNotes}
+        sharedNotes={sharedNotes}
+        enclaveNotes={enclaveNotes.filter(n => !notesSearch || (n.title || '').toLowerCase().includes(notesSearch.toLowerCase()) || (n.content || '').toLowerCase().includes(notesSearch.toLowerCase()))}
+        activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
         activeNoteId={activeNote?.id} reminders={reminders}
         onOpen={openNote} onNew={newNote} onClose={() => setNotesOpen(false)}
         search={notesSearch} setSearch={setNotesSearch} />
@@ -1099,7 +1406,8 @@ export default function Dashboard() {
           chatHeight={chatHeight} contentRef={contentRef}
           detectedReminders={detectedReminders}
           onReminderClick={phrase => setReminderCard(phrase)}
-          onImageUploaded={handleImageUploaded} />
+          onImageUploaded={handleImageUploaded}
+          activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />
       </div>
 
       <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
@@ -1118,7 +1426,8 @@ export default function Dashboard() {
         allProfiles={allProfiles} currentUserId={user?.id}
         onPin={pinMessage} pinnedIds={pinnedIds}
         architectState={architectState} sparkState={sparkState} yourState={yourState}
-        noteTitle={noteTitle} />
+        noteTitle={noteTitle}
+        activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />
     </div>
   )
 }
