@@ -70,34 +70,37 @@ CREATE POLICY "enclaves_delete" ON enclaves
   );
 
 -- ── Enclave members policies ──────────────────────────────────────────────────
+-- NOTE: all policies use enclaves.created_by to establish ownership.
+-- Never query enclave_members inside enclave_members policies — that causes
+-- infinite recursion in Postgres RLS evaluation.
 
+-- SELECT: own row is always visible; creators see all rows in their enclaves
 DROP POLICY IF EXISTS "enclave_members_select" ON enclave_members;
 CREATE POLICY "enclave_members_select" ON enclave_members
   FOR SELECT USING (
-    enclave_id IN (
-      SELECT em.enclave_id FROM enclave_members em WHERE em.user_id = auth.uid()
+    user_id = auth.uid()
+    OR enclave_id IN (
+      SELECT id FROM enclaves WHERE created_by = auth.uid()
     )
   );
 
--- Owners can add members; users can insert their own record
+-- INSERT: users can insert themselves; creators can insert anyone
 DROP POLICY IF EXISTS "enclave_members_insert" ON enclave_members;
 CREATE POLICY "enclave_members_insert" ON enclave_members
   FOR INSERT WITH CHECK (
     user_id = auth.uid()
     OR enclave_id IN (
-      SELECT em.enclave_id FROM enclave_members em
-      WHERE em.user_id = auth.uid() AND em.role = 'owner'
+      SELECT id FROM enclaves WHERE created_by = auth.uid()
     )
   );
 
--- Owners can remove anyone; members can remove themselves
+-- DELETE: members can remove themselves; creators can remove anyone
 DROP POLICY IF EXISTS "enclave_members_delete" ON enclave_members;
 CREATE POLICY "enclave_members_delete" ON enclave_members
   FOR DELETE USING (
     user_id = auth.uid()
     OR enclave_id IN (
-      SELECT em.enclave_id FROM enclave_members em
-      WHERE em.user_id = auth.uid() AND em.role = 'owner'
+      SELECT id FROM enclaves WHERE created_by = auth.uid()
     )
   );
 
