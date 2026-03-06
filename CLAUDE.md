@@ -324,3 +324,30 @@ Report which tables pass and which fail before closing the task.
 `vault/migrations/003_stickies_complete.sql` is the canonical stickies migration.
 It supersedes `003_stickies.sql` and `003b_stickies_smart.sql`.
 Never write partial stickies migrations — update `003_stickies_complete.sql` instead.
+
+---
+
+## Lattice Message Scoping Rules
+
+**Critical privacy invariant: every message row must be scoped.**
+
+### Schema
+`messages` table has `user_id` and `enclave_id` (nullable UUID, added migration 005).
+
+### Scoping rules
+- Personal context: `user_id = currentUser.id`, `enclave_id = null`
+- Enclave context: `user_id = currentUser.id`, `enclave_id = theEnclaveId`
+- **NEVER insert with `user_id: null`** — AI messages must use the triggering user's ID
+
+### All message inserts in `dashboard/page.js` must include both fields:
+```js
+{ user_id: userRef.current?.id, ..., enclave_id: activeEnclaveIdRef.current }
+```
+
+### Message fetching
+- Personal: `.is('enclave_id', null).eq('user_id', u.id)`
+- Enclave: `.eq('enclave_id', activeEnclaveId)`
+- On enclave switch: `setMessages([])` then reload with correct scope
+
+### Realtime subscription
+The `messages-rt` channel receives all inserts, but the callback filters by `activeEnclaveIdRef.current` and `userRef.current?.id` — only messages matching the active context are appended to state.

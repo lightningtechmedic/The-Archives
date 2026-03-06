@@ -1164,6 +1164,7 @@ export default function Dashboard() {
   const focusTimerRef = useRef(null)
   const reactionEngineRef = useRef(null)
   const triggerReactionRef = useRef(null)
+  const userRef = useRef(null)
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { aiLockedRef.current = aiLocked }, [aiLocked])
@@ -1171,6 +1172,7 @@ export default function Dashboard() {
   useEffect(() => { noteTitleRef.current = noteTitle }, [noteTitle])
   useEffect(() => { noteContentRef.current = noteContent }, [noteContent])
   useEffect(() => { activeEnclaveIdRef.current = activeEnclaveId }, [activeEnclaveId])
+  useEffect(() => { userRef.current = user }, [user])
 
   // ── Reminder detection ──
   useEffect(() => {
@@ -1188,13 +1190,30 @@ export default function Dashboard() {
   }
 
   // ── Enclave helpers ──
-  function switchActiveEnclave(id) {
+  async function switchActiveEnclave(id) {
     setActiveEnclaveId(id)
     activeEnclaveIdRef.current = id
     if (id) localStorage.setItem('vault_active_enclave', id)
     else localStorage.removeItem('vault_active_enclave')
-    if (id) loadEnclaveData(id)
-    else { setEnclaveNotes([]); setActiveEnclaveMembers([]) }
+    setMessages([])
+    const sb = getSupabase()
+    const uid = userRef.current?.id
+    if (id) {
+      const [{ data: msgs }] = await Promise.all([
+        sb.from('messages').select('*').eq('enclave_id', id).order('created_at', { ascending: true }).limit(100),
+        loadEnclaveData(id),
+      ])
+      setMessages(msgs || [])
+    } else {
+      setEnclaveNotes([])
+      setActiveEnclaveMembers([])
+      if (uid) {
+        const { data: msgs } = await sb.from('messages').select('*')
+          .is('enclave_id', null).eq('user_id', uid)
+          .order('created_at', { ascending: true }).limit(100)
+        setMessages(msgs || [])
+      }
+    }
   }
 
   async function loadEnclaveData(enclaveId) {
@@ -1223,7 +1242,7 @@ export default function Dashboard() {
         const [{ data: prof }, { data: profs }, { data: msgs }, { data: myNotes }, { data: sNotes }] = await Promise.all([
           sb.from('profiles').select('*').eq('id', u.id).single(),
           sb.from('profiles').select('*'),
-          sb.from('messages').select('*').order('created_at', { ascending: true }).limit(100),
+          sb.from('messages').select('*').is('enclave_id', null).eq('user_id', u.id).order('created_at', { ascending: true }).limit(100),
           sb.from('notes').select('*').eq('user_id', u.id).order('updated_at', { ascending: false }),
           sb.from('notes')
             .select('id,title,content,user_id,is_shared,visibility,created_at,updated_at')
@@ -1258,7 +1277,14 @@ export default function Dashboard() {
               .select('role, joined_at, profiles(*)')
               .eq('enclave_id', savedEnclaveId),
           ])
-          if (active) { setEnclaveNotes(eNotes || []); setActiveEnclaveMembers(membersData || []) }
+          if (active) {
+            setEnclaveNotes(eNotes || [])
+            setActiveEnclaveMembers(membersData || [])
+            const { data: eMsgs } = await sb.from('messages').select('*')
+              .eq('enclave_id', savedEnclaveId)
+              .order('created_at', { ascending: true }).limit(100)
+            if (active) setMessages(eMsgs || [])
+          }
         }
 
         // Restore scribe active state from localStorage
@@ -1277,7 +1303,15 @@ export default function Dashboard() {
 
         sb.channel('messages-rt')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
+            const msg = payload.new
+            const enclaveId = activeEnclaveIdRef.current
+            const uid = userRef.current?.id
+            if (enclaveId) {
+              if (msg.enclave_id !== enclaveId) return
+            } else {
+              if (msg.enclave_id !== null || msg.user_id !== uid) return
+            }
+            setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg])
           }).subscribe()
 
         const pc = sb.channel('online-users', { config: { presence: { key: u.id } } })
@@ -1319,7 +1353,8 @@ export default function Dashboard() {
           if (aiLocked) return
           const phrase = WAKE_MESSAGES[Math.floor(Math.random() * WAKE_MESSAGES.length)]
           getSupabase().from('messages').insert({
-            user_id: null, display_name: AI.gpt.label, content: phrase, role: 'gpt',
+            user_id: user.id, display_name: AI.gpt.label, content: phrase, role: 'gpt',
+            enclave_id: activeEnclaveIdRef.current,
           }).select().single().then(({ data }) => {
             if (data) setMessages(prev => [...prev, data])
           })
@@ -1367,7 +1402,8 @@ export default function Dashboard() {
       lastProvocationRef.current = now
       const phrase = PROVOCATIONS[Math.floor(Math.random() * PROVOCATIONS.length)]
       getSupabase().from('messages').insert({
-        user_id: null, display_name: AI.gpt.label, content: phrase, role: 'gpt',
+        user_id: user.id, display_name: AI.gpt.label, content: phrase, role: 'gpt',
+        enclave_id: activeEnclaveIdRef.current,
       }).select().single().then(({ data }) => {
         if (data) setMessages(prev => [...prev, data])
       })
@@ -1584,7 +1620,8 @@ export default function Dashboard() {
     if (!text.trim()) return null
 
     const { data: saved } = await getSupabase().from('messages').insert({
-      user_id: null, display_name: meta.label, content: text, role: model,
+      user_id: userRef.current?.id, display_name: meta.label, content: text, role: model,
+      enclave_id: activeEnclaveIdRef.current,
     }).select().single()
     const final = saved || { id: tempId, role: model, display_name: meta.label, content: text }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, isReaction: true, isCrossReaction } : m))
@@ -1597,7 +1634,7 @@ export default function Dashboard() {
     const tempId = `${Date.now()}-h`
     const optimistic = { id: tempId, user_id: user.id, display_name: profile?.display_name || user.email, content, role: 'human', created_at: new Date().toISOString() }
     setMessages(prev => prev.find(m => m.id === tempId) ? prev : [...prev, optimistic])
-    const { data: saved } = await getSupabase().from('messages').insert({ user_id: user.id, display_name: optimistic.display_name, content, role: 'human' }).select().single()
+    const { data: saved } = await getSupabase().from('messages').insert({ user_id: user.id, display_name: optimistic.display_name, content, role: 'human', enclave_id: activeEnclaveIdRef.current }).select().single()
     const final = saved || optimistic
     setMessages(prev => prev.map(m => m.id === tempId ? final : m))
     return final
@@ -1632,7 +1669,7 @@ export default function Dashboard() {
 
     setThinking(null)
     if (model === 'scribe') { setScribeState('done'); setTimeout(() => setScribeState('idle'), 850) }
-    const { data: saved } = await getSupabase().from('messages').insert({ user_id: null, display_name: meta.label, content: text, role: model }).select().single()
+    const { data: saved } = await getSupabase().from('messages').insert({ user_id: userRef.current?.id, display_name: meta.label, content: text, role: model, enclave_id: activeEnclaveIdRef.current }).select().single()
     const final = saved || { ...placeholder, content: text, streaming: false }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false } : m))
     return final
@@ -1781,7 +1818,8 @@ export default function Dashboard() {
     localStorage.removeItem('vault_scribe_active')
     const exitMsg = "Stepping back. The work is done — or I'm here when you're ready."
     getSupabase().from('messages').insert({
-      user_id: null, display_name: AI.scribe.label, content: exitMsg, role: 'scribe',
+      user_id: userRef.current?.id, display_name: AI.scribe.label, content: exitMsg, role: 'scribe',
+      enclave_id: activeEnclaveIdRef.current,
     }).select().single().then(({ data }) => {
       if (data) setMessages(prev => [...prev, data])
     })
@@ -1861,7 +1899,8 @@ export default function Dashboard() {
       ]
       const content = comments[Math.floor(Math.random() * comments.length)]
       const { data } = await getSupabase().from('messages').insert({
-        user_id: null, display_name: AI.gpt.label, content, role: 'gpt',
+        user_id: userRef.current?.id, display_name: AI.gpt.label, content, role: 'gpt',
+        enclave_id: activeEnclaveIdRef.current,
       }).select().single()
       if (data) {
         setMessages(prev => [...prev, data])
