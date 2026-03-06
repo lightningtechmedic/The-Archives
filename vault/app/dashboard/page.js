@@ -1228,8 +1228,15 @@ export default function Dashboard() {
         .select('role, joined_at, user_id')
         .eq('enclave_id', enclaveId),
     ])
+    // Fetch profiles separately to avoid cross-table RLS chain
+    const userIds = membersData?.map(m => m.user_id).filter(Boolean) || []
+    const { data: memberProfiles } = userIds.length
+      ? await sb.from('profiles').select('id, display_name, email').in('id', userIds)
+      : { data: [] }
+    const profileMap = Object.fromEntries((memberProfiles || []).map(p => [p.id, p]))
+    const membersWithProfiles = (membersData || []).map(m => ({ ...m, profiles: profileMap[m.user_id] || null }))
     setEnclaveNotes(eNotes || [])
-    setActiveEnclaveMembers(membersData || [])
+    setActiveEnclaveMembers(membersWithProfiles)
   }
 
   // ── Auth + init ──
@@ -1258,6 +1265,9 @@ export default function Dashboard() {
         if (!u.user_metadata?.has_seen_welcome) setShowWelcome(true)
         if (myNotes?.length > 0) openNote(myNotes[0])
 
+        // Sync email to profiles (required for enclave invite-by-email)
+        if (u.email) sb.from('profiles').update({ email: u.email }).eq('id', u.id).then(() => {})
+
         // Load enclaves
         const userEnclaves = await getUserEnclaves(sb, u.id)
         if (!active) return
@@ -1268,18 +1278,8 @@ export default function Dashboard() {
         if (savedEnclaveId && userEnclaves.find(e => e.id === savedEnclaveId)) {
           setActiveEnclaveId(savedEnclaveId)
           activeEnclaveIdRef.current = savedEnclaveId
-          const [{ data: eNotes }, { data: membersData }] = await Promise.all([
-            sb.from('notes')
-              .select('id,title,content,user_id,visibility,enclave_id,created_at,updated_at')
-              .eq('enclave_id', savedEnclaveId).eq('visibility', 'enclave')
-              .order('updated_at', { ascending: false }),
-            sb.from('enclave_members')
-              .select('role, joined_at, profiles(*)')
-              .eq('enclave_id', savedEnclaveId),
-          ])
           if (active) {
-            setEnclaveNotes(eNotes || [])
-            setActiveEnclaveMembers(membersData || [])
+            await loadEnclaveData(savedEnclaveId)
             const { data: eMsgs } = await sb.from('messages').select('*')
               .eq('enclave_id', savedEnclaveId)
               .order('created_at', { ascending: true }).limit(100)
