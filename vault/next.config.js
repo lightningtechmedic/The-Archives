@@ -1,5 +1,3 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  basePath: '/vault',
-}
+const nextConfig = {}
 module.exports = nextConfig

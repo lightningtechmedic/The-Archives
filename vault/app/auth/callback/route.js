@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/vault/dashboard'
+  const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
     const cookieStore = cookies()
@@ -31,5 +31,5 @@ export async function GET(request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/vault/login?error=auth_failed`)
+  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
 }
