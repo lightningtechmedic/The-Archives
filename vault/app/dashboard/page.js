@@ -2134,6 +2134,66 @@ export default function Dashboard() {
     return final
   }
 
+  // ── Roll call: "who is here" ──────────────────────────────────────────────
+  const WHO_IS_HERE_RE = /\b(who('?s| is) (here|present|around|in the room)|roll.?call)\b/i
+
+  async function handleRollCall() {
+    const sb = getSupabase()
+    const enclaveId = activeEnclaveIdRef.current
+
+    // Fetch enclave members if in an enclave
+    let memberLines = []
+    if (enclaveId) {
+      const { data: membersData } = await sb.from('enclave_members').select('user_id').eq('enclave_id', enclaveId)
+      const userIds = (membersData || []).map(m => m.user_id).filter(Boolean)
+      if (userIds.length) {
+        const { data: profilesData } = await sb.from('profiles').select('id, display_name, email').in('id', userIds)
+        memberLines = (profilesData || []).map(p => p.display_name || p.email || 'Unknown member')
+      }
+    }
+
+    const enclaveName = enclaves.find(e => e.id === enclaveId)?.name
+    const scribeOnline = scribeActiveRef.current
+
+    // Steward delivers the room summary — he holds the full picture
+    const stewardSummary = [
+      `Everyone is here.`,
+      ``,
+      `Permanent residents: The Architect, The Spark, The Steward, The Advocate, The Contrarian, Socra.`,
+      scribeOnline ? `Active this session: The Scribe.` : `The Scribe is standing by — /scribe to summon.`,
+      ...(enclaveName && memberLines.length
+        ? [``, `${enclaveName} — ${memberLines.length} member${memberLines.length !== 1 ? 's' : ''}:`, ...memberLines.map(n => `  ${n}`)]
+        : []),
+    ].filter(l => l !== null).join('\n')
+
+    // Roll call — each agent checks in, staggered
+    const ROLL_CALL = [
+      { delay: 600,  role: 'steward',    label: AI.steward.label,    line: stewardSummary },
+      { delay: 2200, role: 'claude',     label: AI.claude.label,     line: `...Present. The structure of this room concerns me slightly less than the structure of whatever you're about to build.` },
+      { delay: 3800, role: 'gpt',        label: AI.gpt.label,        line: `HERE. Okay — everyone's in, the room's alive. What are we making?` },
+      { delay: 5200, role: 'advocate',   label: AI.advocate.label,   line: `Here. I'll be watching for the person on the outside of everything you build today.` },
+      { delay: 6800, role: 'contrarian', label: AI.contrarian.label, line: `Present. I'll speak when something needs to be said.` },
+    ]
+
+    if (scribeOnline) {
+      ROLL_CALL.push({ delay: 8200, role: 'scribe', label: AI.scribe.label, line: `Here. Ready to build when you are.` })
+    }
+
+    for (const agent of ROLL_CALL) {
+      setTimeout(async () => {
+        const { data: saved } = await sb.from('messages').insert({
+          user_id: userRef.current?.id,
+          display_name: agent.label,
+          content: agent.line,
+          role: agent.role,
+          enclave_id: activeEnclaveIdRef.current,
+        }).select().single()
+        const msg = saved || { id: `${Date.now()}-rc-${agent.role}`, role: agent.role, display_name: agent.label, content: agent.line, created_at: new Date().toISOString() }
+        setMessages(prev => [...prev, msg])
+      }, agent.delay)
+    }
+  }
+
   async function handleSend() {
     if (!chatInput.trim() || aiLocked) return
     const content = chatInput.trim(); setChatInput('')
@@ -2162,6 +2222,13 @@ export default function Dashboard() {
     const humanMsg = await saveHumanMessage(content)
     // Cancel pending reactions from previous turn — new message starts a fresh turn
     reactionEngineRef.current?.onNewMessage()
+
+    // ── Roll call ─────────────────────────────────────────────────────────────
+    if (WHO_IS_HERE_RE.test(content)) {
+      handleRollCall()
+      return
+    }
+
     if (!autoAI) return
     setAiLocked(true)
 
