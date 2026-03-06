@@ -1,4 +1,4 @@
-import { Cormorant_Garamond, Space_Mono } from 'next/font/google'
+import { Cormorant_Garamond, Space_Mono, Caveat } from 'next/font/google'
 import './globals.css'
 import Cursor from '@/components/Cursor'
 
@@ -15,6 +15,12 @@ const spaceMono = Space_Mono({
   variable: '--font-mono',
 })
 
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-caveat',
+})
+
 export const metadata = {
   title: 'The Vault',
   description: 'Private command center.',
@@ -22,7 +28,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${spaceMono.variable}`}>
+    <html lang="en" className={`${cormorant.variable} ${spaceMono.variable} ${caveat.variable}`}>
       <body>
         <Cursor />
         <div className="noise-overlay" aria-hidden="true" />

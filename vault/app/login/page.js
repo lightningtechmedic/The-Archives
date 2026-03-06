@@ -19,242 +19,114 @@ export default function LoginPage() {
   async function handleMagicLink(e) {
     e.preventDefault()
     if (!email) return
-    setMagicLoading(true)
-    setMagicError('')
-
-    const supabase = createClient()
-    const { error: err } = await supabase.auth.signInWithOtp({
+    setMagicLoading(true); setMagicError('')
+    const { error } = await createClient().auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/vault/auth/callback`,
-      },
+      options: { emailRedirectTo: `${window.location.origin}/vault/auth/callback` },
     })
-
     setMagicLoading(false)
-    if (err) setMagicError(err.message)
+    if (error) setMagicError(error.message)
     else setSent(true)
   }
 
   async function handlePassword(e) {
     e.preventDefault()
     if (!pwEmail || !password) return
-    setPwLoading(true)
-    setPwError('')
-
-    const supabase = createClient()
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: pwEmail,
-      password,
-    })
-
+    setPwLoading(true); setPwError('')
+    const { error } = await createClient().auth.signInWithPassword({ email: pwEmail, password })
     setPwLoading(false)
-    if (err) setPwError(err.message)
+    if (error) setPwError(error.message)
     else window.location.href = '/vault/dashboard'
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: '#0a0a0a' }}>
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'2rem 1.5rem', position:'relative' }}>
       {/* Ambient glow */}
-      <div
-        aria-hidden
-        style={{
-          position: 'fixed',
-          top: '30%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '600px',
-          height: '400px',
-          background: 'radial-gradient(ellipse, rgba(212,84,26,0.06) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
+      <div aria-hidden style={{ position:'fixed', top:'30%', left:'50%', transform:'translate(-50%,-50%)', width:600, height:400, background:'radial-gradient(ellipse,rgba(212,84,26,0.07) 0%,transparent 70%)', pointerEvents:'none' }} />
 
-      <div className="w-full max-w-sm animate-fade-up" style={{ animationFillMode: 'forwards' }}>
-        {/* Logo */}
-        <div className="text-center mb-12">
-          <p className="panel-label mb-4" style={{ letterSpacing: '0.3em' }}>
-            Restricted Access
-          </p>
-          <h1
-            className="font-serif"
-            style={{
-              fontSize: 'clamp(3.5rem, 10vw, 6rem)',
-              fontWeight: 300,
-              lineHeight: 0.9,
-              letterSpacing: '-0.02em',
-              color: 'rgba(255,255,255,0.92)',
-            }}
-          >
+      <div style={{ width:'100%', maxWidth:360 }}>
+        {/* Brand */}
+        <div style={{ textAlign:'center', marginBottom:'3rem' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'.5rem', marginBottom:'1rem' }}>
+            <div className="ember-pip" />
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.25em', textTransform:'uppercase', color:'var(--muted)' }}>Restricted Access</span>
+          </div>
+          <h1 style={{ fontFamily:'var(--font-serif)', fontSize:'clamp(3.5rem,10vw,5.5rem)', fontWeight:300, lineHeight:.9, letterSpacing:'-.02em', color:'rgba(255,255,255,0.92)' }}>
             The{' '}
-            <em style={{ fontStyle: 'italic', color: 'var(--ember)' }}>Vault</em>
+            <em style={{ fontStyle:'italic', color:'var(--ember)' }}>Vault</em>
           </h1>
-          <div
-            style={{
-              width: '40px',
-              height: '1px',
-              background: 'var(--ember)',
-              opacity: 0.4,
-              margin: '1.5rem auto 0',
-            }}
-          />
+          <div style={{ width:40, height:1, background:'var(--ember)', opacity:.4, margin:'1.5rem auto 0' }} />
         </div>
 
         {!sent ? (
           <>
             {/* Magic link */}
-            <form onSubmit={handleMagicLink} className="flex flex-col gap-4">
+            <form onSubmit={handleMagicLink} style={{ display:'flex', flexDirection:'column', gap:'.85rem' }}>
               <div>
-                <label
-                  htmlFor="email"
-                  className="panel-label block mb-2"
-                  style={{ color: 'var(--muted)' }}
-                >
+                <label htmlFor="email" style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', marginBottom:'.5rem' }}>
                   Email Address
                 </label>
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="vault-input w-full px-4 py-3"
-                  style={{ fontSize: '0.9rem' }}
+                  id="email" type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com" required className="vault-input w-full"
+                  style={{ fontSize:'.88rem' }}
                 />
               </div>
-
-              {magicError && (
-                <p className="font-mono text-xs" style={{ color: 'var(--ember)', letterSpacing: '0.05em' }}>
-                  {magicError}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={magicLoading}
-                className="vault-btn w-full justify-center mt-2"
-                style={{ padding: '1rem' }}
-              >
-                {magicLoading ? (
-                  <span style={{ opacity: 0.6 }}>Sending&hellip;</span>
-                ) : (
-                  <>Send Access Link <span style={{ fontSize: '0.9rem' }}>→</span></>
-                )}
+              {magicError && <p style={{ fontFamily:'var(--font-mono)', fontSize:'.55rem', color:'var(--ember)', letterSpacing:'.06em' }}>{magicError}</p>}
+              <button type="submit" disabled={magicLoading} className="vault-btn w-full justify-center" style={{ padding:'1rem', marginTop:'.25rem' }}>
+                {magicLoading ? <span style={{ opacity:.6 }}>Sending…</span> : <>Send Access Link <span style={{ fontSize:'.9rem' }}>→</span></>}
               </button>
             </form>
 
             {/* Divider */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem',
-                margin: '2rem 0',
-              }}
-            >
-              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-              <span
-                className="font-mono"
-                style={{ fontSize: '0.55rem', letterSpacing: '0.2em', color: 'var(--muted)', textTransform: 'uppercase' }}
-              >
-                or
-              </span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            <div style={{ display:'flex', alignItems:'center', gap:'1rem', margin:'2rem 0' }}>
+              <div style={{ flex:1, height:1, background:'var(--border)' }} />
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', color:'var(--muted)', textTransform:'uppercase' }}>or</span>
+              <div style={{ flex:1, height:1, background:'var(--border)' }} />
             </div>
 
             {/* Password */}
-            <form onSubmit={handlePassword} className="flex flex-col gap-4">
+            <form onSubmit={handlePassword} style={{ display:'flex', flexDirection:'column', gap:'.85rem' }}>
               <div>
-                <label
-                  htmlFor="pw-email"
-                  className="panel-label block mb-2"
-                  style={{ color: 'var(--muted)' }}
-                >
+                <label htmlFor="pw-email" style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', marginBottom:'.5rem' }}>
                   Email Address
                 </label>
                 <input
-                  id="pw-email"
-                  type="email"
-                  value={pwEmail}
-                  onChange={e => setPwEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="vault-input w-full px-4 py-3"
-                  style={{ fontSize: '0.9rem' }}
+                  id="pw-email" type="email" value={pwEmail} onChange={e => setPwEmail(e.target.value)}
+                  placeholder="you@example.com" required className="vault-input w-full"
+                  style={{ fontSize:'.88rem' }}
                 />
               </div>
-
               <div>
-                <label
-                  htmlFor="password"
-                  className="panel-label block mb-2"
-                  style={{ color: 'var(--muted)' }}
-                >
+                <label htmlFor="password" style={{ display:'block', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', marginBottom:'.5rem' }}>
                   Password
                 </label>
                 <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="vault-input w-full px-4 py-3"
-                  style={{ fontSize: '0.9rem' }}
+                  id="password" type="password" value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••" required className="vault-input w-full"
+                  style={{ fontSize:'.88rem' }}
                 />
               </div>
-
-              {pwError && (
-                <p className="font-mono text-xs" style={{ color: 'var(--ember)', letterSpacing: '0.05em' }}>
-                  {pwError}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={pwLoading}
-                className="vault-btn w-full justify-center mt-2"
-                style={{ padding: '1rem' }}
-              >
-                {pwLoading ? (
-                  <span style={{ opacity: 0.6 }}>Signing in&hellip;</span>
-                ) : (
-                  <>Sign In <span style={{ fontSize: '0.9rem' }}>→</span></>
-                )}
+              {pwError && <p style={{ fontFamily:'var(--font-mono)', fontSize:'.55rem', color:'var(--ember)', letterSpacing:'.06em' }}>{pwError}</p>}
+              <button type="submit" disabled={pwLoading} className="vault-btn w-full justify-center" style={{ padding:'1rem', marginTop:'.25rem' }}>
+                {pwLoading ? <span style={{ opacity:.6 }}>Signing in…</span> : <>Sign In <span style={{ fontSize:'.9rem' }}>→</span></>}
               </button>
             </form>
           </>
         ) : (
-          <div
-            className="vault-panel p-6 text-center"
-            style={{ borderColor: 'var(--ember-dim)' }}
-          >
-            <div
-              className="online-dot mx-auto mb-4"
-              style={{ width: '8px', height: '8px' }}
-            />
-            <p className="panel-label mb-2" style={{ color: 'var(--ember)' }}>
-              Link Sent
-            </p>
-            <p
-              className="font-serif"
-              style={{ color: 'var(--mid)', fontSize: '0.95rem', fontWeight: 300, lineHeight: 1.7 }}
-            >
+          <div style={{ border:'1px solid var(--ember-dim)', borderRadius:'3px', padding:'1.5rem', textAlign:'center' }}>
+            <div className="online-dot" style={{ margin:'0 auto .75rem' }} />
+            <p className="panel-label" style={{ color:'var(--ember)', marginBottom:'.5rem' }}>Link Sent</p>
+            <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.2rem', color:'var(--mid)', lineHeight:1.6 }}>
               Check your inbox. The link expires in 10 minutes.
             </p>
-            <button
-              onClick={() => setSent(false)}
-              className="vault-btn-ghost mt-6"
-            >
+            <button onClick={() => setSent(false)} className="vault-btn-ghost" style={{ marginTop:'1.25rem' }}>
               Try a different email
             </button>
           </div>
         )}
 
-        <p
-          className="text-center mt-8 font-mono"
-          style={{ fontSize: '0.5rem', letterSpacing: '0.2em', color: 'var(--muted)', opacity: 0.5, textTransform: 'uppercase' }}
-        >
+        <p style={{ textAlign:'center', marginTop:'2rem', fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.18em', color:'var(--muted)', opacity:.45, textTransform:'uppercase' }}>
           Trusted team only
         </p>
       </div>

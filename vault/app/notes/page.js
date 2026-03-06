@@ -1,481 +1,396 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+export const dynamic = 'force-dynamic'
+
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams, Suspense } from 'next/navigation' // eslint-disable-line
 import { createClient } from '@/lib/supabase'
-import { Suspense } from 'react'
 
 function formatDate(ts) {
   return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function MicIcon({ active }) {
+// ── Scrapbook Image ───────────────────────────────────────────────────────────
+function ScrapbookImage({ img, onCaption, onRemove }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-      <line x1="12" y1="19" x2="12" y2="23" />
-      <line x1="8" y1="23" x2="16" y2="23" />
-    </svg>
+    <div className="scrapbook-wrap" style={{ transform: `rotate(${img.rotation}deg)`, margin: '.8rem 0' }}>
+      <div className="tape-strip" />
+      <img src={img.url} alt={img.caption} className="scrapbook-img" />
+      <input className="scrapbook-caption" value={img.caption} onChange={e => onCaption(e.target.value)} placeholder="caption…" />
+      {onRemove && (
+        <button onClick={onRemove} style={{ position:'absolute', top:4, right:4, background:'rgba(0,0,0,0.6)', border:'none', color:'rgba(255,255,255,0.6)', borderRadius:'2px', fontSize:'.7rem', padding:'1px 4px' }}>×</button>
+      )}
+    </div>
   )
 }
 
+// ── Note Card ─────────────────────────────────────────────────────────────────
+function NoteCard({ note, onOpen, onDelete }) {
+  const [hovered, setHovered] = useState(false)
+  const preview = (note.content || '').replace(/\[img:[^\]]*\]/g, '').replace(/[#*`>]/g, '').trim()
+  return (
+    <div
+      className={`note-card${hovered ? ' hovered' : ''}`}
+      onClick={onOpen}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      data-hover
+    >
+      <div style={{ position:'absolute', top:0, left:0, width:2, height: hovered ? '100%' : 0, background:'linear-gradient(180deg,var(--ember),transparent)', transition:'height .4s var(--ease)' }} />
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'.5rem', marginBottom:'.4rem' }}>
+        <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.2rem', color:'var(--text)', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+          {note.title || 'Untitled'}
+        </p>
+        <div style={{ display:'flex', alignItems:'center', gap:'.4rem', flexShrink:0 }}>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.08em', textTransform:'uppercase', color: note.is_shared ? 'var(--cyan)' : 'var(--muted)' }}>
+            {note.is_shared ? 'shared' : 'private'}
+          </span>
+          <button
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            style={{ background:'none', border:'none', color:'rgba(212,84,26,0.3)', fontSize:'.85rem', lineHeight:1, opacity: hovered ? 1 : 0, transition:'opacity .2s', padding:0 }}
+          >×</button>
+        </div>
+      </div>
+      <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--muted)', lineHeight:1.45, display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+        {preview || <em style={{ opacity:.4 }}>Empty note</em>}
+      </p>
+      <p className="msg-timestamp" style={{ marginTop:'.5rem' }}>{formatDate(note.updated_at)}</p>
+    </div>
+  )
+}
+
+// ── Voice FAB ─────────────────────────────────────────────────────────────────
+function VoiceFAB({ setNoteContent }) {
+  const [listening, setListening] = useState(false)
+  const recRef = useRef(null)
+  const baseRef = useRef('')
+
+  function toggle() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) { alert('Voice input not supported. Try Chrome.'); return }
+    if (listening) { recRef.current?.stop(); setListening(false); return }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const rec = new SR()
+    rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US'
+    setNoteContent(prev => { baseRef.current = prev; return prev })
+    rec.onresult = e => {
+      let final = baseRef.current, interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        else interim = e.results[i][0].transcript
+      }
+      setNoteContent(final + (interim ? ` 🎙${interim}` : ''))
+    }
+    rec.onerror = () => setListening(false)
+    rec.onend = () => setListening(false)
+    recRef.current = rec; rec.start(); setListening(true)
+  }
+
+  return (
+    <button className={`voice-fab${listening ? ' listening' : ''}`} onClick={toggle} data-hover
+      style={{ bottom: '1.25rem', color: listening ? 'var(--green)' : 'var(--muted)' }} title="Voice input">
+      🎙
+    </button>
+  )
+}
+
+// ── Floating Toolbar ──────────────────────────────────────────────────────────
+function FloatingToolbar({ contentRef, setNoteContent, onImageClick }) {
+  function apply(tag) {
+    const ta = contentRef.current
+    if (!ta) return
+    const s = ta.selectionStart, e = ta.selectionEnd
+    const sel = ta.value.slice(s, e)
+    const map = { bold: `**${sel}**`, italic: `*${sel}*`, underline: `__${sel}__`, h1: `# ${sel}`, quote: `> ${sel}`, code: `\`${sel}\`` }
+    const rep = map[tag] || sel
+    setNoteContent(ta.value.slice(0, s) + rep + ta.value.slice(e))
+    setTimeout(() => { ta.focus(); ta.selectionStart = s; ta.selectionEnd = s + rep.length }, 0)
+  }
+  const btns = [
+    { tag: 'bold', label: 'B', style: { fontWeight: 700 } },
+    { tag: 'italic', label: 'I', style: { fontStyle: 'italic' } },
+    { tag: 'underline', label: 'U', style: { textDecoration: 'underline' } },
+    { sep: true },
+    { tag: 'h1', label: 'H₁', style: {} },
+    { tag: 'quote', label: '❝', style: {} },
+    { sep: true },
+    { tag: 'image', label: '🖼', cls: 'ember', onClick: onImageClick },
+    { tag: 'code', label: '#', style: {} },
+  ]
+  return (
+    <div className="floating-toolbar" style={{ bottom: '1.25rem' }}>
+      {btns.map((b, i) =>
+        b.sep ? <div key={i} className="tb-sep" /> : (
+          <button key={i} className={`tb-btn${b.cls ? ' ' + b.cls : ''}`}
+            style={b.style} onClick={() => b.onClick ? b.onClick() : apply(b.tag)} title={b.tag}>
+            {b.label}
+          </button>
+        )
+      )}
+    </div>
+  )
+}
+
+// ── Inner (needs searchParams) ────────────────────────────────────────────────
 function NotesInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClient()
+  const supabaseRef = useRef(null)
+  function getSupabase() {
+    if (!supabaseRef.current) supabaseRef.current = createClient()
+    return supabaseRef.current
+  }
 
   const [user, setUser] = useState(null)
   const [notes, setNotes] = useState([])
   const [sharedNotes, setSharedNotes] = useState([])
   const [activeNote, setActiveNote] = useState(null)
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
+  const [noteTitle, setNoteTitle] = useState('')
+  const [noteContent, setNoteContent] = useState('')
+  const [noteImages, setNoteImages] = useState([])
   const [isShared, setIsShared] = useState(false)
   const [search, setSearch] = useState('')
-  const [view, setView] = useState('grid') // 'grid' | 'editor'
-  const [listening, setListening] = useState(false)
-  const [saveStatus, setSaveStatus] = useState('') // 'saving' | 'saved' | ''
+  const [view, setView] = useState('grid')
+  const [saveStatus, setSaveStatus] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
 
-  const saveTimer = useRef(null)
-  const recognitionRef = useRef(null)
-  const contentRef = useRef(content)
-  contentRef.current = content
+  const saveTimerRef = useRef(null)
+  const contentRef = useRef(null)
+  const fileInputRef = useRef(null)
 
-  // Auth
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) { router.push('/login'); return }
-      setUser(session.user)
-      setMounted(true)
+    const { data: { subscription } } = getSupabase().auth.onAuthStateChange((event, session) => {
+      if (!session) { window.location.href = '/vault/login'; return }
+      setUser(session.user); setMounted(true)
     })
     return () => subscription.unsubscribe()
   }, []) // eslint-disable-line
 
-  // Load notes
   useEffect(() => {
     if (!user) return
     loadNotes()
-
-    // Load shared notes from all users (not just own)
-    supabase
-      .from('notes')
-      .select('id, title, content, user_id, created_at, updated_at')
-      .eq('is_shared', true)
-      .neq('user_id', user.id)
-      .order('updated_at', { ascending: false })
+    getSupabase().from('notes').select('id,title,content,user_id,is_shared,created_at,updated_at').eq('is_shared', true).neq('user_id', user.id).order('updated_at', { ascending: false })
       .then(({ data }) => setSharedNotes(data || []))
   }, [user]) // eslint-disable-line
 
   async function loadNotes() {
-    const { data } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
+    const { data } = await getSupabase().from('notes').select('*').eq('user_id', user.id).order('updated_at', { ascending: false })
     setNotes(data || [])
-
-    // If URL has ?id=..., open that note
     const noteId = searchParams.get('id')
-    if (noteId && data) {
-      const found = data.find(n => n.id === noteId)
-      if (found) openNote(found)
-    }
+    if (noteId && data) { const found = data.find(n => n.id === noteId); if (found) openNote(found) }
   }
 
   function openNote(note) {
-    setActiveNote(note)
-    setTitle(note.title)
-    setContent(note.content)
-    setIsShared(note.is_shared)
-    setView('editor')
+    setActiveNote(note); setNoteTitle(note.title || '')
+    const IMG_RE = /\[img:(.*?):(.*?)\]/g
+    const imgs = []; let m
+    const raw = note.content || ''
+    while ((m = IMG_RE.exec(raw)) !== null) imgs.push({ id: Date.now() + Math.random(), url: m[1], caption: m[2], rotation: parseFloat((Math.random() * 4 - 2).toFixed(2)) })
+    setNoteContent(raw.replace(IMG_RE, '').trim())
+    setNoteImages(imgs); setIsShared(note.is_shared || false); setView('editor')
   }
 
-  function newNote() {
-    setActiveNote(null)
-    setTitle('')
-    setContent('')
-    setIsShared(false)
-    setView('editor')
-  }
+  function newNote() { setActiveNote(null); setNoteTitle(''); setNoteContent(''); setNoteImages([]); setIsShared(false); setView('editor') }
 
-  // Auto-save every 3 seconds when in editor
   useEffect(() => {
     if (view !== 'editor') return
-    clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      if (title || content) autoSave()
-    }, 3000)
-    return () => clearTimeout(saveTimer.current)
-  }, [title, content, isShared, view]) // eslint-disable-line
+    clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => { if (noteTitle || noteContent) autoSave() }, 2500)
+    return () => clearTimeout(saveTimerRef.current)
+  }, [noteTitle, noteContent, noteImages, isShared, view]) // eslint-disable-line
 
   async function autoSave() {
     setSaveStatus('saving')
+    const imgStr = noteImages.map(i => `[img:${i.url}:${i.caption}]`).join('')
+    const contentToSave = noteContent + (imgStr ? '\n' + imgStr : '')
+    const sb = getSupabase()
     if (activeNote) {
-      const { data } = await supabase
-        .from('notes')
-        .update({ title: title || 'Untitled', content, is_shared: isShared, updated_at: new Date().toISOString() })
-        .eq('id', activeNote.id)
-        .select()
-        .single()
-      if (data) {
-        setActiveNote(data)
-        setNotes(prev => prev.map(n => n.id === data.id ? data : n))
-      }
+      const { data } = await sb.from('notes').update({ title: noteTitle || 'Untitled', content: contentToSave, is_shared: isShared, updated_at: new Date().toISOString() }).eq('id', activeNote.id).select().single()
+      if (data) { setActiveNote(data); setNotes(prev => prev.map(n => n.id === data.id ? data : n)) }
     } else {
-      if (!title && !content) { setSaveStatus(''); return }
-      const { data } = await supabase
-        .from('notes')
-        .insert({ user_id: user.id, title: title || 'Untitled', content, is_shared: isShared })
-        .select()
-        .single()
-      if (data) {
-        setActiveNote(data)
-        setNotes(prev => [data, ...prev])
-      }
+      if (!noteTitle && !noteContent) { setSaveStatus(''); return }
+      const { data } = await sb.from('notes').insert({ user_id: user.id, title: noteTitle || 'Untitled', content: contentToSave, is_shared: isShared }).select().single()
+      if (data) { setActiveNote(data); setNotes(prev => [data, ...prev]) }
     }
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus(''), 2000)
-  }
-
-  async function manualSave() {
-    clearTimeout(saveTimer.current)
-    await autoSave()
+    setSaveStatus('saved'); setTimeout(() => setSaveStatus(''), 2500)
   }
 
   async function deleteNote(id) {
-    await supabase.from('notes').delete().eq('id', id)
+    await getSupabase().from('notes').delete().eq('id', id)
     setNotes(prev => prev.filter(n => n.id !== id))
-    if (activeNote?.id === id) {
-      setActiveNote(null)
-      setTitle('')
-      setContent('')
-      setView('grid')
-    }
+    if (activeNote?.id === id) { setActiveNote(null); setNoteTitle(''); setNoteContent(''); setView('grid') }
   }
 
-  // Voice to text
-  function toggleVoice() {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Voice input not supported in this browser. Try Chrome.')
-      return
-    }
-
-    if (listening) {
-      recognitionRef.current?.stop()
-      setListening(false)
-      return
-    }
-
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    const rec = new SR()
-    rec.continuous = true
-    rec.interimResults = true
-    rec.lang = 'en-US'
-
-    let finalTranscript = contentRef.current
-
-    rec.onresult = (e) => {
-      let interim = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          finalTranscript += e.results[i][0].transcript
-        } else {
-          interim = e.results[i][0].transcript
-        }
-      }
-      setContent(finalTranscript + interim)
-    }
-
-    rec.onerror = () => setListening(false)
-    rec.onend = () => {
-      setContent(finalTranscript)
-      setListening(false)
-    }
-
-    recognitionRef.current = rec
-    rec.start()
-    setListening(true)
+  async function uploadImage(file) {
+    if (!file || !file.type.startsWith('image/')) return
+    const path = `${user.id}/${Date.now()}-${file.name}`
+    const sb = getSupabase()
+    const { error } = await sb.storage.from('vault-images').upload(path, file)
+    if (error) { console.error('[image upload]', error); return }
+    const { data: urlData } = sb.storage.from('vault-images').getPublicUrl(path)
+    setNoteImages(prev => [...prev, { id: Date.now(), url: urlData.publicUrl, caption: '', rotation: parseFloat((Math.random() * 4 - 2).toFixed(2)) }])
   }
 
-  // Filtered notes
-  const filtered = notes.filter(n =>
-    !search ||
-    n.title?.toLowerCase().includes(search.toLowerCase()) ||
-    n.content?.toLowerCase().includes(search.toLowerCase())
+  const filtered = notes.filter(n => !search || (n.title || '').toLowerCase().includes(search.toLowerCase()) || (n.content || '').toLowerCase().includes(search.toLowerCase()))
+
+  if (!mounted) return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <p className="panel-label animate-pulse-slow">Loading notes…</p>
+    </div>
   )
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="panel-label animate-pulse-slow">Loading notes…</p>
-      </div>
-    )
-  }
+  const watermark = (noteTitle || 'N')[0].toUpperCase()
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top bar */}
-      <div
-        style={{
-          height: '48px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 1.25rem',
-          flexShrink: 0,
-          background: 'rgba(255,255,255,0.01)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Link
-            href="/dashboard"
-            className="font-mono"
-            style={{
-              fontSize: '0.58rem', letterSpacing: '0.15em', textTransform: 'uppercase',
-              color: 'var(--muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem',
-            }}
-          >
-            ← Vault
-          </Link>
-          <span style={{ color: 'var(--border)' }}>|</span>
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column' }}>
+      {/* Topbar */}
+      <div style={{ position:'fixed', top:0, left:0, right:0, height:44, zIndex:500, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 1rem', background:'rgba(11,10,8,0.88)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'.65rem' }}>
+          <div className="ember-pip" />
+          <a href="/vault/dashboard" style={{ fontFamily:'var(--font-serif)', fontSize:'1.1rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', textDecoration:'none' }}>
+            The <em style={{ color:'var(--ember)' }}>Vault</em>
+          </a>
+          <span style={{ color:'var(--border)' }}>|</span>
           <span className="panel-label">Notes</span>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'.6rem' }}>
           {view === 'editor' && saveStatus && (
-            <span className="font-mono" style={{ fontSize: '0.5rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: saveStatus === 'saving' ? 'var(--muted)' : '#50c864' }}>
-              {saveStatus === 'saving' ? 'Saving…' : '✓ Saved'}
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', color: saveStatus === 'saving' ? 'var(--muted)' : 'var(--green)', display:'flex', alignItems:'center', gap:'.3rem' }}>
+              <span style={{ width:5, height:5, borderRadius:'50%', background: saveStatus === 'saving' ? 'var(--muted)' : 'var(--green)', animation: saveStatus === 'saving' ? 'pulseSlow 1s ease-in-out infinite' : 'none' }} />
+              {saveStatus === 'saving' ? 'Saving…' : 'Saved just now'}
             </span>
           )}
           {view === 'editor' && (
-            <button className="vault-btn-ghost" onClick={() => { manualSave(); setView('grid') }}>
-              ← All Notes
-            </button>
+            <button className="vault-btn-ghost" onClick={() => { autoSave(); setView('grid') }}>← All Notes</button>
           )}
-          <button className="vault-btn" onClick={newNote} style={{ padding: '0.5rem 1rem' }}>
-            + New
-          </button>
+          <button className="vault-btn" onClick={newNote} style={{ padding:'.45rem .9rem', fontSize:'.55rem' }}>+ New</button>
         </div>
       </div>
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* Content */}
+      <div style={{ flex:1, paddingTop:44 }}>
         {view === 'grid' ? (
           /* ── Grid View ── */
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            {/* Notes grid */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+          <div style={{ display:'flex', flex:1, minHeight:'calc(100vh - 44px)' }}>
+            <div style={{ flex:1, padding:'1.5rem', overflowY:'auto' }}>
               {/* Search */}
-              <div style={{ marginBottom: '1.5rem', maxWidth: '400px' }}>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search notes…"
-                  className="vault-input w-full px-4 py-2"
-                  style={{ fontSize: '0.8rem' }}
-                />
+              <div style={{ marginBottom:'1.5rem', maxWidth:400 }}>
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search notes…" className="vault-input w-full" style={{ fontSize:'.8rem' }} />
               </div>
-
               {filtered.length === 0 ? (
-                <div style={{ textAlign: 'center', paddingTop: '4rem', opacity: 0.3 }}>
-                  <p className="font-serif" style={{ fontSize: '1.8rem', fontWeight: 300, color: 'var(--muted)' }}>
-                    {search ? 'Nothing found.' : 'No notes yet.'}
-                  </p>
-                  {!search && (
-                    <button className="vault-btn mt-4" onClick={newNote} style={{ fontSize: '0.6rem' }}>
-                      + Create your first note
-                    </button>
-                  )}
+                <div style={{ textAlign:'center', paddingTop:'5rem', opacity:.3 }}>
+                  <p style={{ fontFamily:'var(--font-caveat)', fontSize:'2rem', color:'var(--muted)', fontStyle:'italic' }}>{search ? 'Nothing found.' : 'No notes yet.'}</p>
+                  {!search && <button className="vault-btn" style={{ marginTop:'1rem' }} onClick={newNote}>+ Create your first note</button>}
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                    gap: '1px',
-                    background: 'var(--border)',
-                  }}
-                >
-                  {filtered.map((note, i) => (
-                    <NoteCard
-                      key={note.id}
-                      note={note}
-                      index={i}
-                      onOpen={() => openNote(note)}
-                      onDelete={() => deleteNote(note.id)}
-                    />
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:'.75rem' }}>
+                  {filtered.map(note => (
+                    <NoteCard key={note.id} note={note} onOpen={() => openNote(note)} onDelete={() => deleteNote(note.id)} />
                   ))}
                 </div>
               )}
             </div>
-
-            {/* Shared ideas sidebar */}
+            {/* Shared sidebar */}
             {sharedNotes.length > 0 && (
-              <div
-                className="vault-panel"
-                style={{ width: '280px', flexShrink: 0, overflowY: 'auto', borderLeft: '1px solid var(--border)' }}
-              >
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: '#0a0a0a' }}>
-                  <span className="panel-label">Shared Ideas</span>
-                  <p className="font-mono mt-1" style={{ fontSize: '0.5rem', color: 'var(--muted)', letterSpacing: '0.1em' }}>
-                    From the team
-                  </p>
-                </div>
-                <div style={{ padding: '0.5rem' }}>
-                  {sharedNotes.map(note => (
-                    <div
-                      key={note.id}
-                      style={{
-                        padding: '0.75rem',
-                        borderBottom: '1px solid var(--border)',
-                      }}
-                    >
-                      <p className="font-mono" style={{ fontSize: '0.62rem', color: 'var(--text)', letterSpacing: '0.02em', marginBottom: '0.25rem' }}>
-                        {note.title}
-                      </p>
-                      <p className="font-serif" style={{ fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 300, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {note.content}
-                      </p>
-                      <p className="msg-timestamp mt-1">{formatDate(note.updated_at)}</p>
-                    </div>
-                  ))}
-                </div>
+              <div style={{ width:260, flexShrink:0, borderLeft:'1px solid var(--border)', overflowY:'auto', padding:'.75rem' }}>
+                <p className="panel-label" style={{ marginBottom:'.75rem' }}>Shared with me</p>
+                {sharedNotes.map(n => (
+                  <div key={n.id} style={{ padding:'.6rem 0', borderBottom:'1px solid var(--border)' }}>
+                    <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--mid)', marginBottom:'.2rem' }}>{n.title || 'Untitled'}</p>
+                    <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.85rem', color:'var(--muted)', lineHeight:1.35, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{(n.content || '').replace(/\[img:[^\]]*\]/g, '').trim()}</p>
+                    <p className="msg-timestamp" style={{ marginTop:'.2rem' }}>{formatDate(n.updated_at)}</p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         ) : (
           /* ── Editor View ── */
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: '820px', margin: '0 auto', padding: '2rem 2rem 1rem', overflow: 'hidden' }}>
-              {/* Editor toolbar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexShrink: 0 }}>
-                {/* Voice button */}
-                <button
-                  onClick={toggleVoice}
-                  data-hover
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.4rem 0.8rem',
-                    fontFamily: 'var(--font-mono)', fontSize: '0.58rem',
-                    letterSpacing: '0.12em', textTransform: 'uppercase',
-                    border: `1px solid ${listening ? 'var(--ember)' : 'var(--border)'}`,
-                    borderRadius: '2px',
-                    background: listening ? 'var(--ember-dim)' : 'transparent',
-                    color: listening ? 'var(--ember)' : 'var(--muted)',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <MicIcon active={listening} />
-                  {listening ? (
-                    <span style={{ animation: 'pulseSlow 1s ease-in-out infinite' }}>Listening…</span>
-                  ) : 'Voice'}
-                </button>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) uploadImage(f) }}
+            style={{ display:'flex', justifyContent:'center', minHeight:'calc(100vh - 44px)', position:'relative', padding:'2.5rem 2rem 5rem' }}
+          >
+            {/* Watermark */}
+            <div style={{ position:'fixed', top:'20%', left:'50%', transform:'translateX(-50%)', fontSize:'20vw', fontFamily:'var(--font-serif)', fontWeight:300, fontStyle:'italic', color:'var(--ember)', opacity:.022, pointerEvents:'none', userSelect:'none', zIndex:0, lineHeight:1 }}>
+              {watermark}
+            </div>
 
-                {/* Share toggle */}
-                <button
-                  onClick={() => setIsShared(v => !v)}
-                  data-hover
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.4rem 0.8rem',
-                    fontFamily: 'var(--font-mono)', fontSize: '0.58rem',
-                    letterSpacing: '0.12em', textTransform: 'uppercase',
-                    border: `1px solid ${isShared ? '#50c864' : 'var(--border)'}`,
-                    borderRadius: '2px',
-                    background: isShared ? 'rgba(80,200,100,0.08)' : 'transparent',
-                    color: isShared ? '#50c864' : 'var(--muted)',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <span>{isShared ? '◆ Shared' : '◇ Private'}</span>
-                </button>
+            {/* Annotation */}
+            <div style={{ position:'fixed', left:'calc(50% - 420px)', top:120, transform:'rotate(-2deg)', pointerEvents:'none', zIndex:1, opacity:.3 }}>
+              <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1rem', color:'var(--ember)', fontStyle:'italic', borderLeft:'2px solid var(--ember)', paddingLeft:'.5rem' }}>
+                {isShared ? '— shared with team' : '— private draft'}
+              </p>
+            </div>
 
-                {/* Save now */}
-                <button
-                  onClick={manualSave}
-                  className="vault-btn-ghost"
-                  style={{ marginLeft: 'auto' }}
-                >
-                  Save now
-                </button>
+            {/* Drop overlay */}
+            {dragOver && (
+              <div style={{ position:'fixed', inset:0, zIndex:50, border:'2px dashed var(--ember)', background:'rgba(212,84,26,0.04)', display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+                <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.8rem', color:'var(--ember)' }}>Drop image into your note ✦</p>
+              </div>
+            )}
 
-                {/* Delete */}
+            <div style={{ width:'100%', maxWidth:740, zIndex:2, position:'relative' }}>
+              {/* Share + meta */}
+              <div style={{ display:'flex', alignItems:'center', gap:'.65rem', marginBottom:'1.5rem' }}>
+                <button onClick={() => setIsShared(v => !v)} data-hover
+                  style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.3rem .75rem', background:'transparent', border:`1px solid ${isShared ? 'var(--cyan)' : 'var(--border)'}`, borderRadius:'20px', color: isShared ? 'var(--cyan)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
+                  <span style={{ width:6, height:6, borderRadius:'50%', background: isShared ? 'var(--cyan)' : 'var(--muted)' }} />
+                  {isShared ? 'Shared' : 'Private'}
+                </button>
+                <span style={{ flex:1 }} />
                 {activeNote && (
-                  <button
-                    onClick={() => deleteNote(activeNote.id)}
-                    style={{
-                      padding: '0.4rem 0.8rem',
-                      fontFamily: 'var(--font-mono)', fontSize: '0.58rem',
-                      letterSpacing: '0.1em', textTransform: 'uppercase',
-                      border: '1px solid rgba(212,84,26,0.2)',
-                      borderRadius: '2px',
-                      background: 'transparent',
-                      color: 'rgba(212,84,26,0.5)',
-                      transition: 'all 0.2s',
-                    }}
+                  <button onClick={() => deleteNote(activeNote.id)} style={{ padding:'.3rem .7rem', border:'1px solid rgba(212,84,26,0.2)', borderRadius:'2px', background:'transparent', color:'rgba(212,84,26,0.45)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}
                     onMouseEnter={e => { e.currentTarget.style.color = 'var(--ember)'; e.currentTarget.style.borderColor = 'var(--ember)' }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(212,84,26,0.5)'; e.currentTarget.style.borderColor = 'rgba(212,84,26,0.2)' }}
-                  >
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(212,84,26,0.45)'; e.currentTarget.style.borderColor = 'rgba(212,84,26,0.2)' }}>
                     Delete
                   </button>
                 )}
               </div>
 
               {/* Title */}
-              <input
-                type="text"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="Note title…"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  fontFamily: 'var(--font-serif)',
-                  fontSize: 'clamp(1.8rem, 4vw, 3rem)',
-                  fontWeight: 300,
-                  lineHeight: 1.1,
-                  letterSpacing: '-0.02em',
-                  outline: 'none',
-                  padding: '0 0 0.75rem',
-                  marginBottom: '1.5rem',
-                  width: '100%',
-                  flexShrink: 0,
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--ember-dim)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              <textarea
+                value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
+                placeholder="Note title…" rows={1}
+                style={{ background:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'clamp(2rem,5vw,3.2rem)', fontWeight:700, color:'var(--text)', lineHeight:1.1, padding:0, marginBottom:'1.5rem', overflow:'hidden' }}
+                onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
               />
 
               {/* Body */}
               <textarea
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                placeholder="Start writing… or tap the mic to speak."
-                className="vault-textarea"
-                style={{
-                  flex: 1,
-                  padding: '0',
-                  border: 'none',
-                  background: 'transparent',
-                  fontSize: '1.05rem',
-                  resize: 'none',
-                  outline: 'none',
-                }}
+                ref={contentRef}
+                value={noteContent} onChange={e => setNoteContent(e.target.value)}
+                placeholder="Start writing…"
+                className="ruled-editor"
+                style={{ background:'transparent', border:'none', outline:'none', resize:'none', width:'100%', fontFamily:'var(--font-caveat)', fontSize:'1.25rem', color:'var(--text)', lineHeight:'2.3rem', minHeight:300 }}
               />
 
-              {/* Footer meta */}
+              {/* Images */}
+              {noteImages.length > 0 && (
+                <div style={{ marginTop:'1rem', display:'flex', flexWrap:'wrap', gap:'1rem' }}>
+                  {noteImages.map((img, i) => (
+                    <ScrapbookImage key={img.id} img={img}
+                      onCaption={v => setNoteImages(prev => prev.map((x, j) => j === i ? { ...x, caption: v } : x))}
+                      onRemove={() => setNoteImages(prev => prev.filter((_, j) => j !== i))}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Footer */}
               {activeNote && (
-                <div style={{ flexShrink: 0, paddingTop: '1rem', display: 'flex', gap: '1rem' }}>
+                <div style={{ display:'flex', gap:'1rem', marginTop:'1.5rem' }}>
                   <span className="msg-timestamp">Created {formatDate(activeNote.created_at)}</span>
                   <span className="msg-timestamp">Updated {formatDate(activeNote.updated_at)}</span>
                 </div>
               )}
             </div>
+
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display:'none' }}
+              onChange={e => e.target.files[0] && uploadImage(e.target.files[0])} />
+
+            <VoiceFAB setNoteContent={setNoteContent} />
+            <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent} onImageClick={() => fileInputRef.current?.click()} />
           </div>
         )}
       </div>
@@ -483,88 +398,9 @@ function NotesInner() {
   )
 }
 
-function NoteCard({ note, onOpen, onDelete }) {
-  const [hovered, setHovered] = useState(false)
-
-  return (
-    <div
-      onClick={onOpen}
-      data-hover
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: hovered ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.01)',
-        padding: '1.25rem',
-        cursor: 'none',
-        transition: 'background 0.2s, box-shadow 0.3s',
-        boxShadow: hovered ? 'inset 0 0 20px rgba(212,84,26,0.04)' : 'none',
-        position: 'relative',
-      }}
-    >
-      {/* Ember left accent on hover */}
-      <div
-        style={{
-          position: 'absolute', top: 0, left: 0,
-          width: '2px', height: hovered ? '100%' : '0',
-          background: 'linear-gradient(180deg, var(--ember), transparent)',
-          transition: 'height 0.4s cubic-bezier(0.16,1,0.3,1)',
-        }}
-      />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-        <p
-          className="font-mono"
-          style={{
-            fontSize: '0.7rem', color: 'var(--text)',
-            letterSpacing: '0.02em', lineHeight: 1.3,
-            flex: 1, marginRight: '0.5rem',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}
-        >
-          {note.title || 'Untitled'}
-        </p>
-        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-          {note.is_shared && (
-            <span style={{ fontSize: '0.45rem', color: '#50c864', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              Shared
-            </span>
-          )}
-          <button
-            onClick={e => { e.stopPropagation(); onDelete() }}
-            style={{
-              background: 'none', border: 'none', padding: '0',
-              color: 'rgba(212,84,26,0.3)',
-              fontSize: '0.7rem', lineHeight: 1,
-              opacity: hovered ? 1 : 0, transition: 'opacity 0.2s',
-            }}
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
-      <p
-        className="font-serif"
-        style={{
-          fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 300, lineHeight: 1.6,
-          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        }}
-      >
-        {note.content || <em style={{ opacity: 0.4 }}>Empty note</em>}
-      </p>
-
-      <p className="msg-timestamp mt-2">{formatDate(note.updated_at)}</p>
-    </div>
-  )
-}
-
 export default function NotesPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="panel-label animate-pulse-slow">Loading…</p>
-      </div>
-    }>
+    <Suspense fallback={<div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}><p className="panel-label animate-pulse-slow">Loading…</p></div>}>
       <NotesInner />
     </Suspense>
   )
