@@ -90,7 +90,7 @@ function setNodeRadius(d3, g, d, r) {
   }
 }
 
-function detectShape(nodes, edges) {
+export function detectShape(nodes, edges) {
   const n = nodes.filter(nd => !nd._ghost)
   const e = edges
   const avgConnections = e.length / Math.max(n.length, 1)

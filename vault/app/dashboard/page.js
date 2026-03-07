@@ -24,7 +24,8 @@ import { createReactionEngine } from '@/lib/reactionEngine'
 import VoiceCapture from '@/components/VoiceCapture'
 import AudioPlayer from '@/components/AudioPlayer'
 import TheGuideWidget from '@/components/TheGuideWidget'
-import Neuron from '@/components/Neuron'
+import Neuron, { detectShape } from '@/components/Neuron'
+import ImpressionThumb from '@/components/ImpressionThumb'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -512,13 +513,30 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
                   </p>
                   <p className="msg-timestamp">{new Date(b.created_at).toLocaleDateString([], { month:'short', day:'numeric' })}</p>
                   {b.neuron_snapshot && (
-                    <button
-                      onClick={() => setViewingImpression({ snapshot: b.neuron_snapshot, buildSummary: b.description || '', buildId: b.id })}
-                      style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', textTransform:'uppercase', background:'none', border:'1px solid rgba(200,160,80,0.2)', borderRadius:'2px', padding:'.18rem .45rem', color:'rgba(200,160,80,0.55)', marginTop:'.35rem', display:'inline-block', transition:'all .15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(200,160,80,0.5)'; e.currentTarget.style.color = 'rgba(200,160,80,0.9)' }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(200,160,80,0.2)'; e.currentTarget.style.color = 'rgba(200,160,80,0.55)' }}>
-                      ⊕ VIEW IMPRESSION
-                    </button>
+                    <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:10, paddingTop:10, borderTop:'1px solid #1e1c19' }}>
+                      <div>
+                        <ImpressionThumb snapshot={b.neuron_snapshot} />
+                        <div style={{ fontFamily:'monospace', fontSize:8, color:'#9a785055', letterSpacing:'0.12em', textAlign:'center', marginTop:3 }}>
+                          {(b.neuron_snapshot.shape || 'OPEN').toUpperCase()}
+                        </div>
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontFamily:'monospace', fontSize:9, color:'#3a3530', letterSpacing:'0.1em', marginBottom:4 }}>THE IMPRESSION</div>
+                        <div style={{ fontFamily:'monospace', fontSize:9, color:'rgba(154,120,80,0.4)' }}>
+                          {(b.neuron_snapshot.agentsPresent || []).filter(r => r !== 'human').map(r => r.toUpperCase()).join(' · ')}
+                        </div>
+                        <div style={{ fontFamily:'monospace', fontSize:9, color:'#3a3530', marginTop:3 }}>
+                          {b.neuron_snapshot.messageCount} messages
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setViewingImpression({ snapshot: b.neuron_snapshot, buildSummary: b.description || '', buildId: b.id })}
+                        style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', textTransform:'uppercase', background:'none', border:'1px solid rgba(200,160,80,0.2)', borderRadius:'2px', padding:'.25rem .5rem', color:'rgba(200,160,80,0.55)', flexShrink:0, transition:'all .15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(200,160,80,0.5)'; e.currentTarget.style.color = 'rgba(200,160,80,0.9)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(200,160,80,0.2)'; e.currentTarget.style.color = 'rgba(200,160,80,0.55)' }}>
+                        ⊕ VIEW
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -2408,6 +2426,10 @@ export default function Dashboard() {
         capturedAt: new Date().toISOString(),
         agentsPresent: [...new Set(messages.map(m => m.role))],
         messageCount: messages.length,
+        shape: detectShape(
+          messages.map(m => ({ id: m.id, role: m.role })),
+          messages.filter(m => m.replyToId).map(m => ({ source: m.replyToId, target: m.id, type: 'reply' }))
+        ),
       }
       await logBuild(activeEnclaveId, user.id, pending.content, currentEstimate.estimate_cents, currentEstimate.reasoning, snapshot)
     }
