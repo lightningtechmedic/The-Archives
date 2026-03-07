@@ -945,9 +945,9 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
               <button
                 onClick={onClose}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3a3530', fontSize: 20, lineHeight: 1, padding: '2px 6px', transition: 'color 0.15s' }}
-                onMouseEnter={e => e.target.style.color = '#6a6460'}
-                onMouseLeave={e => e.target.style.color = '#3a3530'}>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', fontSize: 20, lineHeight: 1, padding: '2px 6px', transition: 'color 0.15s' }}
+                onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.7)'}
+                onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.25)'}>
                 ×
               </button>
             </>
