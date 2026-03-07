@@ -1543,12 +1543,12 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
         {canViewPatternLibrary && activeEnclave && (
           <button
             style={{ background:'none', border:'1px solid #2e2b27', borderRadius:'6px', padding:'5px 10px', cursor:'pointer', color:'#6a6460', fontSize:'11px', fontFamily:'monospace', letterSpacing:'0.1em', display:'flex', alignItems:'center', gap:'6px', transition:'all 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#8ab4c844'; e.currentTarget.style.color = '#8ab4c8' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#8ab4c855'; e.currentTarget.style.color = '#8ab4c8' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#2e2b27'; e.currentTarget.style.color = '#6a6460' }}
             onClick={e => { e.stopPropagation(); onOpenPatternLibrary?.() }}
             title="The Pattern Library — Echo is watching">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2,6 C3,3 5,2 6,4 C7,6 7,6 8,4 C9,2 11,3 11,6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
+              <path d="M1,5 C2.5,1 4.5,1 5.5,5 C6.5,9 8.5,9 9.5,5 C10.5,1 12.5,1 13.5,5 C14,7 15,6 15,5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none"/>
             </svg>
             ECHO
           </button>
