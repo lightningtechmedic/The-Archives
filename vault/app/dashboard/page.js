@@ -1094,7 +1094,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll, echoTopConcepts = [] }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -1219,6 +1219,7 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           isPersonal={!activeEnclaveId}
           buildCount={echoBuildCount}
           onPulseAll={onEchoPulseAll}
+          topConcepts={echoTopConcepts}
         />
 
         <div style={{ display:'flex', alignItems:'center' }}>
@@ -2231,6 +2232,8 @@ export default function Dashboard() {
   // Concept layer
   const [conceptNodes, setConceptNodes] = useState([])
   const [conceptEdges, setConceptEdges] = useState([])
+  const [echoTopConcepts, setEchoTopConcepts] = useState([])
+  const conceptNodesRef = useRef([])
   const [aiLocked, setAiLocked] = useState(false)
   const [autoAI, setAutoAI] = useState(true)
   const [chatExpanded, setChatExpanded] = useState(false)
@@ -2781,11 +2784,33 @@ export default function Dashboard() {
       buildId: b.id,
     }))
 
+    // Build structured concept data from current session
+    const liveNodes = conceptNodesRef.current
+    const conceptData = {
+      concepts: liveNodes.map(c => ({
+        label: c.label,
+        engagementCount: c.engagements?.length || 0,
+        agents: c.engagements?.map(e => e.agentId) || [],
+        strength: c.engagements?.reduce((sum, e) => sum + e.strength, 0) || 0,
+      })),
+      bridges: liveNodes
+        .filter(c => (c.engagements?.length || 0) >= 2)
+        .map(c => ({
+          concept: c.label,
+          agents: c.engagements.map(e => e.agentId),
+          strength: c.engagements.length,
+        })),
+      topConcepts: [...liveNodes]
+        .sort((a, b) => (b.engagements?.length || 0) - (a.engagements?.length || 0))
+        .slice(0, 5)
+        .map(c => c.label),
+    }
+
     try {
       const res = await fetch('/vault/api/chat/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trigger: 'background', impressions: impressionData, focusedImpression: null }),
+        body: JSON.stringify({ trigger: 'background', impressions: impressionData, focusedImpression: null, conceptData }),
       })
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -2799,6 +2824,7 @@ export default function Dashboard() {
         setEchoBadgeText(fullText)
         setEchoBadgeVisible(true)
         setEchoBadgeTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+        setEchoTopConcepts(conceptData.topConcepts)
         // Echo runs → sequential pulse across all agent nodes
         AGENT_ROLES_ORDER.forEach((role, i) => {
           const pIdx = AGENT_PULSE_INDEX[role]
@@ -3035,6 +3061,8 @@ export default function Dashboard() {
     })
   }
 
+  useEffect(() => { conceptNodesRef.current = conceptNodes }, [conceptNodes])
+
   // Seed concepts from existing messages on first load
   useEffect(() => {
     if (messages.length === 0 || conceptNodes.length > 0) return
@@ -3217,6 +3245,19 @@ export default function Dashboard() {
           messages.map(m => ({ id: m.id, role: m.role })),
           messages.filter(m => m.replyToId).map(m => ({ source: m.replyToId, target: m.id, type: 'reply' }))
         ),
+        concepts: conceptNodesRef.current.map(c => ({
+          label: c.label,
+          engagementCount: c.engagements?.length || 0,
+          agents: c.engagements?.map(e => e.agentId) || [],
+          strength: c.engagements?.reduce((sum, e) => sum + e.strength, 0) || 0,
+        })),
+        bridges: conceptNodesRef.current
+          .filter(c => (c.engagements?.length || 0) >= 2)
+          .map(c => ({
+            concept: c.label,
+            agents: c.engagements.map(e => e.agentId),
+            strength: c.engagements.length,
+          })),
       }
       await logBuild(activeEnclaveId, user.id, pending.content, currentEstimate.estimate_cents, currentEstimate.reasoning, snapshot)
       setTimeout(() => { if (canViewPatternLibraryRef.current) triggerEchoBackground() }, 30000)
@@ -3551,6 +3592,7 @@ export default function Dashboard() {
             echoText={echoBadgeText}
             echoTime={echoBadgeTime}
             echoBuildCount={patternLibraryBuilds.length}
+            echoTopConcepts={echoTopConcepts}
             onEchoPulseAll={() => {
               AGENT_ROLES_ORDER.forEach((role, i) => {
                 const pIdx = AGENT_PULSE_INDEX[role]

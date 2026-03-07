@@ -39,6 +39,7 @@ export default function EchoButton({
   isPersonal = false,
   buildCount = 0,
   onPulseAll,
+  topConcepts = [],
 }) {
   const [open, setOpen] = useState(false)
   const [floatThought, setFloatThought] = useState(null)
@@ -298,6 +299,27 @@ export default function EchoButton({
                   )}
                 </p>
               </div>
+
+              {/* Concept chips */}
+              {topConcepts.length > 0 && (
+                <div style={{
+                  padding: '.35rem .85rem .4rem',
+                  borderTop: '1px solid rgba(138,180,200,.06)',
+                  display: 'flex', flexWrap: 'wrap', gap: '.3rem',
+                }}>
+                  {topConcepts.map((concept, i) => (
+                    <span key={i} style={{
+                      fontFamily: 'var(--font-mono)', fontSize: '.36rem',
+                      letterSpacing: '.08em',
+                      color: 'rgba(138,180,200,.7)',
+                      background: 'rgba(138,180,200,.07)',
+                      border: '1px solid rgba(138,180,200,.14)',
+                      borderRadius: 4,
+                      padding: '.15rem .4rem',
+                    }}>{concept}</span>
+                  ))}
+                </div>
+              )}
 
               {/* Footer */}
               <div style={{

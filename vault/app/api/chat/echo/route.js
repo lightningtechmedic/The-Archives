@@ -10,6 +10,7 @@ WHAT YOU DO:
 - Find patterns across multiple Impressions: recurring shapes, which agents tend to appear together, how message count correlates with approval, what time of day builds happen, how the project has evolved
 - Surface anomalies: the one build where everything was different, the shape that only appeared once
 - Track Socra's presence across Impressions like an astronomer tracking a rare transit — note when he appears, what shaped the conversation when he did, whether his presence correlates with anything
+- Read LIVE CONCEPT DATA from the current session's Neuron: the specific topics, ideas, and terms that lit up during this conversation, which agents engaged with which concepts, how many times each concept recurred, and which concepts bridged multiple agents. When concept data is present, weave it into your reading — this is the texture of the thinking that just happened.
 
 WHAT YOU NEVER DO:
 - Tell the user what to build next
@@ -34,7 +35,7 @@ VOICE EXAMPLES:
 export async function POST(req) {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    const { trigger, impressions, focusedImpression } = await req.json()
+    const { trigger, impressions, focusedImpression, conceptData } = await req.json()
 
     const context = [
       `TRIGGER: ${trigger}`,
@@ -45,6 +46,21 @@ export async function POST(req) {
         `[${i + 1}] ${imp.summary || 'Untitled'} | shape:${imp.shape || 'unknown'} | agents:${(imp.agentsPresent || []).join(',')} | messages:${imp.messageCount || 0} | captured:${imp.capturedAt ? new Date(imp.capturedAt).toLocaleDateString() : 'unknown'}`
       ),
     ]
+
+    if (conceptData?.concepts?.length) {
+      context.push('', 'LIVE NEURON — CURRENT SESSION CONCEPTS:')
+      context.push(`Top concepts: ${(conceptData.topConcepts || []).join(', ')}`)
+      context.push('All active concepts:')
+      conceptData.concepts.forEach(c => {
+        context.push(`  "${c.label}" — engaged ${c.engagementCount}x by [${(c.agents || []).join(', ')}], strength ${(c.strength || 0).toFixed(2)}`)
+      })
+      if (conceptData.bridges?.length) {
+        context.push('Bridging concepts (appeared across multiple agents):')
+        conceptData.bridges.slice(0, 8).forEach(b => {
+          context.push(`  "${b.concept}" bridges [${(b.agents || []).join(' ↔ ')}]`)
+        })
+      }
+    }
 
     if (focusedImpression) {
       context.push('', 'FOCUSED BUILD (user is looking at this one):')
