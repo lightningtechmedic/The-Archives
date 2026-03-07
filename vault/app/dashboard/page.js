@@ -28,6 +28,7 @@ import Neuron, { detectShape } from '@/components/Neuron'
 import ImpressionThumb from '@/components/ImpressionThumb'
 import PatternLibrary from '@/components/PatternLibrary'
 import { EchoWave } from '@/app/components/Echo'
+import EchoButton from '@/app/components/EchoButton'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -1000,7 +1001,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -1117,6 +1118,15 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
             <AvatarContrarian size={28} state={contrarianAvatarState} />
           </div>
         </div>
+
+        <EchoButton
+          hasImpression={echoHasImpression}
+          impressionText={echoText}
+          impressionTime={echoTime}
+          isPersonal={!activeEnclaveId}
+          buildCount={echoBuildCount}
+          onPulseAll={onEchoPulseAll}
+        />
 
         <div style={{ display:'flex', alignItems:'center' }}>
           {onlineUsers.slice(0, 4).map((u, i) => {
@@ -2002,14 +2012,6 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
           {activeEnclave && <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.06em', textTransform:'uppercase', color:'var(--ember)' }}>◆ {activeEnclave.name}</span>}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'.35rem' }}>
-          {canViewPatternLibrary && activeEnclave && (
-            <button onClick={onOpenPatternLibrary}
-              style={{ background:'none', border:'1px solid var(--border)', borderRadius:'4px', padding:'3px 8px', cursor:'none', color:'var(--muted)', fontSize:'10px', fontFamily:'monospace', letterSpacing:'0.1em', transition:'all 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#8ab4c855'; e.currentTarget.style.color = '#8ab4c8' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
-              ECHO
-            </button>
-          )}
           <button onClick={() => setAutoAI(v => !v)}
             style={{ display:'flex', alignItems:'center', gap:'.25rem', padding:'.15rem .4rem', background:'transparent', border:`1px solid ${autoAI ? 'rgba(80,200,100,0.4)' : 'var(--border)'}`, borderRadius:'2px', color: autoAI ? 'var(--green)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
             <span style={{ width:4, height:4, borderRadius:'50%', background: autoAI ? 'var(--green)' : 'var(--muted)', animation: autoAI ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
@@ -2158,6 +2160,7 @@ export default function Dashboard() {
   const [echoImpression, setEchoImpression] = useState(null)
   const [echoBadgeVisible, setEchoBadgeVisible] = useState(false)
   const [echoBadgeText, setEchoBadgeText] = useState('')
+  const [echoBadgeTime, setEchoBadgeTime] = useState(null)
   const [canViewPatternLibrary, setCanViewPatternLibrary] = useState(false)
   const canViewPatternLibraryRef = useRef(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -2698,6 +2701,7 @@ export default function Dashboard() {
       if (fullText.length > 100) {
         setEchoBadgeText(fullText)
         setEchoBadgeVisible(true)
+        setEchoBadgeTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
         // Echo runs → sequential pulse across all agent nodes
         AGENT_ROLES_ORDER.forEach((role, i) => {
           const pIdx = AGENT_PULSE_INDEX[role]
@@ -3383,7 +3387,17 @@ export default function Dashboard() {
             advocateAvatarState={advocateAvatarState}
             contrarianAvatarState={contrarianAvatarState}
             isMobile={false} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
-            onSignOut={handleSignOut} />
+            onSignOut={handleSignOut}
+            echoHasImpression={!!echoBadgeText}
+            echoText={echoBadgeText}
+            echoTime={echoBadgeTime}
+            echoBuildCount={patternLibraryBuilds.length}
+            onEchoPulseAll={() => {
+              AGENT_ROLES_ORDER.forEach((role, i) => {
+                const pIdx = AGENT_PULSE_INDEX[role]
+                if (pIdx !== undefined) setTimeout(() => neuronBackdropRef.current?.pulseAgent(pIdx, 0.6), i * 120)
+              })
+            }} />
 
           <LeftNav
             enclaves={enclaves} activeEnclaveId={activeEnclaveId}
