@@ -29,6 +29,7 @@ import ImpressionThumb from '@/components/ImpressionThumb'
 import PatternLibrary from '@/components/PatternLibrary'
 import { EchoWave } from '@/app/components/Echo'
 import EchoButton from '@/app/components/EchoButton'
+import Ledger from '@/app/components/Ledger'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -1094,7 +1095,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll, echoTopConcepts = [] }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll, echoTopConcepts = [], hasActiveNote = false, onCloseNote }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -1156,12 +1157,20 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
         </>}
       </div>
 
-      {/* Center: breadcrumb */}
-      <div style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center', pointerEvents:'none' }}>
+      {/* Center: view toggle pills (v8) or note title (legacy) */}
+      <div style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center' }}>
         {v8 ? (
-          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'320px', opacity:.6, margin:0 }}>
-            {noteTitle || 'Untitled'}
-          </p>
+          <div className="vt-pills">
+            <button
+              className={`vt-pill${!hasActiveNote ? ' active' : ''}`}
+              onClick={() => !hasActiveNote ? undefined : onCloseNote?.()}
+            >Dashboard</button>
+            {hasActiveNote && (
+              <button className="vt-pill active" style={{ pointerEvents:'none' }}>
+                {noteTitle || 'Untitled'}
+              </button>
+            )}
+          </div>
         ) : (
           <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center', maxWidth:'280px', margin:0 }}>
             {noteTitle || 'Untitled'}
@@ -2090,7 +2099,7 @@ function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, on
   )
 }
 
-function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary }) {
+function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary, hasActiveNote = true }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -2120,7 +2129,14 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
 
       {/* Messages */}
       <div style={{ flex:1, overflowY:'auto', padding:'.65rem .6rem', display:'flex', flexDirection:'column', gap:'.7rem' }}>
-        {messages.length === 0 && (
+        {!hasActiveNote && messages.length === 0 && (
+          <div className="lattice-idle">
+            <div className="lattice-idle-glyph">⬡</div>
+            <p className="lattice-idle-text">Open a note to bring the agents into the conversation.</p>
+            <p className="lattice-idle-sub">They&apos;re watching.</p>
+          </div>
+        )}
+        {hasActiveNote && messages.length === 0 && (
           <div style={{ margin:'auto', textAlign:'center', opacity:.2 }}>
             <p style={{ fontFamily:'var(--font-serif)', fontSize:'1.1rem', color:'var(--muted)', fontStyle:'italic' }}>The Lattice awaits.</p>
             <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', marginTop:'.4rem' }}>The Architect &amp; The Spark are listening</p>
@@ -2228,6 +2244,9 @@ export default function Dashboard() {
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [thinking, setThinking] = useState(null)
+
+  // Ledger data
+  const [pinnedMessages, setPinnedMessages] = useState([])
 
   // Concept layer
   const [conceptNodes, setConceptNodes] = useState([])
@@ -2432,7 +2451,13 @@ export default function Dashboard() {
         setNotes(myNotes || []); setSharedNotes(sNotes || [])
         if (!prof?.display_name) setNeedsName(true)
         if (!u.user_metadata?.has_seen_welcome) setShowWelcome(true)
-        if (myNotes?.length > 0) openNote(myNotes[0])
+        // Load starts at the Ledger — no auto-open of first note
+
+        // Fetch pinned messages for Ledger
+        const { data: pinned } = await sb.from('messages')
+          .select('*').eq('user_id', u.id).eq('pinned', true)
+          .order('inserted_at', { ascending: false }).limit(20)
+        if (active && pinned) setPinnedMessages(pinned)
 
         // Sync email to profiles (required for enclave invite-by-email)
         if (u.email) sb.from('profiles').update({ email: u.email }).eq('id', u.id).then(() => {})
@@ -3339,6 +3364,11 @@ export default function Dashboard() {
   }
 
   function pinMessage(msg) {
+    if (!activeNote) {
+      setEnclaveToast('Open a note first to pin insights.')
+      setTimeout(() => setEnclaveToast(''), 2200)
+      return
+    }
     const quote = `\n\n> ${msg.content}\n> — ${msg.display_name || 'Unknown'}, ${formatTime(msg.created_at)}\n`
     setNoteContent(prev => prev + quote)
     setPinnedIds(prev => new Set([...prev, msg.id]))
@@ -3358,9 +3388,15 @@ export default function Dashboard() {
     setArchitectState('interjecting')
     setTimeout(() => setArchitectState('idle'), 1200)
 
-    if (activeNote) {
-      const imgStr = noteImages.map(i => `[img:${i.url}:${i.caption}]`).join('')
-      getSupabase().from('notes').update({ content: noteContent + quote + (imgStr ? '\n' + imgStr : ''), updated_at: new Date().toISOString() }).eq('id', activeNote.id)
+    const imgStr = noteImages.map(i => `[img:${i.url}:${i.caption}]`).join('')
+    getSupabase().from('notes').update({ content: noteContent + quote + (imgStr ? '\n' + imgStr : ''), updated_at: new Date().toISOString() }).eq('id', activeNote.id)
+
+    // Persist pinned flag to Supabase for Ledger
+    if (msg.id) {
+      getSupabase().from('messages').update({ pinned: true, note_id: activeNote.id }).eq('id', msg.id).then(() => {
+        const enriched = { ...msg, pinned: true, note_id: activeNote.id, note_title: noteTitle }
+        setPinnedMessages(prev => [enriched, ...prev.filter(m => m.id !== msg.id)])
+      })
     }
   }
 
@@ -3521,7 +3557,7 @@ export default function Dashboard() {
   return (
     <div style={{ height:'100vh', overflow:'hidden', position:'relative' }}>
       {/* ── Neuron backdrop + vignette ── */}
-      <Neuron ref={neuronBackdropRef} backdrop messages={messages} open={false} onClose={() => {}} concepts={conceptNodes} conceptEdges={conceptEdges} />
+      <Neuron ref={neuronBackdropRef} backdrop mode={activeNote ? 'note' : 'dashboard'} messages={messages} open={false} onClose={() => {}} concepts={conceptNodes} conceptEdges={conceptEdges} />
       <div style={{
         position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
         background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(8,7,6,0.72) 100%), linear-gradient(to bottom, rgba(8,7,6,0.55) 0%, transparent 18%, transparent 82%, rgba(8,7,6,0.55) 100%)',
@@ -3593,6 +3629,8 @@ export default function Dashboard() {
             echoTime={echoBadgeTime}
             echoBuildCount={patternLibraryBuilds.length}
             echoTopConcepts={echoTopConcepts}
+            hasActiveNote={!!activeNote}
+            onCloseNote={() => { setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setNoteVisibility('private') }}
             onEchoPulseAll={() => {
               AGENT_ROLES_ORDER.forEach((role, i) => {
                 const pIdx = AGENT_PULSE_INDEX[role]
@@ -3612,23 +3650,44 @@ export default function Dashboard() {
             notesSearch={notesSearch} setNotesSearch={setNotesSearch} />
 
           <div className="v8-center">
-            <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column' }}>
-              <FullScreenEditor
-                noteTitle={noteTitle} setNoteTitle={setNoteTitle}
-                noteContent={noteContent} setNoteContent={setNoteContent}
-                noteImages={noteImages} setNoteImages={setNoteImages}
-                noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
-                saveStatus={saveStatus} user={user} supabase={getSupabase()}
-                chatHeight={0} contentRef={contentRef}
-                detectedReminders={detectedReminders}
-                onReminderClick={phrase => setReminderCard(phrase)}
-                onImageUploaded={handleImageUploaded}
-                activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
-                topPad="20px" />
-            </div>
-            <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
-              chatHeight={0} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
-              onDropToBoard={handleDropToBoard} />
+            {!activeNote ? (
+              <Ledger
+                user={profile}
+                notes={[...notes, ...enclaveNotes]}
+                messages={messages}
+                pinnedMessages={pinnedMessages}
+                echoInsight={echoBadgeText}
+                echoTime={echoBadgeTime}
+                echoTopConcepts={echoTopConcepts}
+                patternLibraryBuilds={patternLibraryBuilds}
+                activeEnclaveId={activeEnclaveId}
+                enclaves={enclaves}
+                onOpenNote={openNote}
+              />
+            ) : (
+              <>
+                <button className="close-note-btn" onClick={() => { setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setNoteVisibility('private') }}>
+                  ✕ close
+                </button>
+                <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column' }}>
+                  <FullScreenEditor
+                    noteTitle={noteTitle} setNoteTitle={setNoteTitle}
+                    noteContent={noteContent} setNoteContent={setNoteContent}
+                    noteImages={noteImages} setNoteImages={setNoteImages}
+                    noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
+                    saveStatus={saveStatus} user={user} supabase={getSupabase()}
+                    chatHeight={0} contentRef={contentRef}
+                    detectedReminders={detectedReminders}
+                    onReminderClick={phrase => setReminderCard(phrase)}
+                    onImageUploaded={handleImageUploaded}
+                    activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
+                    topPad="20px" />
+                </div>
+                <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
+                  chatHeight={0} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
+                  onDropToBoard={handleDropToBoard} />
+              </>
+            )}
           </div>
 
           <RightLattice
@@ -3651,7 +3710,8 @@ export default function Dashboard() {
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
             neuronOpen={neuronOpen} onNeuronToggle={() => setNeuronOpen(v => !v)}
             onOpenPatternLibrary={openPatternLibrary}
-            canViewPatternLibrary={canViewPatternLibrary} />
+            canViewPatternLibrary={canViewPatternLibrary}
+            hasActiveNote={!!activeNote} />
         </div>
       )}
 

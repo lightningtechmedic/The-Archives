@@ -177,7 +177,7 @@ function formatImpressionDate(iso) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, impression, onClose, backdrop, concepts = [], conceptEdges = [] }, ref) {
+const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, impression, onClose, backdrop, mode = 'note', concepts = [], conceptEdges = [] }, ref) {
   // ── Refs ──
   const svgRef           = useRef(null)
   const minimapRef       = useRef(null)
@@ -251,7 +251,8 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
 
     function initDrift(W, H) {
       const agents = Object.values(CONCEPT_AGENTS)
-      driftRef.current = Array.from({ length: 28 }, () => {
+      const driftCount = (backdrop && mode === 'dashboard') ? 40 : 28
+      driftRef.current = Array.from({ length: driftCount }, () => {
         const ag = agents[Math.floor(Math.random() * agents.length)]
         return {
           x: Math.random() * W, y: Math.random() * H,
