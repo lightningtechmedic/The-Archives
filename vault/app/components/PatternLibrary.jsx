@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import ImpressionThumb from '@/components/ImpressionThumb'
 import { EchoWave } from '@/components/Echo'
 import { agentColors as colors } from '@/lib/agentColors'
+import { PATTERNS, PATTERN_LIBRARY_HOVER, PATTERN_LIBRARY_OWN } from '@/lib/patternSVGs'
 
 function formatImpressionDate(iso) {
   if (!iso) return ''
@@ -33,8 +34,60 @@ function computeInsights(impressions) {
 
 const SHAPES = ['ALL', 'FOCUSED', 'CONTESTED', 'EXPANSIVE', 'CONVERGING', 'OPEN']
 
-export default function PatternLibrary({ builds, onSelectImpression, onClose }) {
+// ── Mini Echo face (20px) ──────────────────────────────────────────────────────
+function EchoFaceMini() {
+  return (
+    <div style={{ width: 20, height: 20, position: 'relative', flexShrink: 0 }}>
+      {[20, 14, 9, 5, 3].map((d, i) => (
+        <div key={i} style={{
+          position: 'absolute', width: d, height: d,
+          top: '50%', left: '50%',
+          transform: 'translate(-50%,-50%)',
+          borderRadius: '50%',
+          border: `1px solid rgba(138,180,200,${[.05,.12,.26,.50,.85][i]})`,
+          animation: `echoRingRotate ${['30s','20s reverse','13s','8s reverse','5s'][i]} linear infinite`,
+        }} />
+      ))}
+      <div style={{
+        position: 'absolute', width: 2, height: 2,
+        top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+        borderRadius: '50%', background: '#8ab4c8',
+        boxShadow: '0 0 3px 1px rgba(138,180,200,.5)',
+      }} />
+    </div>
+  )
+}
+
+// ── Echo comment bubble on pattern card ───────────────────────────────────────
+function EchoCommentBubble({ message, visible, isOwnPattern }) {
+  return (
+    <div style={{
+      display: 'flex', gap: 8, alignItems: 'flex-start',
+      padding: '10px 12px',
+      background: isOwnPattern ? 'rgba(138,180,200,.07)' : 'rgba(138,180,200,.04)',
+      borderTop: `1px solid ${isOwnPattern ? 'rgba(138,180,200,.16)' : 'rgba(138,180,200,.08)'}`,
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'translateY(0)' : 'translateY(6px)',
+      transition: 'opacity .4s cubic-bezier(0.16,1,0.3,1), transform .4s cubic-bezier(0.16,1,0.3,1)',
+      pointerEvents: visible ? 'all' : 'none',
+    }}>
+      <EchoFaceMini />
+      <div style={{
+        fontFamily: "'Georgia', serif",
+        fontStyle: 'italic',
+        fontSize: '.82rem',
+        color: isOwnPattern ? 'rgba(255,248,238,.65)' : 'rgba(255,248,238,.45)',
+        lineHeight: 1.65,
+      }}>
+        {message}
+      </div>
+    </div>
+  )
+}
+
+export default function PatternLibrary({ builds, onSelectImpression, onClose, avatarPattern = null, onChangeWithEcho }) {
   const [shapeFilter, setShapeFilter] = useState('ALL')
+  const [hoveredCardId, setHoveredCardId] = useState(null)
 
   // ── Echo state ──
   const [echoMessages, setEchoMessages] = useState([])
@@ -52,6 +105,7 @@ export default function PatternLibrary({ builds, onSelectImpression, onClose }) 
     s.textContent = [
       '@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}',
       '@keyframes echoFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}',
+      '@keyframes echoRingRotate{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}',
     ].join('')
     document.head.appendChild(s)
   }, [])
@@ -185,15 +239,48 @@ export default function PatternLibrary({ builds, onSelectImpression, onClose }) 
             {impressions.length} IMPRESSION{impressions.length !== 1 ? 'S' : ''} CAPTURED
           </div>
         </div>
-        <button onClick={onClose} style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: '#3a3530', fontSize: 18, lineHeight: 1, padding: '2px 4px',
-          transition: 'color .15s',
-        }}
-          onMouseEnter={e => e.currentTarget.style.color = '#9a7850'}
-          onMouseLeave={e => e.currentTarget.style.color = '#3a3530'}>
-          ×
-        </button>
+
+        {/* Change with Echo CTA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {onChangeWithEcho && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.65rem' }}>
+              {avatarPattern && (
+                <span style={{
+                  fontFamily: 'monospace', fontSize: 9,
+                  color: 'rgba(138,180,200,.45)', letterSpacing: '.12em',
+                }}>
+                  YOUR PATTERN: <span style={{ color: '#8ab4c8' }}>{avatarPattern}</span>
+                </span>
+              )}
+              <button
+                onClick={onChangeWithEcho}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(138,180,200,.2)',
+                  borderRadius: 5,
+                  padding: '4px 10px',
+                  fontFamily: 'monospace', fontSize: 9,
+                  letterSpacing: '.1em',
+                  color: 'rgba(138,180,200,.55)',
+                  cursor: 'pointer', transition: 'all .15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(138,180,200,.5)'; e.currentTarget.style.color = '#8ab4c8' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(138,180,200,.2)'; e.currentTarget.style.color = 'rgba(138,180,200,.55)' }}
+              >
+                {avatarPattern ? '↺ Change with Echo' : '↺ Discover your pattern'}
+              </button>
+            </div>
+          )}
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#3a3530', fontSize: 18, lineHeight: 1, padding: '2px 4px',
+            transition: 'color .15s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.color = '#9a7850'}
+            onMouseLeave={e => e.currentTarget.style.color = '#3a3530'}>
+            ×
+          </button>
+        </div>
       </div>
 
       {/* Insights bar */}
@@ -242,62 +329,99 @@ export default function PatternLibrary({ builds, onSelectImpression, onClose }) 
           gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
           gap: 16, alignContent: 'start',
         }}>
-          {filtered.map((build, i) => (
-            <div
-              key={build.id}
-              onClick={() => onSelectImpression(build)}
-              style={{
-                cursor: 'pointer', background: '#0f0e0c',
-                border: '1px solid #1e1c19', borderRadius: 8, padding: 12,
-                transition: 'border-color 0.2s, transform 0.15s',
-                animation: `fadeUp 0.3s ease ${Math.min(i * 30, 600)}ms both`,
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = '#9a785044'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                hoverTimerRef.current = setTimeout(() => callEcho('card_hover', {
-                  id: build.id,
-                  summary: build.description || build.summary || '',
-                  shape: build.neuron_snapshot?.shape,
-                  agentsPresent: build.neuron_snapshot?.agentsPresent,
-                  messageCount: build.neuron_snapshot?.messageCount,
-                  capturedAt: build.neuron_snapshot?.capturedAt,
-                  buildId: build.id,
-                }), 1800)
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = '#1e1c19'
-                e.currentTarget.style.transform = 'translateY(0)'
-                clearTimeout(hoverTimerRef.current)
-              }}
-            >
-              <ImpressionThumb snapshot={build.neuron_snapshot} size={{ width: 176, height: 100 }} />
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: '#d8d0c5', lineHeight: 1.4 }}>
-                  {(build.description || build.summary || 'Untitled build').substring(0, 48)}
-                </div>
-                <div style={{ fontFamily: 'monospace', fontSize: 8, color: '#3a3530', marginTop: 5, letterSpacing: '0.1em' }}>
-                  {formatImpressionDate(build.neuron_snapshot.capturedAt)}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-                  <div style={{ fontFamily: 'monospace', fontSize: 8, color: '#9a785066', letterSpacing: '0.1em' }}>
-                    {(build.neuron_snapshot.shape || 'open').toUpperCase()}
+          {filtered.map((build, i) => {
+            const isHovered = hoveredCardId === build.id
+            const isOwn = avatarPattern && build.neuron_snapshot?.patternTag === avatarPattern
+            const echoComment = isOwn
+              ? PATTERN_LIBRARY_OWN[avatarPattern]
+              : (avatarPattern ? PATTERN_LIBRARY_HOVER[build.neuron_snapshot?.patternTag] : null)
+
+            return (
+              <div
+                key={build.id}
+                onClick={() => onSelectImpression(build)}
+                style={{
+                  cursor: 'pointer', background: '#0f0e0c',
+                  border: `1px solid ${isOwn ? 'rgba(138,180,200,.3)' : '#1e1c19'}`,
+                  borderRadius: 8, overflow: 'hidden',
+                  transition: 'border-color 0.2s, transform 0.15s',
+                  animation: `fadeUp 0.3s ease ${Math.min(i * 30, 600)}ms both`,
+                  position: 'relative',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = isOwn ? 'rgba(138,180,200,.5)' : '#9a785044'
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                  setHoveredCardId(build.id)
+                  hoverTimerRef.current = setTimeout(() => callEcho('card_hover', {
+                    id: build.id,
+                    summary: build.description || build.summary || '',
+                    shape: build.neuron_snapshot?.shape,
+                    agentsPresent: build.neuron_snapshot?.agentsPresent,
+                    messageCount: build.neuron_snapshot?.messageCount,
+                    capturedAt: build.neuron_snapshot?.capturedAt,
+                    buildId: build.id,
+                  }), 1800)
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = isOwn ? 'rgba(138,180,200,.3)' : '#1e1c19'
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  setHoveredCardId(null)
+                  clearTimeout(hoverTimerRef.current)
+                }}
+              >
+                {/* Own pattern badge */}
+                {isOwn && (
+                  <div style={{
+                    position: 'absolute', top: 8, right: 8,
+                    fontFamily: 'monospace', fontSize: 7,
+                    letterSpacing: '.1em', color: '#8ab4c8',
+                    background: 'rgba(138,180,200,.1)',
+                    border: '1px solid rgba(138,180,200,.2)',
+                    borderRadius: 3, padding: '2px 5px',
+                  }}>
+                    YOUR PATTERN
                   </div>
-                  <div style={{ display: 'flex', gap: 3 }}>
-                    {(build.neuron_snapshot.agentsPresent || [])
-                      .filter(r => r !== 'human')
-                      .slice(0, 5)
-                      .map((role, j) => (
-                        <div key={j} style={{
-                          width: 5, height: 5, borderRadius: '50%',
-                          background: colors[role] || '#3a3530', opacity: 0.7,
-                        }} />
-                      ))}
+                )}
+
+                <div style={{ padding: 12 }}>
+                  <ImpressionThumb snapshot={build.neuron_snapshot} size={{ width: 176, height: 100 }} />
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: '#d8d0c5', lineHeight: 1.4 }}>
+                      {(build.description || build.summary || 'Untitled build').substring(0, 48)}
+                    </div>
+                    <div style={{ fontFamily: 'monospace', fontSize: 8, color: '#3a3530', marginTop: 5, letterSpacing: '0.1em' }}>
+                      {formatImpressionDate(build.neuron_snapshot.capturedAt)}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                      <div style={{ fontFamily: 'monospace', fontSize: 8, color: '#9a785066', letterSpacing: '0.1em' }}>
+                        {(build.neuron_snapshot.shape || 'open').toUpperCase()}
+                      </div>
+                      <div style={{ display: 'flex', gap: 3 }}>
+                        {(build.neuron_snapshot.agentsPresent || [])
+                          .filter(r => r !== 'human')
+                          .slice(0, 5)
+                          .map((role, j) => (
+                            <div key={j} style={{
+                              width: 5, height: 5, borderRadius: '50%',
+                              background: colors[role] || '#3a3530', opacity: 0.7,
+                            }} />
+                          ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* Echo comment bubble — own pattern shows always, others on hover */}
+                {echoComment && (
+                  <EchoCommentBubble
+                    message={echoComment}
+                    visible={isOwn || isHovered}
+                    isOwnPattern={isOwn}
+                  />
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
 
           {filtered.length === 0 && (
             <div style={{

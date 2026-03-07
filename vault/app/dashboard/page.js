@@ -1108,7 +1108,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll, echoTopConcepts = [], hasActiveNote = false, onCloseNote }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll, echoTopConcepts = [], hasActiveNote = false, onCloseNote, onAvatarSaved, echoOverlayForceOpen = false, onEchoOverlayForceReset }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -1242,6 +1242,13 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           buildCount={echoBuildCount}
           onPulseAll={onEchoPulseAll}
           topConcepts={echoTopConcepts}
+          userId={user?.id}
+          avatarPattern={profile?.avatar_pattern || null}
+          avatarName={profile?.avatar_name || null}
+          avatarEmote={profile?.avatar_emote || 'neutral'}
+          onAvatarSaved={onAvatarSaved}
+          overlayForceOpen={echoOverlayForceOpen}
+          onOverlayForceReset={onEchoOverlayForceReset}
         />
 
         <div style={{ display:'flex', alignItems:'center' }}>
@@ -2315,6 +2322,7 @@ export default function Dashboard() {
   const [neuronOpen, setNeuronOpen] = useState(false)
   const [patternLibraryOpen, setPatternLibraryOpen] = useState(false)
   const [patternLibraryBuilds, setPatternLibraryBuilds] = useState([])
+  const [echoOverlayForceOpen, setEchoOverlayForceOpen] = useState(false)
   const [echoImpression, setEchoImpression] = useState(null)
   const [echoBadgeVisible, setEchoBadgeVisible] = useState(false)
   const [echoBadgeText, setEchoBadgeText] = useState('')
@@ -3670,6 +3678,9 @@ export default function Dashboard() {
             echoTopConcepts={echoTopConcepts}
             hasActiveNote={!!activeNote}
             onCloseNote={() => { setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setNoteVisibility('private') }}
+            onAvatarSaved={(data) => setProfile(prev => prev ? { ...prev, avatar_pattern: data.pattern, avatar_name: data.name, avatar_emote: data.emote, avatar_observation: data.observation } : prev)}
+            echoOverlayForceOpen={echoOverlayForceOpen}
+            onEchoOverlayForceReset={() => setEchoOverlayForceOpen(false)}
             onEchoPulseAll={() => {
               AGENT_ROLES_ORDER.forEach((role, i) => {
                 const pIdx = AGENT_PULSE_INDEX[role]
@@ -3866,6 +3877,11 @@ export default function Dashboard() {
             setEchoImpression({ snapshot: build.neuron_snapshot, buildSummary: build.description || '', buildId: build.id })
           }}
           onClose={() => setPatternLibraryOpen(false)}
+          avatarPattern={profile?.avatar_pattern || null}
+          onChangeWithEcho={() => {
+            setPatternLibraryOpen(false)
+            setEchoOverlayForceOpen(true)
+          }}
         />
       )}
       {echoImpression && (
