@@ -40,6 +40,13 @@ export default function PatternLibrary({ builds, onSelectImpression, onClose }) 
     document.head.appendChild(s)
   }, [])
 
+  // Escape to close
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose?.() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
   const impressions = builds.filter(b => b.neuron_snapshot)
   if (!impressions.length) return null
 

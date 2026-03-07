@@ -177,17 +177,18 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
     return () => clearInterval(id)
   }, [])
 
-  // ── Keyboard shortcuts (1/2/3) when panel open ──
+  // ── Keyboard shortcuts (1/2/3) + Escape when panel open ──
   useEffect(() => {
     if (!open) return
     function onKey(e) {
       if (e.key === '1') setZoomLevel(1)
       if (e.key === '2') setZoomLevel(2)
       if (e.key === '3') setZoomLevel(3)
+      if (e.key === 'Escape') onClose?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, onClose])
 
   // ── Main build ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -935,6 +936,13 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
                 {liveMode ? 'LIVE' : 'PAUSED'}
               </button>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
+              <button onClick={onClose}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3a3530', fontSize: 18, lineHeight: 1, padding: '4px 8px', borderRadius: 4, transition: 'color 0.15s', fontFamily: 'monospace' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#c44e18'}
+                onMouseLeave={e => e.currentTarget.style.color = '#3a3530'}
+                title="Close Neuron">
+                ×
+              </button>
             </>
           )}
         </div>

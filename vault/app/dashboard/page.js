@@ -1426,7 +1426,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenEcho, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1518,6 +1518,18 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           </svg>
           NEURON
         </button>
+        {activeEnclave && (
+          <button onClick={e => { e.stopPropagation(); onOpenEcho?.() }}
+            style={{ background:'none', border:'1px solid #2e2b27', borderRadius:'6px', padding:'5px 10px', cursor:'pointer', color:'#6a6460', fontSize:'11px', fontFamily:'monospace', letterSpacing:'0.1em', display:'flex', alignItems:'center', gap:'6px', transition:'all 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#8ab4c844'; e.currentTarget.style.color = '#8ab4c8' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2e2b27'; e.currentTarget.style.color = '#6a6460' }}
+            title="The Pattern Library — Echo is watching">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2,6 C3,3 5,2 6,4 C7,6 7,6 8,4 C9,2 11,3 11,6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            </svg>
+            ECHO
+          </button>
+        )}
         <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--green)' }}>◆ Live</span>
       </div>
 
@@ -1663,6 +1675,9 @@ export default function Dashboard() {
   const [contrarianAvatarState, setContrarianAvatarState] = useState('idle')
   const [focusMode, setFocusMode] = useState(false)
   const [neuronOpen, setNeuronOpen] = useState(false)
+  const [echoOpen, setEchoOpen] = useState(false)
+  const [echoBuilds, setEchoBuilds] = useState([])
+  const [echoImpression, setEchoImpression] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMode, setMobileMode] = useState('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -2131,6 +2146,14 @@ export default function Dashboard() {
     } else {
       clearTimeout(focusTimerRef.current)
     }
+  }
+
+  // ── Echo / Pattern Library ──
+  async function openEcho() {
+    if (!activeEnclaveId) return
+    const history = await getBuildHistory(activeEnclaveId)
+    setEchoBuilds(history || [])
+    setEchoOpen(true)
   }
 
   // ── Reaction trigger (called by reaction engine) ──
@@ -2829,6 +2852,7 @@ export default function Dashboard() {
             advocateState={advocateAvatarState} contrarianState={contrarianAvatarState}
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
             neuronOpen={neuronOpen} onNeuronToggle={() => setNeuronOpen(v => !v)}
+            onOpenEcho={openEcho}
             isMobile={isMobile} />
         </>
       )}
@@ -2850,7 +2874,26 @@ export default function Dashboard() {
             onSignOut={handleSignOut} />
         </>
       )}
-      <Neuron messages={messages} open={neuronOpen} onScrollToMessage={handleScrollToMessage} />
+      <Neuron messages={messages} open={neuronOpen} onScrollToMessage={handleScrollToMessage} onClose={() => setNeuronOpen(false)} />
+      {echoOpen && (
+        <PatternLibrary
+          builds={echoBuilds}
+          onSelectImpression={(build) => {
+            setEchoOpen(false)
+            setEchoImpression({ snapshot: build.neuron_snapshot, buildSummary: build.description || '', buildId: build.id })
+          }}
+          onClose={() => setEchoOpen(false)}
+        />
+      )}
+      {echoImpression && (
+        <Neuron
+          impression={echoImpression}
+          messages={[]}
+          open={true}
+          onClose={() => setEchoImpression(null)}
+          onScrollToMessage={() => {}}
+        />
+      )}
       <TheGuideWidget />
     </div>
   )
