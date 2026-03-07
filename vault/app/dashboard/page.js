@@ -1585,12 +1585,13 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
   const isSteward    = role === 'steward'
   const isAdvocate   = role === 'advocate'
   const isContrarian = role === 'contrarian'
-  const isAI = isArchitect || isSpark || isScribe || isSteward || isAdvocate || isContrarian
+  const isSocra      = role === 'socra'
+  const isAI = isArchitect || isSpark || isScribe || isSteward || isAdvocate || isContrarian || isSocra
   const isReaction = !!msg.isReaction
-  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : isAdvocate ? AI.advocate : isContrarian ? AI.contrarian : null
+  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : isAdvocate ? AI.advocate : isContrarian ? AI.contrarian : isSocra ? AI.socra : null
   const prof = allProfiles?.find(p => p.id === msg.user_id)
   const isMe = msg.user_id === currentUserId
-  const baseLabel = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : (msg.display_name || prof?.display_name || 'Team')
+  const baseLabel = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : isSocra ? AI.socra.label : (msg.display_name || prof?.display_name || 'Team')
   const label = isReaction ? `${baseLabel} ↩` : baseLabel
 
   let avatar
@@ -1600,6 +1601,7 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
   else if (isSteward)      avatar = <AvatarSteward size={26} state={stewardState || 'idle'} />
   else if (isAdvocate)     avatar = <AvatarAdvocate size={26} state={advocateState || 'idle'} />
   else if (isContrarian)   avatar = <AvatarContrarian size={26} state={contrarianState || 'idle'} />
+  else if (isSocra)        avatar = <AgentFace agentId="socra" state="idle" size={26} />
   else if (isSmara(prof))  avatar = <AvatarSmara size={26} />
   else if (isMe)           avatar = <AvatarYou size={26} state={yourState} />
   else                     avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={26} />
@@ -3139,16 +3141,22 @@ export default function Dashboard() {
 
     for (const agent of ROLL_CALL) {
       setTimeout(async () => {
-        const { data: saved } = await sb.from('messages').insert({
-          user_id: userRef.current?.id,
-          display_name: agent.label,
-          content: agent.line,
-          role: agent.role,
-          enclave_id: activeEnclaveIdRef.current,
-          reply_to_id: lastHumanMsgIdRef.current || null,
-        }).select().single()
-        const msg = saved || { id: `${Date.now()}-rc-${agent.role}`, role: agent.role, display_name: agent.label, content: agent.line, created_at: new Date().toISOString(), inserted_at: new Date().toISOString() }
-        setMessages(prev => [...prev, msg])
+        try {
+          const { data: saved } = await sb.from('messages').insert({
+            user_id: userRef.current?.id,
+            display_name: agent.label,
+            content: agent.line,
+            role: agent.role,
+            enclave_id: activeEnclaveIdRef.current,
+            reply_to_id: lastHumanMsgIdRef.current || null,
+          }).select().single()
+          const msg = saved || { id: `${Date.now()}-rc-${agent.role}`, role: agent.role, display_name: agent.label, content: agent.line, created_at: new Date().toISOString(), inserted_at: new Date().toISOString() }
+          setMessages(prev => [...prev, msg])
+        } catch (err) {
+          console.error(`Roll Call: failed to deliver ${agent.role} message`, err)
+          // Render the line anyway using a local-only message
+          setMessages(prev => [...prev, { id: `${Date.now()}-rc-${agent.role}`, role: agent.role, display_name: agent.label, content: agent.line, created_at: new Date().toISOString(), inserted_at: new Date().toISOString() }])
+        }
       }, agent.delay)
     }
   }
