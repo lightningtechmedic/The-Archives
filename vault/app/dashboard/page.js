@@ -12,7 +12,6 @@ import {
   AvatarScribe,
   AvatarSmara,
   AvatarYou,
-  AvatarSocra,
   AvatarGeneric,
   AvatarSteward,
   AvatarAdvocate,
@@ -1659,61 +1658,13 @@ function ThinkingDot({ model }) {
   )
 }
 
-// ── Socra Scroll Panel ────────────────────────────────────────────────────────
-const SCROLL_WISDOM = [
-  'Every draft has a thesis hiding behind the thing you think you\'re saying.',
-  'The gap between what you wrote and what you meant — that\'s where the work is.',
-  'Strong ideas need weak sentences. That\'s where they breathe.',
-  'You\'re solving the right problem. Are you building the right thing?',
-  'The clearest sentence in this draft is probably the last one you wrote.',
-  'What\'s the one thing this note must accomplish?',
-  'Read it as someone who has never met you.',
-]
-
-function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
-  if (!open) return null
-  const wisdom = SCROLL_WISDOM[wisdomIdx % SCROLL_WISDOM.length]
-  return (
-    <div style={{
-      position:'absolute', bottom:'100%', right:0, marginBottom:8,
-      width:260, background:'rgba(6,7,5,0.97)', border:'1px solid rgba(80,200,100,0.3)',
-      borderRadius:'6px', padding:'1rem', zIndex:300,
-      boxShadow:'0 -4px 24px rgba(0,0,0,0.6)',
-      animation:'fadeUp .25s var(--ease)',
-    }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.75rem' }}>
-        <p style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(80,200,100,0.7)' }}>Socra's scroll</p>
-        <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--muted)', fontSize:'.85rem', padding:'0 .2rem', lineHeight:1 }}>×</button>
-      </div>
-      {noteTitle && (
-        <p style={{ fontFamily:'var(--font-mono)', fontSize:'.46rem', letterSpacing:'.08em', color:'var(--muted)', marginBottom:'.75rem', textTransform:'uppercase', opacity:.7 }}>
-          On: {noteTitle}
-        </p>
-      )}
-      <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'rgba(80,200,100,0.88)', lineHeight:1.5, marginBottom:'.75rem' }}>
-        {wisdom}
-      </p>
-      <p style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', color:'var(--muted)', opacity:.5, textTransform:'uppercase' }}>
-        Click Socra for more ↑
-      </p>
-    </div>
-  )
-}
-
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
 function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, onAskSocra, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary = false, isMobile = false }) {
   const messagesEndRef = useRef(null)
-  const [socraOpen, setSocraOpen] = useState(false)
-  const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking])
 
   const height = expanded ? 400 : 44
-
-  function handleSocraClick(phrase) {
-    setSocraWisdomIdx(i => (i + 1) % SCROLL_WISDOM.length)
-    setSocraOpen(v => !v)
-  }
 
   return (
     <div className="lattice-drawer" style={{ height, ...(isMobile ? { bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' } : {}) }}>
@@ -1865,7 +1816,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             </div>
           )}
 
-          {/* Input row with Socra */}
+          {/* Input row */}
           <div style={{ display:'flex', gap:'.5rem', padding:'.6rem 1rem', flexShrink:0, borderTop:'1px solid var(--border)', position:'relative', alignItems:'flex-end' }}>
             <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={onKeyDown}
               placeholder={aiLocked ? 'AIs are responding…' : 'Message the Lattice…'} disabled={aiLocked}
@@ -1876,12 +1827,6 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             <button className="vault-btn" onClick={onSend} disabled={aiLocked || !chatInput.trim()} style={{ padding:'.5rem 1rem', alignSelf:'flex-end' }}>
               {aiLocked ? '…' : 'Send'}
             </button>
-
-            {/* Socra — bottom-right corner */}
-            <div style={{ position:'relative', flexShrink:0 }}>
-              <SocraScrollPanel open={socraOpen} onClose={() => setSocraOpen(false)} noteTitle={noteTitle} wisdomIdx={socraWisdomIdx} />
-              <AvatarSocra size={44} state="idle" onScrollClick={handleSocraClick} showThought={false} />
-            </div>
           </div>
         </div>
       )}
@@ -2033,14 +1978,6 @@ function FaceContrarian() {
   )
 }
 
-function FaceSocra() {
-  return (
-    <div style={{ width:34, height:34, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-      <span style={{ fontFamily:'Georgia, serif', fontStyle:'italic', fontWeight:300, fontSize:'22px', color:'rgba(255,248,200,0.9)', userSelect:'none', animation:'socraGlow 2.6s ease-in-out infinite', lineHeight:1 }}>S</span>
-    </div>
-  )
-}
-
 // ── Right Lattice (v8 permanent column) ──────────────────────────────────────
 function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState, agentFaceState = 'idle', isCollapsible = false, isExpanded = false, onToggleExpand }) {
   const role = msg.role === 'user' ? 'human' : msg.role
@@ -2125,8 +2062,6 @@ function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, on
 
 function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, onAskSocra, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary, hasActiveNote = true }) {
   const messagesEndRef = useRef(null)
-  const [socraOpen, setSocraOpen] = useState(false)
-  const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
 
   // ── Message collapse ─────────────────────────────────────────────────────────
   const [expandedMessages, setExpandedMessages] = useState(new Set())
@@ -2291,12 +2226,6 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
 
       {/* Input row */}
       <div style={{ display:'flex', gap:'.4rem', padding:'.5rem .65rem .6rem', flexShrink:0, borderTop:'1px solid var(--border)', alignItems:'flex-end', position:'relative' }}>
-        <div style={{ position:'relative', flexShrink:0 }}>
-          <SocraScrollPanel open={socraOpen} onClose={() => setSocraOpen(false)} noteTitle={noteTitle} wisdomIdx={socraWisdomIdx} />
-          <AvatarSocra size={34} state="idle"
-            onScrollClick={() => { setSocraWisdomIdx(i => (i + 1) % SCROLL_WISDOM.length); setSocraOpen(v => !v) }}
-            showThought={false} />
-        </div>
         <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={onKeyDown}
           placeholder={aiLocked ? 'Responding…' : 'Message the Lattice…'} disabled={aiLocked}
           style={{ flex:1, background:'rgba(255,255,255,0.025)', border:'1px solid var(--border)', borderRadius:'3px', color:'var(--text)', fontFamily:'var(--font-caveat)', fontSize:'1rem', lineHeight:1.35, padding:'.4rem .55rem', resize:'none', outline:'none', height:'2.4rem', maxHeight:'80px', opacity: aiLocked ? .5 : 1, transition:'border-color .2s' }}
