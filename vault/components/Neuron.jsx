@@ -880,24 +880,6 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
       animation: 'neuronSlideIn 0.28s var(--ease, cubic-bezier(.4,0,.2,1))',
     }}>
 
-      {/* Absolute close button — always visible regardless of header layout */}
-      <button
-        onClick={onClose}
-        style={{
-          position: 'absolute', top: 10, right: 12, zIndex: 10,
-          background: 'none',
-          border: `1px solid ${isImpression ? 'rgba(200,160,80,0.3)' : 'rgba(255,255,255,0.18)'}`,
-          borderRadius: '3px', cursor: 'pointer',
-          color: isImpression ? 'rgba(200,160,80,0.6)' : 'rgba(255,255,255,0.5)',
-          fontFamily: 'monospace', fontSize: '11px',
-          padding: '3px 7px', lineHeight: 1,
-          transition: 'all .15s',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = isImpression ? 'rgba(200,160,80,0.9)' : 'rgba(255,255,255,0.9)' }}
-        onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = isImpression ? 'rgba(200,160,80,0.6)' : 'rgba(255,255,255,0.5)' }}>
-        ✕
-      </button>
-
       {/* Header */}
       <div style={{ height: 44, padding: '0 1rem', borderBottom: `1px solid ${isImpression ? 'rgba(200,160,80,0.2)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.55rem' }}>
@@ -912,6 +894,20 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}>
+          {/* Close */}
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: `1px solid ${isImpression ? 'rgba(200,160,80,0.3)' : 'rgba(255,255,255,0.2)'}`,
+              borderRadius: '3px', cursor: 'pointer',
+              color: isImpression ? 'rgba(200,160,80,0.65)' : 'rgba(255,255,255,0.55)',
+              fontFamily: 'monospace', fontSize: '11px',
+              padding: '3px 7px', lineHeight: 1, flexShrink: 0,
+            }}>
+            ✕
+          </button>
+          <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
           {/* Zoom tabs */}
           {[{ k: 1, label: 'ALL' }, { k: 2, label: 'MAP' }, { k: 3, label: 'READ' }].map(({ k, label }) => (
             <button key={k} onClick={() => setZoomLevel(k)} data-hover
