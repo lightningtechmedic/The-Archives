@@ -391,7 +391,7 @@ function CreateEnclaveModal({ onCreate, onClose }) {
 }
 
 // ── Enclave Settings Panel ────────────────────────────────────────────────────
-function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, onOpenPatternLibrary }) {
+function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, onOpenPatternLibrary, currentUserId }) {
   const [tab, setTab] = useState('members') // 'members' | 'ledger'
   const [members, setMembers] = useState([])
   const [loadingMembers, setLoadingMembers] = useState(true)
@@ -408,7 +408,7 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, 
     setLoadingMembers(true)
     const sb = createClient()
     const { data: membersData } = await sb.from('enclave_members')
-      .select('role, joined_at, user_id')
+      .select('id, role, joined_at, user_id, pattern_library_access')
       .eq('enclave_id', enclave.id)
     const userIds = membersData?.map(m => m.user_id).filter(Boolean) || []
     const { data: profilesData } = userIds.length
@@ -448,7 +448,18 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, 
     fetchMembers()
   }
 
+  async function togglePatternLibraryAccess(memberId, newValue) {
+    const sb = createClient()
+    const { error } = await sb
+      .from('enclave_members')
+      .update({ pattern_library_access: newValue })
+      .eq('id', memberId)
+      .eq('enclave_id', enclave.id)
+    if (!error) fetchMembers()
+  }
+
   const isOwner = members.find(m => m.profiles?.id && m.role === 'owner') // any owner can remove
+  const isCurrentUserOwner = members.find(m => m.user_id === currentUserId)?.role === 'owner'
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:8000, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
@@ -587,6 +598,31 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, 
                 <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', color: m.role === 'owner' ? 'var(--ember)' : 'var(--muted)', flexShrink:0 }}>
                   {m.role}
                 </span>
+                {isCurrentUserOwner && m.role !== 'owner' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{
+                      fontFamily: 'monospace', fontSize: 8,
+                      color: m.pattern_library_access ? '#8ab4c8' : '#3a3530',
+                      letterSpacing: '0.1em', transition: 'color 0.2s',
+                    }}>ECHO</span>
+                    <div
+                      onClick={() => togglePatternLibraryAccess(m.id, !m.pattern_library_access)}
+                      style={{
+                        width: 28, height: 16, borderRadius: 8,
+                        background: m.pattern_library_access ? '#8ab4c822' : '#1e1c19',
+                        border: `1px solid ${m.pattern_library_access ? '#8ab4c8' : '#2e2b27'}`,
+                        cursor: 'pointer', position: 'relative', transition: 'all 0.2s', flexShrink: 0,
+                      }}>
+                      <div style={{
+                        position: 'absolute', top: 2,
+                        left: m.pattern_library_access ? 12 : 2,
+                        width: 10, height: 10, borderRadius: '50%',
+                        background: m.pattern_library_access ? '#8ab4c8' : '#3a3530',
+                        transition: 'left 0.2s, background 0.2s',
+                      }} />
+                    </div>
+                  </div>
+                )}
                 {m.role !== 'owner' && (
                   <button onClick={() => handleRemove(m.user_id)}
                     style={{ background:'none', border:'none', color:'var(--muted)', fontSize:'.9rem', padding:'0 .15rem', lineHeight:1, transition:'color .15s', flexShrink:0 }}
@@ -1412,7 +1448,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary = false, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1504,8 +1540,8 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           </svg>
           NEURON
         </button>
-        {activeEnclave && (
-          <button onClick={e => { e.stopPropagation(); onOpenEcho?.() }}
+        {canViewPatternLibrary && activeEnclave && (
+          <button
             style={{ background:'none', border:'1px solid #2e2b27', borderRadius:'6px', padding:'5px 10px', cursor:'pointer', color:'#6a6460', fontSize:'11px', fontFamily:'monospace', letterSpacing:'0.1em', display:'flex', alignItems:'center', gap:'6px', transition:'all 0.2s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#8ab4c844'; e.currentTarget.style.color = '#8ab4c8' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#2e2b27'; e.currentTarget.style.color = '#6a6460' }}
@@ -1667,6 +1703,8 @@ export default function Dashboard() {
   const [echoImpression, setEchoImpression] = useState(null)
   const [echoBadgeVisible, setEchoBadgeVisible] = useState(false)
   const [echoBadgeText, setEchoBadgeText] = useState('')
+  const [canViewPatternLibrary, setCanViewPatternLibrary] = useState(false)
+  const canViewPatternLibraryRef = useRef(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMode, setMobileMode] = useState('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -1719,6 +1757,7 @@ export default function Dashboard() {
   useEffect(() => { noteContentRef.current = noteContent }, [noteContent])
   useEffect(() => { activeEnclaveIdRef.current = activeEnclaveId }, [activeEnclaveId])
   useEffect(() => { userRef.current = user }, [user])
+  useEffect(() => { canViewPatternLibraryRef.current = canViewPatternLibrary }, [canViewPatternLibrary])
 
   // ── Reminder detection ──
   useEffect(() => {
@@ -1765,6 +1804,7 @@ export default function Dashboard() {
     } else {
       setEnclaveNotes([])
       setActiveEnclaveMembers([])
+      setCanViewPatternLibrary(false)
       await fetchMessages(uid, null)
     }
   }
@@ -1778,7 +1818,7 @@ export default function Dashboard() {
         .eq('enclave_id', enclaveId).eq('visibility', 'enclave')
         .order('updated_at', { ascending: false }),
       sb.from('enclave_members')
-        .select('role, joined_at, user_id')
+        .select('id, role, joined_at, user_id, pattern_library_access')
         .eq('enclave_id', enclaveId),
     ])
     // Fetch profiles separately to avoid cross-table RLS chain
@@ -1790,6 +1830,8 @@ export default function Dashboard() {
     const membersWithProfiles = (membersData || []).map(m => ({ ...m, profiles: profileMap[m.user_id] || null }))
     setEnclaveNotes(eNotes || [])
     setActiveEnclaveMembers(membersWithProfiles)
+    const myRow = membersWithProfiles.find(m => m.user_id === userRef.current?.id)
+    setCanViewPatternLibrary(myRow?.role === 'owner' || myRow?.pattern_library_access === true)
   }
 
   // ── Auth + init ──
@@ -2534,7 +2576,7 @@ export default function Dashboard() {
         ),
       }
       await logBuild(activeEnclaveId, user.id, pending.content, currentEstimate.estimate_cents, currentEstimate.reasoning, snapshot)
-      setTimeout(() => { triggerEchoBackground() }, 30000)
+      setTimeout(() => { if (canViewPatternLibraryRef.current) triggerEchoBackground() }, 30000)
     }
 
     // Continue AI flow
@@ -2808,7 +2850,8 @@ export default function Dashboard() {
           onRemove={handleRemoveMember}
           onDelete={handleDeleteEnclave}
           onClose={() => setShowEnclaveSettings(false)}
-          onOpenPatternLibrary={openPatternLibrary} />
+          onOpenPatternLibrary={openPatternLibrary}
+          currentUserId={user?.id} />
       )}
       {reminderCard && (
         <ReminderCard phrase={reminderCard} noteTitle={noteTitle}
@@ -2905,6 +2948,7 @@ export default function Dashboard() {
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
             neuronOpen={neuronOpen} onNeuronToggle={() => setNeuronOpen(v => !v)}
             onOpenPatternLibrary={openPatternLibrary}
+            canViewPatternLibrary={canViewPatternLibrary}
             isMobile={isMobile} />
         </>
       )}
@@ -2946,7 +2990,7 @@ export default function Dashboard() {
           onScrollToMessage={() => {}}
         />
       )}
-      {echoBadgeVisible && (
+      {canViewPatternLibrary && echoBadgeVisible && (
         <div
           onClick={() => { openPatternLibrary(); setEchoBadgeVisible(false) }}
           style={{
