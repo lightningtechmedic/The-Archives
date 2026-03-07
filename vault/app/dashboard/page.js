@@ -1640,6 +1640,7 @@ export default function Dashboard() {
   const userRef = useRef(null)
   const scribePendingApprovalRef = useRef(false)
   const lastHumanMsgIdRef = useRef(null)
+  const lastScribeMsgIdRef = useRef(null)
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { aiLockedRef.current = aiLocked }, [aiLocked])
@@ -1664,6 +1665,22 @@ export default function Dashboard() {
     }
   }
 
+  // ── Message fetch (maps reply_to_id → replyToId) ──
+  async function fetchMessages(uid, enclaveId) {
+    const sb = getSupabase()
+    const resolvedUid = uid ?? userRef.current?.id
+    let q = sb.from('messages').select('*').order('created_at', { ascending: true }).limit(100)
+    if (enclaveId) {
+      q = q.eq('enclave_id', enclaveId)
+    } else {
+      if (!resolvedUid) return
+      q = q.is('enclave_id', null).eq('user_id', resolvedUid)
+    }
+    const { data, error } = await q
+    if (error) { console.error('[fetchMessages]', error); return }
+    setMessages((data || []).map(m => ({ ...m, replyToId: m.reply_to_id || null })))
+  }
+
   // ── Enclave helpers ──
   async function switchActiveEnclave(id) {
     setActiveEnclaveId(id)
@@ -1674,20 +1691,11 @@ export default function Dashboard() {
     const sb = getSupabase()
     const uid = userRef.current?.id
     if (id) {
-      const [{ data: msgs }] = await Promise.all([
-        sb.from('messages').select('*').eq('enclave_id', id).order('created_at', { ascending: true }).limit(100),
-        loadEnclaveData(id),
-      ])
-      setMessages(msgs || [])
+      await Promise.all([fetchMessages(uid, id), loadEnclaveData(id)])
     } else {
       setEnclaveNotes([])
       setActiveEnclaveMembers([])
-      if (uid) {
-        const { data: msgs } = await sb.from('messages').select('*')
-          .is('enclave_id', null).eq('user_id', uid)
-          .order('created_at', { ascending: true }).limit(100)
-        setMessages(msgs || [])
-      }
+      await fetchMessages(uid, null)
     }
   }
 
@@ -1721,10 +1729,9 @@ export default function Dashboard() {
     async function init(u) {
       try {
         const sb = getSupabase()
-        const [{ data: prof }, { data: profs }, { data: msgs }, { data: myNotes }, { data: sNotes }] = await Promise.all([
+        const [{ data: prof }, { data: profs }, { data: myNotes }, { data: sNotes }] = await Promise.all([
           sb.from('profiles').select('*').eq('id', u.id).single(),
           sb.from('profiles').select('*'),
-          sb.from('messages').select('*').is('enclave_id', null).eq('user_id', u.id).order('created_at', { ascending: true }).limit(100),
           sb.from('notes').select('*').eq('user_id', u.id).order('updated_at', { ascending: false }),
           sb.from('notes')
             .select('id,title,content,user_id,is_shared,visibility,created_at,updated_at')
@@ -1735,7 +1742,7 @@ export default function Dashboard() {
         if (!active) return
 
         setUser(u); setProfile(prof); setAllProfiles(profs || [])
-        setMessages(msgs || []); setNotes(myNotes || []); setSharedNotes(sNotes || [])
+        setNotes(myNotes || []); setSharedNotes(sNotes || [])
         if (!prof?.display_name) setNeedsName(true)
         if (!u.user_metadata?.has_seen_welcome) setShowWelcome(true)
         if (myNotes?.length > 0) openNote(myNotes[0])
@@ -1755,11 +1762,10 @@ export default function Dashboard() {
           activeEnclaveIdRef.current = savedEnclaveId
           if (active) {
             await loadEnclaveData(savedEnclaveId)
-            const { data: eMsgs } = await sb.from('messages').select('*')
-              .eq('enclave_id', savedEnclaveId)
-              .order('created_at', { ascending: true }).limit(100)
-            if (active) setMessages(eMsgs || [])
+            if (active) await fetchMessages(u.id, savedEnclaveId)
           }
+        } else {
+          await fetchMessages(u.id, null)
         }
 
         // Restore scribe active state from localStorage
@@ -1786,7 +1792,7 @@ export default function Dashboard() {
             } else {
               if (msg.enclave_id !== null || msg.user_id !== uid) return
             }
-            setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg])
+            setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, { ...msg, replyToId: msg.reply_to_id || null }])
           }).subscribe()
 
         const pc = sb.channel('online-users', { config: { presence: { key: u.id } } })
@@ -2112,7 +2118,7 @@ export default function Dashboard() {
 
     const { data: saved } = await getSupabase().from('messages').insert({
       user_id: userRef.current?.id, display_name: meta.label, content: text, role: model,
-      enclave_id: activeEnclaveIdRef.current,
+      enclave_id: activeEnclaveIdRef.current, reply_to_id: replyToId || null,
     }).select().single()
     const final = saved || { id: tempId, role: model, display_name: meta.label, content: text }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, isReaction: true, isCrossReaction, replyToId } : m))
@@ -2162,8 +2168,9 @@ export default function Dashboard() {
     setThinking(null)
     if (model === 'scribe')  { setScribeState('done'); setTimeout(() => setScribeState('idle'), 850) }
     if (model === 'steward') setTimeout(() => setStewardAvatarState('idle'), 1500)
-    const { data: saved } = await getSupabase().from('messages').insert({ user_id: userRef.current?.id, display_name: meta.label, content: text, role: model, enclave_id: activeEnclaveIdRef.current }).select().single()
+    const { data: saved } = await getSupabase().from('messages').insert({ user_id: userRef.current?.id, display_name: meta.label, content: text, role: model, enclave_id: activeEnclaveIdRef.current, reply_to_id: replyToId || null }).select().single()
     const final = saved || { ...placeholder, content: text, streaming: false }
+    if (model === 'scribe' && final.id) lastScribeMsgIdRef.current = final.id
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, replyToId } : m))
     return { ...final, replyToId }
   }
@@ -2221,6 +2228,7 @@ export default function Dashboard() {
           content: agent.line,
           role: agent.role,
           enclave_id: activeEnclaveIdRef.current,
+          reply_to_id: lastHumanMsgIdRef.current || null,
         }).select().single()
         const msg = saved || { id: `${Date.now()}-rc-${agent.role}`, role: agent.role, display_name: agent.label, content: agent.line, created_at: new Date().toISOString() }
         setMessages(prev => [...prev, msg])
@@ -2368,9 +2376,21 @@ export default function Dashboard() {
     setStewardAvatarState('idle')
     pendingBuildRef.current = null
 
-    // Log the build
+    // Log the build with Neuron snapshot (The Impression)
     if (currentEstimate && activeEnclaveId) {
-      await logBuild(activeEnclaveId, user.id, pending.content, currentEstimate.estimate_cents, currentEstimate.reasoning)
+      const snapshot = {
+        nodes: messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          contentPreview: m.content?.substring(0, 80),
+          replyToId: m.replyToId || m.reply_to_id || null,
+          timestamp: m.created_at,
+        })),
+        capturedAt: new Date().toISOString(),
+        agentsPresent: [...new Set(messages.map(m => m.role))],
+        messageCount: messages.length,
+      }
+      await logBuild(activeEnclaveId, user.id, pending.content, currentEstimate.estimate_cents, currentEstimate.reasoning, snapshot)
     }
 
     // Continue AI flow
@@ -2406,12 +2426,13 @@ export default function Dashboard() {
     setAwaitingStewardEstimate(false)
     setStewardEstimate(null)
     setStewardAvatarState('idle')
+    const _rejectReplyId = pendingBuildRef.current?.humanMsgId ?? null
     pendingBuildRef.current = null
     scribePendingApprovalRef.current = false
     const rejectionMsg = "Rejected. The numbers don't support it — or the timing doesn't. Come back when one of those changes."
     const { data } = await getSupabase().from('messages').insert({
       user_id: userRef.current?.id, display_name: 'The Steward', content: rejectionMsg, role: 'steward',
-      enclave_id: activeEnclaveIdRef.current,
+      enclave_id: activeEnclaveIdRef.current, reply_to_id: _rejectReplyId,
     }).select().single()
     if (data) setMessages(prev => [...prev, data])
   }
@@ -2442,7 +2463,7 @@ export default function Dashboard() {
     if (model === 'claude') setArchitectState('processing')
     if (model === 'gpt') { setSparkState('excited'); setTimeout(() => setSparkState('idle'), 1500) }
     const { noteContext, publicNotes } = await buildNoteContext()
-    await triggerAI(model, [...historyRef.current], noteContext, publicNotes)
+    await triggerAI(model, [...historyRef.current], noteContext, publicNotes, {}, lastHumanMsgIdRef.current)
     if (model === 'claude') setArchitectState('idle')
     setAiLocked(false)
   }
@@ -2512,7 +2533,7 @@ export default function Dashboard() {
     const exitMsg = "Stepping back. The work is done — or I'm here when you're ready."
     getSupabase().from('messages').insert({
       user_id: userRef.current?.id, display_name: AI.scribe.label, content: exitMsg, role: 'scribe',
-      enclave_id: activeEnclaveIdRef.current,
+      enclave_id: activeEnclaveIdRef.current, reply_to_id: lastHumanMsgIdRef.current || null,
     }).select().single().then(({ data }) => {
       if (data) setMessages(prev => [...prev, data])
     })
@@ -2593,10 +2614,10 @@ export default function Dashboard() {
       const content = comments[Math.floor(Math.random() * comments.length)]
       const { data } = await getSupabase().from('messages').insert({
         user_id: userRef.current?.id, display_name: AI.gpt.label, content, role: 'gpt',
-        enclave_id: activeEnclaveIdRef.current,
+        enclave_id: activeEnclaveIdRef.current, reply_to_id: lastHumanMsgIdRef.current || null,
       }).select().single()
       if (data) {
-        setMessages(prev => [...prev, data])
+        setMessages(prev => [...prev, { ...data, replyToId: data.reply_to_id || null }])
         setSparkState('excited')
         setTimeout(() => setSparkState('idle'), 1800)
       }
