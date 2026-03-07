@@ -197,7 +197,7 @@ export default function EchoButton({
         {/* ── Avatar indicator ── */}
         <div
           onClick={handleAvatarClick}
-          title={hasAvatar ? `${avatarPattern}${avatarName ? ' · ' + avatarName : ''}` : 'Create your avatar'}
+          title={hasAvatar ? avatarPattern : 'Create your avatar'}
           style={{ position: 'relative', cursor: 'none', flexShrink: 0 }}
         >
           <div style={{
