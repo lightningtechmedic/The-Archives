@@ -334,16 +334,16 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
           const agA = agPos[br.agentA], agB = agPos[br.agentB]
           const through = byId.get(br.through)
           if (!agA || !agB || !through) continue
-          const pulse = 0.4 + 0.6 * Math.sin(t * 1.2 + agA.rgb[0] * 0.01)
-          const alpha = br.strength * pulse * 0.35
+          const pulse = 0.5 + 0.5 * Math.sin(t * 1.2 + agA.rgb[0] * 0.01)
+          const alpha = Math.max(0.3, br.strength * pulse * 0.5)
           const [r, g, b] = blendConceptColor(through)
           const grad = ctx.createLinearGradient(agA.px, agA.py, agB.px, agB.py)
-          grad.addColorStop(0, `rgba(${agA.rgb[0]},${agA.rgb[1]},${agA.rgb[2]},${alpha})`)
-          grad.addColorStop(0.5, `rgba(${r|0},${g|0},${b|0},${alpha * 1.6})`)
-          grad.addColorStop(1, `rgba(${agB.rgb[0]},${agB.rgb[1]},${agB.rgb[2]},${alpha})`)
+          grad.addColorStop(0,   `rgba(${agA.rgb[0]},${agA.rgb[1]},${agA.rgb[2]},${alpha})`)
+          grad.addColorStop(0.5, `rgba(${r|0},${g|0},${b|0},${Math.min(alpha * 1.8, 0.7)})`)
+          grad.addColorStop(1,   `rgba(${agB.rgb[0]},${agB.rgb[1]},${agB.rgb[2]},${alpha})`)
           ctx.beginPath()
           ctx.strokeStyle = grad
-          ctx.lineWidth = 1.2 + br.strength
+          ctx.lineWidth = Math.max(1.5, 1.5 + br.strength * 1.2)
           ctx.moveTo(agA.px, agA.py)
           ctx.quadraticCurveTo(through.px, through.py, agB.px, agB.py)
           ctx.stroke()
@@ -368,56 +368,62 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
           }
         }
 
-        // ── 5. Concept blooms ──
+        // ── 5. Concept blooms — pure radial gradient, no hard edge ──
         for (const c of resolved) {
           const engaged = c.engagements.length
           const pulse = 0.55 + 0.45 * Math.sin(t * 2 + c.phase)
           const bloomR = c.baseSize * (1 + engaged * 0.25)
           const [r, g, b] = blendConceptColor(c)
 
-          const halo = ctx.createRadialGradient(c.px, c.py, 0, c.px, c.py, bloomR * 5)
-          halo.addColorStop(0, `rgba(${r|0},${g|0},${b|0},${0.12 * pulse})`)
-          halo.addColorStop(0.4, `rgba(${r|0},${g|0},${b|0},${0.06 * pulse})`)
-          halo.addColorStop(1, `rgba(${r|0},${g|0},${b|0},0)`)
+          // Outer halo — wider (×6), lower opacity than agents
+          const halo = ctx.createRadialGradient(c.px, c.py, 0, c.px, c.py, bloomR * 6)
+          halo.addColorStop(0,   `rgba(${r|0},${g|0},${b|0},${0.18 * pulse})`)
+          halo.addColorStop(0.3, `rgba(${r|0},${g|0},${b|0},${0.09 * pulse})`)
+          halo.addColorStop(0.7, `rgba(${r|0},${g|0},${b|0},${0.03 * pulse})`)
+          halo.addColorStop(1,   `rgba(${r|0},${g|0},${b|0},0)`)
           ctx.beginPath(); ctx.fillStyle = halo
-          ctx.arc(c.px, c.py, bloomR * 5, 0, Math.PI * 2); ctx.fill()
+          ctx.arc(c.px, c.py, bloomR * 6, 0, Math.PI * 2); ctx.fill()
 
-          const inner = ctx.createRadialGradient(c.px, c.py, 0, c.px, c.py, bloomR * 1.8)
-          inner.addColorStop(0, `rgba(${r|0},${g|0},${b|0},${0.55 * pulse})`)
-          inner.addColorStop(0.6, `rgba(${r|0},${g|0},${b|0},${0.25 * pulse})`)
-          inner.addColorStop(1, `rgba(${r|0},${g|0},${b|0},0)`)
+          // Inner bloom — soft cloud, no hard circle
+          const inner = ctx.createRadialGradient(c.px, c.py, 0, c.px, c.py, bloomR * 2.2)
+          inner.addColorStop(0,   `rgba(${r|0},${g|0},${b|0},${0.38 * pulse})`)
+          inner.addColorStop(0.5, `rgba(${r|0},${g|0},${b|0},${0.16 * pulse})`)
+          inner.addColorStop(1,   `rgba(${r|0},${g|0},${b|0},0)`)
           ctx.beginPath(); ctx.fillStyle = inner
-          ctx.arc(c.px, c.py, bloomR * 1.8, 0, Math.PI * 2); ctx.fill()
+          ctx.arc(c.px, c.py, bloomR * 2.2, 0, Math.PI * 2); ctx.fill()
 
+          // Core — barely a dot (×0.3)
           ctx.beginPath()
-          ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${0.75 + 0.25 * pulse})`
-          ctx.arc(c.px, c.py, bloomR * 0.4, 0, Math.PI * 2); ctx.fill()
-
-          if (engaged > 1) {
-            for (let i = 1; i < Math.min(engaged, 4); i++) {
-              ctx.beginPath()
-              ctx.strokeStyle = `rgba(${r|0},${g|0},${b|0},${(0.08 - i * 0.015) * pulse})`
-              ctx.lineWidth = 0.8
-              ctx.arc(c.px, c.py, bloomR * (1 + i * 0.55), 0, Math.PI * 2); ctx.stroke()
-            }
-          }
+          ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${0.55 + 0.25 * pulse})`
+          ctx.arc(c.px, c.py, Math.max(bloomR * 0.3, 1.5), 0, Math.PI * 2); ctx.fill()
         }
       }
 
-      // ── 6. Agent nodes — backdrop only ──
+      // ── 6. Agent nodes — backdrop only — solid with hard edge ──
       if (backdrop) {
         for (const ag of Object.values(agPos)) {
           const [r, g, b] = ag.rgb
           const R = 4.5
           const pulse = 0.55 + 0.45 * Math.sin(t * 0.9)
-          const glow = ctx.createRadialGradient(ag.px, ag.py, 0, ag.px, ag.py, R * 5.5)
-          glow.addColorStop(0, `rgba(${r},${g},${b},${0.22 * pulse})`)
-          glow.addColorStop(1, `rgba(${r},${g},${b},0)`)
+
+          // Strong glow — larger and more opaque than concepts
+          const glow = ctx.createRadialGradient(ag.px, ag.py, 0, ag.px, ag.py, R * 7)
+          glow.addColorStop(0,   `rgba(${r},${g},${b},${0.38 * pulse})`)
+          glow.addColorStop(0.4, `rgba(${r},${g},${b},${0.18 * pulse})`)
+          glow.addColorStop(1,   `rgba(${r},${g},${b},0)`)
           ctx.beginPath(); ctx.fillStyle = glow
-          ctx.arc(ag.px, ag.py, R * 5.5, 0, Math.PI * 2); ctx.fill()
+          ctx.arc(ag.px, ag.py, R * 7, 0, Math.PI * 2); ctx.fill()
+
+          // Hard-edged solid core — clearly distinguishable from blooms
           ctx.beginPath()
-          ctx.fillStyle = `rgba(${r},${g},${b},${0.7 + 0.3 * pulse})`
+          ctx.fillStyle = `rgba(${r},${g},${b},${0.88 + 0.12 * pulse})`
           ctx.arc(ag.px, ag.py, R, 0, Math.PI * 2); ctx.fill()
+
+          // Crisp ring outline
+          ctx.beginPath()
+          ctx.strokeStyle = `rgba(${r},${g},${b},${0.45 * pulse})`
+          ctx.lineWidth = 1
+          ctx.arc(ag.px, ag.py, R + 2.5, 0, Math.PI * 2); ctx.stroke()
         }
       }
 
