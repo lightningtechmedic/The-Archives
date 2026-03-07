@@ -110,6 +110,37 @@ const WAKE_MESSAGES = [
   "Picking up where we left off.",
 ]
 
+// ── Concept extraction ─────────────────────────────────────────────────────────
+const CONCEPT_STOP = new Set([
+  'the','a','an','is','are','was','were','be','been','being','have','has','had',
+  'do','does','did','will','would','shall','should','may','might','can','could',
+  'it','its','this','that','these','those','i','you','we','they','he','she',
+  'of','in','on','at','to','for','with','by','from','as','but','and','or','not',
+  'so','if','when','what','how','why','where','which','who','about','just','very',
+  'more','also','than','then','into','there','here','any','all','some','no','only',
+  'really','actually','think','know','get','like','even','still','after','before',
+  'up','out','down','over','under','right','going','need','want','make','take',
+  'see','look','well','good','new','old','first','last','use','now','back','way',
+  'time','work','one','two','three','let','them','their','your','our','yes',
+])
+
+function extractConcepts(text) {
+  if (!text) return []
+  const clean = text.toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ')
+  const tokens = clean.split(/\s+/).filter(w => w.length >= 3 && !CONCEPT_STOP.has(w))
+  const phrases = []
+  for (let i = 0; i < tokens.length; i++) {
+    const next = tokens[i + 1]
+    if (next && next.length >= 3 && !CONCEPT_STOP.has(next)) {
+      phrases.push(tokens[i] + ' ' + next)
+      i++
+    } else if (tokens[i].length >= 5) {
+      phrases.push(tokens[i])
+    }
+  }
+  return [...new Set(phrases)].slice(0, 3)
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatTime(ts) {
   if (!ts) return ''
@@ -2134,6 +2165,10 @@ export default function Dashboard() {
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [thinking, setThinking] = useState(null)
+
+  // Concept layer
+  const [conceptNodes, setConceptNodes] = useState([])
+  const [conceptEdges, setConceptEdges] = useState([])
   const [aiLocked, setAiLocked] = useState(false)
   const [autoAI, setAutoAI] = useState(true)
   const [chatExpanded, setChatExpanded] = useState(false)
@@ -2796,6 +2831,7 @@ export default function Dashboard() {
     const { data: saved } = await getSupabase().from('messages').insert({ user_id: user.id, display_name: optimistic.display_name, content, role: 'human', enclave_id: activeEnclaveIdRef.current }).select().single()
     const final = saved || optimistic
     setMessages(prev => prev.map(m => m.id === tempId ? final : m))
+    ingestConcepts('human', content)
     return final
   }
 
@@ -2834,6 +2870,7 @@ export default function Dashboard() {
     const final = saved || { ...placeholder, content: text, streaming: false }
     if (model === 'scribe' && final.id) lastScribeMsgIdRef.current = final.id
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, replyToId } : m))
+    ingestConcepts(model, text)
     // Pulse backdrop on agent message arrival
     const pIdx = AGENT_PULSE_INDEX[model]
     if (pIdx !== undefined) neuronBackdropRef.current?.pulseAgent(pIdx, 1.0)
@@ -2900,6 +2937,58 @@ export default function Dashboard() {
       }, agent.delay)
     }
   }
+
+  // ── Concept ingestion ─────────────────────────────────────────────────────
+  function ingestConcepts(agentId, text) {
+    if (!text?.trim()) return
+    const phrases = extractConcepts(text)
+    if (!phrases.length) return
+    setConceptNodes(prev => {
+      const nodes = prev.map(n => ({ ...n, engagements: [...n.engagements] }))
+      for (const phrase of phrases) {
+        const idx = nodes.findIndex(n =>
+          n.label === phrase ||
+          n.label.includes(phrase) ||
+          phrase.includes(n.label)
+        )
+        if (idx >= 0) {
+          const node = nodes[idx]
+          if (!node.engagements.some(e => e.agentId === agentId)) {
+            node.engagements.push({ agentId, type: 'stated', strength: 0.6 + Math.random() * 0.4 })
+            node.baseSize = Math.min(node.baseSize + 1, 14)
+          }
+        } else {
+          nodes.push({
+            id: `c${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            label: phrase,
+            rx: 0.18 + Math.random() * 0.64,
+            ry: 0.18 + Math.random() * 0.64,
+            phase: Math.random() * Math.PI * 2,
+            baseSize: 5,
+            engagements: [{ agentId, type: 'stated', strength: 0.6 + Math.random() * 0.4 }],
+          })
+        }
+      }
+      return nodes.length > 40 ? nodes.slice(-40) : nodes
+    })
+  }
+
+  // Derive concept-concept edges: two concepts share an edge when they share an engaging agent
+  useEffect(() => {
+    if (!conceptNodes.length) return
+    const edges = []
+    for (let i = 0; i < conceptNodes.length; i++) {
+      for (let j = i + 1; j < conceptNodes.length; j++) {
+        const a = conceptNodes[i], b = conceptNodes[j]
+        const aAgents = new Set(a.engagements.map(e => e.agentId))
+        const shared = b.engagements.filter(e => aAgents.has(e.agentId)).length
+        if (shared > 0) {
+          edges.push({ a: a.id, b: b.id, strength: Math.min(shared * 0.22, 0.6) })
+        }
+      }
+    }
+    setConceptEdges(edges.sort((a, b) => b.strength - a.strength).slice(0, 60))
+  }, [conceptNodes]) // eslint-disable-line
 
   async function handleSend() {
     if (!chatInput.trim() || aiLocked) return
@@ -3321,7 +3410,7 @@ export default function Dashboard() {
   return (
     <div style={{ height:'100vh', overflow:'hidden', position:'relative' }}>
       {/* ── Neuron backdrop + vignette ── */}
-      <Neuron ref={neuronBackdropRef} backdrop messages={messages} open={false} onClose={() => {}} />
+      <Neuron ref={neuronBackdropRef} backdrop messages={messages} open={false} onClose={() => {}} concepts={conceptNodes} conceptEdges={conceptEdges} />
       <div style={{
         position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
         background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(8,7,6,0.72) 100%), linear-gradient(to bottom, rgba(8,7,6,0.55) 0%, transparent 18%, transparent 82%, rgba(8,7,6,0.55) 100%)',
@@ -3552,7 +3641,7 @@ export default function Dashboard() {
             onSignOut={handleSignOut} />
         </>
       )}
-      <Neuron messages={messages} open={neuronOpen} onScrollToMessage={handleScrollToMessage} onClose={() => setNeuronOpen(false)} />
+      <Neuron messages={messages} open={neuronOpen} onScrollToMessage={handleScrollToMessage} onClose={() => setNeuronOpen(false)} concepts={conceptNodes} conceptEdges={conceptEdges} />
       {patternLibraryOpen && (
         <PatternLibrary
           builds={patternLibraryBuilds}

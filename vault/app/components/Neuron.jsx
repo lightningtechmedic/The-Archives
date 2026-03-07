@@ -34,6 +34,60 @@ const NODE_TRIM = 20
 // Agent index 0-6 → role key (matches user spec)
 const AGENT_ROLES = ['claude', 'gpt', 'scribe', 'steward', 'advocate', 'contrarian', 'socra']
 
+// ── Concept layer — fixed % positions + RGB per agent ─────────────────────────
+const CONCEPT_AGENTS = {
+  claude:     { rgb: [212,  85,  32], x: 0.18, y: 0.38 },
+  gpt:        { rgb: [196, 144,  48], x: 0.22, y: 0.62 },
+  scribe:     { rgb: [ 88, 112, 224], x: 0.50, y: 0.78 },
+  steward:    { rgb: [160, 120,  64], x: 0.78, y: 0.62 },
+  advocate:   { rgb: [200,  96, 112], x: 0.82, y: 0.38 },
+  contrarian: { rgb: [104, 136, 160], x: 0.50, y: 0.22 },
+  socra:      { rgb: [216, 192,  96], x: 0.50, y: 0.50 },
+  human:      { rgb: [240, 236, 228], x: 0.50, y: 0.92 },
+}
+const CONCEPT_CAP   = 40
+const BRIDGE_CAP    = 21
+
+// ── Concept layer pure helpers ─────────────────────────────────────────────────
+
+function blendConceptColor(concept) {
+  const engs = concept.engagements
+  if (!engs.length) return [180, 160, 140]
+  let r = 0, g = 0, b = 0, total = 0
+  for (const e of engs) {
+    const ag = CONCEPT_AGENTS[e.agentId]
+    if (!ag) continue
+    r += ag.rgb[0] * e.strength
+    g += ag.rgb[1] * e.strength
+    b += ag.rgb[2] * e.strength
+    total += e.strength
+  }
+  if (!total) return [180, 160, 140]
+  return [r / total, g / total, b / total]
+}
+
+function computeConceptBridges(concepts) {
+  const agentIds = Object.keys(CONCEPT_AGENTS)
+  const bridges = []
+  for (let i = 0; i < agentIds.length; i++) {
+    for (let j = i + 1; j < agentIds.length; j++) {
+      const idA = agentIds[i], idB = agentIds[j]
+      const shared = concepts.filter(c =>
+        c.engagements.some(e => e.agentId === idA) &&
+        c.engagements.some(e => e.agentId === idB)
+      )
+      if (!shared.length) continue
+      const strongest = shared.slice().sort((a, b) => b.baseSize - a.baseSize)[0]
+      bridges.push({
+        agentA: idA, agentB: idB,
+        through: strongest.id,
+        strength: Math.min(shared.length * 0.25, 0.7),
+      })
+    }
+  }
+  return bridges.sort((a, b) => b.strength - a.strength).slice(0, BRIDGE_CAP)
+}
+
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
 function calcEdgePath(d) {
@@ -123,10 +177,15 @@ function formatImpressionDate(iso) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, impression, onClose, backdrop }, ref) {
+const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, impression, onClose, backdrop, concepts = [], conceptEdges = [] }, ref) {
   // ── Refs ──
   const svgRef           = useRef(null)
   const minimapRef       = useRef(null)
+  const conceptCanvasRef = useRef(null)
+  const conceptsRef      = useRef([])
+  const conceptEdgesRef  = useRef([])
+  const driftRef         = useRef([])
+  const cTimeRef         = useRef(0)
   const simRef           = useRef(null)
   const zoomRef          = useRef(null)
   const zoomContainerRef = useRef(null)
@@ -182,6 +241,195 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
   const [hiddenCount, setHiddenCount]   = useState(0)
 
   useEffect(() => { liveModeRef.current = liveMode }, [liveMode])
+  useEffect(() => { conceptsRef.current = concepts }, [concepts])
+  useEffect(() => { conceptEdgesRef.current = conceptEdges }, [conceptEdges])
+
+  // ── Concept canvas RAF ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const canvas = conceptCanvasRef.current
+    if (!canvas) return
+
+    function initDrift(W, H) {
+      const agents = Object.values(CONCEPT_AGENTS)
+      driftRef.current = Array.from({ length: 28 }, () => {
+        const ag = agents[Math.floor(Math.random() * agents.length)]
+        return {
+          x: Math.random() * W, y: Math.random() * H,
+          vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+          r: Math.random() * 1.8 + 0.6,
+          rgb: ag.rgb, phase: Math.random() * Math.PI * 2,
+        }
+      })
+    }
+
+    function resize() {
+      const W = backdrop ? window.innerWidth  : (canvas.parentElement?.offsetWidth  || WIDTH)
+      const H = backdrop ? window.innerHeight : (canvas.parentElement?.offsetHeight || 600)
+      canvas.width  = W
+      canvas.height = H
+      initDrift(W, H)
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    let rafId
+    function draw() {
+      const ctx = canvas.getContext('2d')
+      const W = canvas.width, H = canvas.height
+      if (!W || !H) { rafId = requestAnimationFrame(draw); return }
+
+      ctx.clearRect(0, 0, W, H)
+      cTimeRef.current += 0.007
+      const t = cTimeRef.current
+
+      // Resolve fixed agent positions
+      const agPos = {}
+      for (const [role, cfg] of Object.entries(CONCEPT_AGENTS)) {
+        agPos[role] = { px: cfg.x * W, py: cfg.y * H, rgb: cfg.rgb }
+      }
+
+      // Resolve concept positions with gentle drift
+      const cNodes = conceptsRef.current
+      const resolved = cNodes.map(c => ({
+        ...c,
+        px: c.rx * W + Math.sin(t * 0.4 + c.phase) * 8,
+        py: c.ry * H + Math.cos(t * 0.3 + c.phase) * 6,
+      }))
+      const byId = new Map(resolved.map(c => [c.id, c]))
+
+      // ── 1. Drift nodes ──
+      for (const n of driftRef.current) {
+        n.phase += 0.018
+        const alpha = 0.07 + 0.05 * Math.sin(n.phase)
+        ctx.beginPath()
+        ctx.fillStyle = `rgba(${n.rgb[0]},${n.rgb[1]},${n.rgb[2]},${alpha})`
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2)
+        ctx.fill()
+        n.x += n.vx; n.y += n.vy
+        if (n.x < -10) n.x = W + 10; if (n.x > W + 10) n.x = -10
+        if (n.y < -10) n.y = H + 10; if (n.y > H + 10) n.y = -10
+      }
+
+      if (resolved.length) {
+        // ── 2. Concept-concept edges ──
+        for (const e of conceptEdgesRef.current) {
+          const ca = byId.get(e.a), cb = byId.get(e.b)
+          if (!ca || !cb) continue
+          const alpha = e.strength * 0.18 * (0.5 + 0.5 * Math.sin(t + (ca.phase || 0)))
+          const mx = (ca.px + cb.px) / 2 + Math.sin(t * 0.5) * 20
+          const my = (ca.py + cb.py) / 2 + Math.cos(t * 0.4) * 15
+          ctx.beginPath()
+          ctx.setLineDash([4, 6])
+          ctx.strokeStyle = `rgba(255,248,238,${alpha})`
+          ctx.lineWidth = 0.8
+          ctx.moveTo(ca.px, ca.py)
+          ctx.quadraticCurveTo(mx, my, cb.px, cb.py)
+          ctx.stroke()
+          ctx.setLineDash([])
+        }
+
+        // ── 3. Agent bridges ──
+        const bridges = computeConceptBridges(cNodes)
+        for (const br of bridges) {
+          const agA = agPos[br.agentA], agB = agPos[br.agentB]
+          const through = byId.get(br.through)
+          if (!agA || !agB || !through) continue
+          const pulse = 0.4 + 0.6 * Math.sin(t * 1.2 + agA.rgb[0] * 0.01)
+          const alpha = br.strength * pulse * 0.35
+          const [r, g, b] = blendConceptColor(through)
+          const grad = ctx.createLinearGradient(agA.px, agA.py, agB.px, agB.py)
+          grad.addColorStop(0, `rgba(${agA.rgb[0]},${agA.rgb[1]},${agA.rgb[2]},${alpha})`)
+          grad.addColorStop(0.5, `rgba(${r|0},${g|0},${b|0},${alpha * 1.6})`)
+          grad.addColorStop(1, `rgba(${agB.rgb[0]},${agB.rgb[1]},${agB.rgb[2]},${alpha})`)
+          ctx.beginPath()
+          ctx.strokeStyle = grad
+          ctx.lineWidth = 1.2 + br.strength
+          ctx.moveTo(agA.px, agA.py)
+          ctx.quadraticCurveTo(through.px, through.py, agB.px, agB.py)
+          ctx.stroke()
+        }
+
+        // ── 4. Agent→concept edges ──
+        for (const c of resolved) {
+          for (const e of c.engagements) {
+            const ag = agPos[e.agentId]
+            if (!ag) continue
+            const pulse = 0.5 + 0.5 * Math.sin(t * 1.5 + ag.rgb[0] * 0.02)
+            const alpha = e.strength * pulse * (e.type === 'stated' ? 0.28 : 0.16)
+            ctx.beginPath()
+            if (e.type === 'question') ctx.setLineDash([3, 5])
+            else ctx.setLineDash([])
+            ctx.strokeStyle = `rgba(${ag.rgb[0]},${ag.rgb[1]},${ag.rgb[2]},${alpha})`
+            ctx.lineWidth = e.strength * (e.type === 'stated' ? 1.2 : 0.7)
+            ctx.moveTo(ag.px, ag.py)
+            ctx.lineTo(c.px, c.py)
+            ctx.stroke()
+            ctx.setLineDash([])
+          }
+        }
+
+        // ── 5. Concept blooms ──
+        for (const c of resolved) {
+          const engaged = c.engagements.length
+          const pulse = 0.55 + 0.45 * Math.sin(t * 2 + c.phase)
+          const bloomR = c.baseSize * (1 + engaged * 0.25)
+          const [r, g, b] = blendConceptColor(c)
+
+          const halo = ctx.createRadialGradient(c.px, c.py, 0, c.px, c.py, bloomR * 5)
+          halo.addColorStop(0, `rgba(${r|0},${g|0},${b|0},${0.12 * pulse})`)
+          halo.addColorStop(0.4, `rgba(${r|0},${g|0},${b|0},${0.06 * pulse})`)
+          halo.addColorStop(1, `rgba(${r|0},${g|0},${b|0},0)`)
+          ctx.beginPath(); ctx.fillStyle = halo
+          ctx.arc(c.px, c.py, bloomR * 5, 0, Math.PI * 2); ctx.fill()
+
+          const inner = ctx.createRadialGradient(c.px, c.py, 0, c.px, c.py, bloomR * 1.8)
+          inner.addColorStop(0, `rgba(${r|0},${g|0},${b|0},${0.55 * pulse})`)
+          inner.addColorStop(0.6, `rgba(${r|0},${g|0},${b|0},${0.25 * pulse})`)
+          inner.addColorStop(1, `rgba(${r|0},${g|0},${b|0},0)`)
+          ctx.beginPath(); ctx.fillStyle = inner
+          ctx.arc(c.px, c.py, bloomR * 1.8, 0, Math.PI * 2); ctx.fill()
+
+          ctx.beginPath()
+          ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${0.75 + 0.25 * pulse})`
+          ctx.arc(c.px, c.py, bloomR * 0.4, 0, Math.PI * 2); ctx.fill()
+
+          if (engaged > 1) {
+            for (let i = 1; i < Math.min(engaged, 4); i++) {
+              ctx.beginPath()
+              ctx.strokeStyle = `rgba(${r|0},${g|0},${b|0},${(0.08 - i * 0.015) * pulse})`
+              ctx.lineWidth = 0.8
+              ctx.arc(c.px, c.py, bloomR * (1 + i * 0.55), 0, Math.PI * 2); ctx.stroke()
+            }
+          }
+        }
+      }
+
+      // ── 6. Agent nodes — backdrop only ──
+      if (backdrop) {
+        for (const ag of Object.values(agPos)) {
+          const [r, g, b] = ag.rgb
+          const R = 4.5
+          const pulse = 0.55 + 0.45 * Math.sin(t * 0.9)
+          const glow = ctx.createRadialGradient(ag.px, ag.py, 0, ag.px, ag.py, R * 5.5)
+          glow.addColorStop(0, `rgba(${r},${g},${b},${0.22 * pulse})`)
+          glow.addColorStop(1, `rgba(${r},${g},${b},0)`)
+          ctx.beginPath(); ctx.fillStyle = glow
+          ctx.arc(ag.px, ag.py, R * 5.5, 0, Math.PI * 2); ctx.fill()
+          ctx.beginPath()
+          ctx.fillStyle = `rgba(${r},${g},${b},${0.7 + 0.3 * pulse})`
+          ctx.arc(ag.px, ag.py, R, 0, Math.PI * 2); ctx.fill()
+        }
+      }
+
+      rafId = requestAnimationFrame(draw)
+    }
+    rafId = requestAnimationFrame(draw)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', resize)
+    }
+  }, [backdrop]) // eslint-disable-line
 
   // ── Keyframes inject ──
   useEffect(() => {
@@ -911,6 +1159,7 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
         <svg ref={svgRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+        <canvas ref={conceptCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
       </div>
     )
   }
@@ -1036,6 +1285,7 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
       {/* Graph area */}
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <svg ref={svgRef} style={{ display: 'block', width: '100%', height: '100%', filter: isImpression ? 'saturate(0.82)' : 'none' }} />
+        <canvas ref={conceptCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
 
         {/* Empty state */}
         {isEmpty && (
