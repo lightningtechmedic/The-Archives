@@ -773,6 +773,133 @@ function StewardEstimateCard({ estimate, stewardState, onApprove, onReject, onAs
   )
 }
 
+// ── Left Nav (v8) ─────────────────────────────────────────────────────────────
+function NavSectionHead({ label, open, onToggle, accent }) {
+  return (
+    <div onClick={onToggle} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.4rem .75rem .2rem', cursor:'none', userSelect:'none' }}>
+      <span style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.22em', textTransform:'uppercase', color: accent || 'var(--muted)' }}>{label}</span>
+      <span style={{ fontSize:'.5rem', opacity:.4, transform: open ? 'none' : 'rotate(-90deg)', display:'inline-block', transition:'transform .2s', color: accent || 'var(--muted)' }}>▾</span>
+    </div>
+  )
+}
+
+function NavNoteItem({ note, active, onClick }) {
+  return (
+    <div onClick={onClick}
+      style={{ padding:'.28rem .75rem .28rem 1rem', borderLeft: active ? '2px solid var(--ember)' : '2px solid transparent', background: active ? 'rgba(212,84,26,0.07)' : 'transparent', cursor:'none', transition:'background .12s' }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.025)' }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
+      <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.82rem', color: active ? 'var(--text)' : 'var(--mid)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.3, margin:0 }}>
+        {note.title || 'Untitled'}
+      </p>
+    </div>
+  )
+}
+
+function LeftNav({ enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, enclaveNotes, notes, activeNoteId, onOpenNote, onNewNote, notesSearch, setNotesSearch }) {
+  const [enclavesOpen, setEnclavesOpen] = useState(true)
+  const [enclaveNotesOpen, setEnclaveNotesOpen] = useState(true)
+  const [personalOpen, setPersonalOpen] = useState(true)
+  const activeEnclave = enclaves.find(e => e.id === activeEnclaveId) || null
+
+  return (
+    <nav className="v8-leftnav">
+      {/* Search */}
+      <div style={{ padding:'.5rem .6rem', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        <input type="text" value={notesSearch} onChange={e => setNotesSearch(e.target.value)}
+          placeholder="Search…"
+          style={{ width:'100%', background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:'3px', color:'var(--text)', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.04em', padding:'.3rem .55rem', outline:'none', transition:'border-color .2s' }}
+          onFocus={e => e.target.style.borderColor = 'rgba(212,84,26,0.3)'}
+          onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto' }}>
+        {/* Enclaves */}
+        <NavSectionHead label="Enclaves" open={enclavesOpen} onToggle={() => setEnclavesOpen(v => !v)} />
+        {enclavesOpen && (
+          <div style={{ paddingBottom:'.2rem' }}>
+            <div onClick={() => onEnclaveSwitch(null)}
+              style={{ padding:'.28rem .75rem .28rem 1rem', borderLeft: !activeEnclaveId ? '2px solid var(--border-h)' : '2px solid transparent', background: !activeEnclaveId ? 'rgba(255,255,255,0.03)' : 'transparent', cursor:'none', display:'flex', alignItems:'center', gap:'.4rem', transition:'background .12s' }}
+              onMouseEnter={e => { if (activeEnclaveId) e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
+              onMouseLeave={e => { if (activeEnclaveId) e.currentTarget.style.background = 'transparent' }}>
+              <span style={{ width:4, height:4, borderRadius:'50%', background: !activeEnclaveId ? 'var(--mid)' : 'rgba(255,255,255,0.18)', flexShrink:0 }} />
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.06em', textTransform:'uppercase', color: !activeEnclaveId ? 'var(--mid)' : 'var(--muted)' }}>Personal</span>
+            </div>
+            {enclaves.map(e => (
+              <div key={e.id} onClick={() => onEnclaveSwitch(e.id)}
+                style={{ padding:'.28rem .75rem .28rem 1rem', borderLeft: activeEnclaveId === e.id ? '2px solid var(--ember)' : '2px solid transparent', background: activeEnclaveId === e.id ? 'rgba(212,84,26,0.07)' : 'transparent', cursor:'none', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.4rem', transition:'background .12s' }}
+                onMouseEnter={ev => { if (activeEnclaveId !== e.id) ev.currentTarget.style.background = 'rgba(212,84,26,0.03)' }}
+                onMouseLeave={ev => { if (activeEnclaveId !== e.id) ev.currentTarget.style.background = 'transparent' }}>
+                <span style={{ display:'flex', alignItems:'center', gap:'.4rem', minWidth:0 }}>
+                  <span style={{ fontSize:'.48rem', color: activeEnclaveId === e.id ? 'var(--ember)' : 'rgba(212,84,26,0.35)', flexShrink:0 }}>◆</span>
+                  <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.04em', textTransform:'uppercase', color: activeEnclaveId === e.id ? 'var(--ember)' : 'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.name}</span>
+                </span>
+                {activeEnclaveId === e.id && (
+                  <span onClick={ev => { ev.stopPropagation(); onEnclaveSettings() }}
+                    style={{ fontSize:'.6rem', opacity:.25, transition:'opacity .15s', flexShrink:0 }}
+                    onMouseEnter={ev => ev.currentTarget.style.opacity = '.85'}
+                    onMouseLeave={ev => ev.currentTarget.style.opacity = '.25'}>⚙</span>
+                )}
+              </div>
+            ))}
+            <div onClick={onCreateEnclave}
+              style={{ padding:'.22rem .75rem .22rem 1rem', cursor:'none', opacity:.5, transition:'opacity .15s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.08em', color:'var(--ember)' }}>+ new enclave</span>
+            </div>
+          </div>
+        )}
+
+        <div style={{ height:1, background:'var(--border)', margin:'.2rem 0' }} />
+
+        {/* Enclave notes */}
+        {activeEnclave && (<>
+          <NavSectionHead label={activeEnclave.name} open={enclaveNotesOpen} onToggle={() => setEnclaveNotesOpen(v => !v)} accent="var(--ember)" />
+          {enclaveNotesOpen && (
+            <div style={{ paddingBottom:'.2rem' }}>
+              {enclaveNotes.length === 0
+                ? <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.78rem', color:'var(--muted)', padding:'.2rem .75rem .3rem', fontStyle:'italic', margin:0 }}>No shared notes yet.</p>
+                : enclaveNotes.map(note => <NavNoteItem key={note.id} note={note} active={note.id === activeNoteId} onClick={() => onOpenNote(note)} />)
+              }
+            </div>
+          )}
+          <div style={{ height:1, background:'var(--border)', margin:'.2rem 0' }} />
+        </>)}
+
+        {/* Personal notes */}
+        <NavSectionHead label="Personal" open={personalOpen} onToggle={() => setPersonalOpen(v => !v)} />
+        {personalOpen && (
+          <div style={{ paddingBottom:'.2rem' }}>
+            {notes.length === 0
+              ? <p style={{ fontFamily:'var(--font-caveat)', fontSize:'.78rem', color:'var(--muted)', padding:'.2rem .75rem .3rem', fontStyle:'italic', margin:0 }}>No notes yet.</p>
+              : notes.map(note => <NavNoteItem key={note.id} note={note} active={note.id === activeNoteId} onClick={() => onOpenNote(note)} />)
+            }
+            <div onClick={onNewNote}
+              style={{ padding:'.22rem .75rem .25rem', cursor:'none', opacity:.55, transition:'opacity .15s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.95'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}>
+              <span style={{ fontFamily:'var(--font-caveat)', fontSize:'.88rem', color:'var(--ember)' }}>+ new note</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom actions */}
+      {activeEnclaveId && (
+        <div style={{ borderTop:'1px solid var(--border)', padding:'.4rem .6rem', flexShrink:0 }}>
+          <button onClick={onEnclaveSettings}
+            style={{ width:'100%', padding:'.3rem .5rem', background:'transparent', border:'1px solid var(--border)', borderRadius:'3px', color:'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.12em', textTransform:'uppercase', transition:'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+            ⚙ Enclave Settings
+          </button>
+        </div>
+      )}
+    </nav>
+  )
+}
+
 // ── TopBar ────────────────────────────────────────────────────────────────────
 // ── Mobile components ─────────────────────────────────────────────────────────
 function MobileBottomNav({ mobileMode, onModeChange, boardCount, onMenuOpen }) {
@@ -873,7 +1000,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -919,37 +1046,30 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
     textTransform:'uppercase', transition:'all .2s', whiteSpace:'nowrap',
   }
   return (
-    <div className="topbar">
-      {/* Left: brand + switcher */}
-      <div style={{ display:'flex', alignItems:'center', gap:'.75rem', flexShrink:0 }}>
+    <div className={v8 ? 'topbar-v8' : 'topbar'}>
+      {/* Left: brand section (220px wide in v8 to align with LeftNav) */}
+      <div style={{ display:'flex', alignItems:'center', gap:'.55rem', flexShrink:0, ...(v8 ? { width:220, paddingRight:'.75rem', borderRight:'1px solid var(--border)' } : {}) }}>
         <div style={{ display:'flex', alignItems:'center', gap:'.55rem' }}>
           <div className="ember-pip" />
-          <span style={{ fontFamily:'var(--font-serif)', fontSize:'1.1rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', whiteSpace:'nowrap' }}>
+          <span style={{ fontFamily:'var(--font-serif)', fontSize: v8 ? '.95rem' : '1.1rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', whiteSpace:'nowrap' }}>
             The <em style={{ color:'var(--ember)' }}>Vault</em>
           </span>
         </div>
-        <div style={{ width:1, height:18, background:'rgba(255,255,255,0.08)', flexShrink:0 }} />
-        <EnclaveSwitcher enclaves={enclaves} activeEnclaveId={activeEnclaveId}
-          onSwitch={onEnclaveSwitch} onCreateNew={onCreateEnclave} onSettings={onEnclaveSettings} />
+        {!v8 && <>
+          <div style={{ width:1, height:18, background:'rgba(255,255,255,0.08)', flexShrink:0 }} />
+          <EnclaveSwitcher enclaves={enclaves} activeEnclaveId={activeEnclaveId}
+            onSwitch={onEnclaveSwitch} onCreateNew={onCreateEnclave} onSettings={onEnclaveSettings} />
+        </>}
       </div>
 
-      {/* Center: note title (desktop) or mode toggle (mobile) */}
-      <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', pointerEvents: isMobile ? 'auto' : 'none' }}>
-        {isMobile ? (
-          <div style={{ display:'flex', gap:3 }}>
-            {[{ id:'dashboard', label:'Dashboard' }, { id:'voice', label:'🎙 Voice' }].map(opt => (
-              <button key={opt.id} onClick={() => onMobileModeChange(opt.id)} style={{
-                padding:'.28rem .65rem', borderRadius:'3px',
-                fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase',
-                background: mobileMode === opt.id ? 'var(--ember)' : 'transparent',
-                color: mobileMode === opt.id ? '#fff' : 'var(--muted)',
-                border: mobileMode === opt.id ? '1px solid transparent' : '1px solid rgba(212,84,26,0.4)',
-                transition:'all .2s', cursor:'pointer',
-              }}>{opt.label}</button>
-            ))}
-          </div>
+      {/* Center: breadcrumb */}
+      <div style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center', pointerEvents:'none' }}>
+        {v8 ? (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'320px', opacity:.6, margin:0 }}>
+            {noteTitle || 'Untitled'}
+          </p>
         ) : (
-          <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center', maxWidth:'280px' }}>
+          <p style={{ fontFamily:'var(--font-caveat)', fontSize:'1.1rem', color:'var(--muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'center', maxWidth:'280px', margin:0 }}>
             {noteTitle || 'Untitled'}
           </p>
         )}
@@ -957,12 +1077,14 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
 
       {/* Right: actions */}
       <div style={{ display:'flex', alignItems:'center', gap:'.55rem', flexShrink:0 }}>
-        <button onClick={onNotesToggle} data-hover style={tbBtn}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
-          Notes
-          {notesCount > 0 && <span style={{ background:'var(--ember)', color:'#0b0a08', borderRadius:'3px', padding:'0 .3rem', fontSize:'.52rem', fontWeight:700, lineHeight:'1.35' }}>{notesCount}</span>}
-        </button>
+        {!v8 && (
+          <button onClick={onNotesToggle} data-hover style={tbBtn}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+            Notes
+            {notesCount > 0 && <span style={{ background:'var(--ember)', color:'#0b0a08', borderRadius:'3px', padding:'0 .3rem', fontSize:'.52rem', fontWeight:700, lineHeight:'1.35' }}>{notesCount}</span>}
+          </button>
+        )}
         <button onClick={() => { window.location.href = '/vault/board' }} data-hover style={tbBtn}
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-h)'; e.currentTarget.style.color = 'var(--text)' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
@@ -1112,7 +1234,7 @@ function ScrapbookImage({ img, onCaption, onRemove }) {
 }
 
 // ── Full Screen Editor ─────────────────────────────────────────────────────────
-function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent, noteImages, setNoteImages, noteVisibility, onVisibilityToggle, saveStatus, user, supabase, chatHeight, contentRef, detectedReminders, onReminderClick, onImageUploaded, activeEnclave }) {
+function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent, noteImages, setNoteImages, noteVisibility, onVisibilityToggle, saveStatus, user, supabase, chatHeight, contentRef, detectedReminders, onReminderClick, onImageUploaded, activeEnclave, topPad = '56px' }) {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
   const isEnclave = noteVisibility === 'enclave'
@@ -1133,7 +1255,7 @@ function FullScreenEditor({ noteTitle, setNoteTitle, noteContent, setNoteContent
       onDragOver={e => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
       onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) uploadImage(f) }}
-      style={{ position:'relative', flex:1, display:'flex', flexDirection:'column', alignItems:'center', paddingTop:'56px', paddingBottom: chatHeight + 64 + 'px', overflow:'hidden' }}
+      style={{ position:'relative', flex:1, display:'flex', flexDirection:'column', alignItems:'center', paddingTop: topPad, paddingBottom: chatHeight + 64 + 'px', overflow:'hidden' }}
     >
       {/* Ghost watermark */}
       <div style={{ position:'absolute', top:'15%', left:'50%', transform:'translateX(-50%)', fontSize:'22vw', fontFamily:'var(--font-serif)', fontWeight:300, fontStyle:'italic', color:'var(--ember)', opacity:.042, pointerEvents:'none', userSelect:'none', zIndex:0 }}>
@@ -1643,6 +1765,177 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
   )
 }
 
+// ── Right Lattice (v8 permanent column) ──────────────────────────────────────
+function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState }) {
+  const role = msg.role === 'user' ? 'human' : msg.role
+  const isArchitect  = role === 'claude'
+  const isSpark      = role === 'gpt'
+  const isScribe     = role === 'scribe'
+  const isSteward    = role === 'steward'
+  const isAdvocate   = role === 'advocate'
+  const isContrarian = role === 'contrarian'
+  const isAI = isArchitect || isSpark || isScribe || isSteward || isAdvocate || isContrarian
+  const isReaction = !!msg.isReaction
+  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : isAdvocate ? AI.advocate : isContrarian ? AI.contrarian : null
+  const prof = allProfiles?.find(p => p.id === msg.user_id)
+  const isMe = msg.user_id === currentUserId
+  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : (msg.display_name || prof?.display_name || 'Team')
+
+  let avatar
+  if (isArchitect)         avatar = <AvatarArchitect size={34} state={architectState} />
+  else if (isSpark)        avatar = <AvatarSpark size={34} state={sparkState} />
+  else if (isScribe)       avatar = <AvatarScribe size={34} state={scribeState} />
+  else if (isSteward)      avatar = <AvatarSteward size={34} state={stewardState || 'idle'} />
+  else if (isAdvocate)     avatar = <AvatarAdvocate size={34} state={advocateState || 'idle'} />
+  else if (isContrarian)   avatar = <AvatarContrarian size={34} state={contrarianState || 'idle'} />
+  else if (isSmara(prof))  avatar = <AvatarSmara size={34} />
+  else if (isMe)           avatar = <AvatarYou size={34} state={yourState} />
+  else                     avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={34} />
+
+  return (
+    <div style={{
+      display:'flex', gap:'.5rem', alignItems:'flex-start',
+      borderLeft: isAI ? `2px solid ${aiMeta.border}` : `2px solid rgba(58,212,200,0.12)`,
+      paddingLeft: isReaction ? '1rem' : '.45rem',
+      marginLeft: isReaction ? '.5rem' : '-.45rem',
+      background: isScribe ? 'rgba(10,12,20,0.5)' : isReaction ? 'rgba(255,255,255,0.01)' : 'transparent',
+      borderRadius: isScribe || isReaction ? '2px' : 0,
+      opacity: isReaction ? 0.82 : 1,
+    }}>
+      <div style={{ flexShrink:0, marginTop:'.1rem' }}>{avatar}</div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ display:'flex', alignItems:'baseline', gap:'.45rem', marginBottom:'.15rem' }}>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', textTransform:'uppercase', color: aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.55)') }}>
+            {isReaction ? `${label} ↩` : label}
+          </span>
+          <span className="msg-timestamp">{formatTime(msg.inserted_at || msg.created_at)}</span>
+        </div>
+        <p style={{ fontFamily:'var(--font-serif)', fontStyle:'italic', fontSize:'.92rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.6, whiteSpace:'pre-wrap', wordBreak:'break-word', margin:0 }}>
+          {msg.content}
+          {msg.streaming && <span style={{ color: aiMeta?.color || 'var(--ember)', marginLeft:1 }} className="animate-pulse-slow">▋</span>}
+        </p>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:2, flexShrink:0 }}>
+        <button className={`pin-btn${isPinned ? ' pinned' : ''}`} onClick={() => onPin(msg)} title="Pin to note">
+          {isPinned ? '📌' : '📍'}
+        </button>
+        {onPinToBoard && (
+          <button onClick={() => onPinToBoard(msg)} title="Pin to board"
+            style={{ background:'none', border:'none', color:'rgba(212,84,26,0.3)', fontSize:'.7rem', padding:'1px 3px', lineHeight:1, cursor:'none', transition:'color .15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--ember)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(212,84,26,0.3)'}>
+            🗂
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary }) {
+  const messagesEndRef = useRef(null)
+  const [socraOpen, setSocraOpen] = useState(false)
+  const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior:'smooth' }) }, [messages, thinking])
+
+  return (
+    <div className="v8-rightlattice">
+      {/* Header */}
+      <div style={{ height:40, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 .75rem', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)' }}>Lattice</span>
+          {activeEnclave && <span style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.06em', textTransform:'uppercase', color:'var(--ember)' }}>◆ {activeEnclave.name}</span>}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:'.35rem' }}>
+          {canViewPatternLibrary && activeEnclave && (
+            <button onClick={onOpenPatternLibrary}
+              style={{ background:'none', border:'1px solid var(--border)', borderRadius:'4px', padding:'3px 8px', cursor:'none', color:'var(--muted)', fontSize:'10px', fontFamily:'monospace', letterSpacing:'0.1em', transition:'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#8ab4c855'; e.currentTarget.style.color = '#8ab4c8' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+              ECHO
+            </button>
+          )}
+          <button onClick={() => setAutoAI(v => !v)}
+            style={{ display:'flex', alignItems:'center', gap:'.25rem', padding:'.15rem .4rem', background:'transparent', border:`1px solid ${autoAI ? 'rgba(80,200,100,0.4)' : 'var(--border)'}`, borderRadius:'2px', color: autoAI ? 'var(--green)' : 'var(--muted)', fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .2s' }}>
+            <span style={{ width:4, height:4, borderRadius:'50%', background: autoAI ? 'var(--green)' : 'var(--muted)', animation: autoAI ? 'pulseSlow 2s ease-in-out infinite' : 'none' }} />
+            Auto
+          </button>
+          <button onClick={() => onNeuronToggle?.()}
+            style={{ background: neuronOpen ? '#c44e1818' : 'none', border:`1px solid ${neuronOpen ? '#c44e1855' : 'var(--border)'}`, borderRadius:'4px', padding:'3px 8px', cursor:'none', color: neuronOpen ? '#c44e18' : 'var(--muted)', fontSize:'10px', fontFamily:'monospace', letterSpacing:'0.1em', transition:'all 0.2s' }}>
+            NEURON
+          </button>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex:1, overflowY:'auto', padding:'.65rem .6rem', display:'flex', flexDirection:'column', gap:'.7rem' }}>
+        {messages.length === 0 && (
+          <div style={{ margin:'auto', textAlign:'center', opacity:.2 }}>
+            <p style={{ fontFamily:'var(--font-serif)', fontSize:'1.1rem', color:'var(--muted)', fontStyle:'italic' }}>The Lattice awaits.</p>
+            <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', marginTop:'.4rem' }}>The Architect &amp; The Spark are listening</p>
+          </div>
+        )}
+        {messages.map((msg, i) => (
+          <div key={msg.id || i} id={`msg-${msg.id}`} data-message-id={msg.id}>
+            <RightChatMessage msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
+              onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
+              architectState={architectState} sparkState={sparkState} yourState={yourState}
+              scribeState={scribeState} stewardState={stewardState}
+              advocateState={advocateState} contrarianState={contrarianState} />
+          </div>
+        ))}
+        {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} stewardState={stewardState} />}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Context / status strip */}
+      <div style={{ padding:'.2rem .65rem', flexShrink:0 }}>
+        {sleeping && (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--muted)', opacity:.4, margin:0 }}>● Architects resting — start typing to wake</p>
+        )}
+        {activeEnclave ? (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--ember)', opacity:.65, margin:0 }}>◆ {activeEnclave.name} — shared notes in context</p>
+        ) : (
+          <p style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--muted)', opacity:.45, margin:0 }}>Personal — this note only</p>
+        )}
+      </div>
+
+      {/* Agent pill buttons (manual mode) */}
+      {!autoAI && (
+        <div style={{ display:'flex', gap:'.3rem', padding:'0 .65rem .3rem', flexShrink:0 }}>
+          {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }, { fn: onAskSteward, meta: AI.steward }].map(({ fn, meta }) => (
+            <button key={meta.role} onClick={fn} disabled={aiLocked}
+              style={{ flex:1, padding:'.25rem .35rem', border:`1px solid ${meta.border}`, borderRadius:'10px', background: aiLocked ? 'transparent' : meta.dim, color: aiLocked ? 'var(--muted)' : meta.color, fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.06em', textTransform:'uppercase', transition:'all .15s', opacity: aiLocked ? .4 : 1 }}>
+              {meta.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Input row */}
+      <div style={{ display:'flex', gap:'.4rem', padding:'.5rem .65rem .6rem', flexShrink:0, borderTop:'1px solid var(--border)', alignItems:'flex-end', position:'relative' }}>
+        <div style={{ position:'relative', flexShrink:0 }}>
+          <SocraScrollPanel open={socraOpen} onClose={() => setSocraOpen(false)} noteTitle={noteTitle} wisdomIdx={socraWisdomIdx} />
+          <AvatarSocra size={34} state="idle"
+            onScrollClick={() => { setSocraWisdomIdx(i => (i + 1) % SCROLL_WISDOM.length); setSocraOpen(v => !v) }}
+            showThought={false} />
+        </div>
+        <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={onKeyDown}
+          placeholder={aiLocked ? 'Responding…' : 'Message the Lattice…'} disabled={aiLocked}
+          style={{ flex:1, background:'rgba(255,255,255,0.025)', border:'1px solid var(--border)', borderRadius:'3px', color:'var(--text)', fontFamily:'var(--font-caveat)', fontSize:'1rem', lineHeight:1.35, padding:'.4rem .55rem', resize:'none', outline:'none', height:'2.4rem', maxHeight:'80px', opacity: aiLocked ? .5 : 1, transition:'border-color .2s' }}
+          onFocus={e => e.target.style.borderColor = 'var(--ember-dim)'}
+          onBlur={e => e.target.style.borderColor = 'var(--border)'}
+          rows={1} onInput={e => { e.target.style.height = '2.4rem'; e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px' }} />
+        <button className="vault-btn" onClick={onSend} disabled={aiLocked || !chatInput.trim()}
+          style={{ padding:'.4rem .65rem', alignSelf:'flex-end', fontSize:'.5rem' }}>
+          {aiLocked ? '…' : 'Send'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ════════════════════════════════════════════════════════════════
 // Dashboard
 // ════════════════════════════════════════════════════════════════
@@ -1830,7 +2123,7 @@ export default function Dashboard() {
         .eq('enclave_id', enclaveId).eq('visibility', 'enclave')
         .order('updated_at', { ascending: false }),
       sb.from('enclave_members')
-        .select('id, role, joined_at, user_id')
+        .select('role, joined_at, user_id')
         .eq('enclave_id', enclaveId),
     ])
     // Fetch profiles separately to avoid cross-table RLS chain
@@ -1850,7 +2143,8 @@ export default function Dashboard() {
     } else if (myRow) {
       const { data: accessRow } = await sb.from('enclave_members')
         .select('pattern_library_access')
-        .eq('id', myRow.id)
+        .eq('enclave_id', enclaveId)
+        .eq('user_id', userId || userRef.current?.id)
         .single()
       setCanViewPatternLibrary(accessRow?.pattern_library_access === true)
     } else {
@@ -2914,64 +3208,61 @@ export default function Dashboard() {
       )}
       <ReminderNotifications notifs={reminderNotifs} onGoTo={handleGoToNote} onDismiss={dismissReminder} />
 
-      <TopBar noteTitle={noteTitle} notesCount={notes.length} onNotesToggle={() => setNotesOpen(v => !v)}
-        onlineUsers={onlineUsers} allProfiles={allProfiles} profile={profile} user={user}
-        yourState={yourState} architectState={architectState} sparkState={sparkState}
-        enclaves={enclaves} activeEnclaveId={activeEnclaveId}
-        onEnclaveSwitch={switchActiveEnclave}
-        onCreateEnclave={() => setShowCreateEnclave(true)}
-        onEnclaveSettings={() => setShowEnclaveSettings(true)}
-        boardCount={boardStickyCount}
-        scribeActive={scribeActive}
-        scribeAvailable={enclaveNotes.length > 0 && messages.length >= 3}
-        scribeState={scribeState}
-        onScribeSummon={summonScribe}
-        stewardActive={awaitingStewardEstimate}
-        stewardAvatarState={stewardAvatarState}
-        advocateAvatarState={advocateAvatarState}
-        contrarianAvatarState={contrarianAvatarState}
-        isMobile={isMobile} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
-        onSignOut={handleSignOut} />
+      {/* ── Desktop: v8 three-column grid layout ── */}
+      {!isMobile && (
+        <div className="v8-shell">
+          <TopBar v8
+            noteTitle={noteTitle} notesCount={notes.length} onNotesToggle={() => setNotesOpen(v => !v)}
+            onlineUsers={onlineUsers} allProfiles={allProfiles} profile={profile} user={user}
+            yourState={yourState} architectState={architectState} sparkState={sparkState}
+            enclaves={enclaves} activeEnclaveId={activeEnclaveId}
+            onEnclaveSwitch={switchActiveEnclave}
+            onCreateEnclave={() => setShowCreateEnclave(true)}
+            onEnclaveSettings={() => setShowEnclaveSettings(true)}
+            boardCount={boardStickyCount}
+            scribeActive={scribeActive}
+            scribeAvailable={enclaveNotes.length > 0 && messages.length >= 3}
+            scribeState={scribeState}
+            onScribeSummon={summonScribe}
+            stewardActive={awaitingStewardEstimate}
+            stewardAvatarState={stewardAvatarState}
+            advocateAvatarState={advocateAvatarState}
+            contrarianAvatarState={contrarianAvatarState}
+            isMobile={false} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
+            onSignOut={handleSignOut} />
 
-      {isMobile && mobileMode === 'voice' ? (
-        <VoiceCapture
-          user={user}
-          enclaves={enclaves}
-          onOpenNote={note => { setMobileModePersist('dashboard'); openNote(note) }} />
-      ) : (
-        <>
-          {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
-          <NotesDrawer open={notesOpen}
+          <LeftNav
+            enclaves={enclaves} activeEnclaveId={activeEnclaveId}
+            onEnclaveSwitch={switchActiveEnclave}
+            onCreateEnclave={() => setShowCreateEnclave(true)}
+            onEnclaveSettings={() => setShowEnclaveSettings(true)}
+            enclaveNotes={enclaveNotes}
             notes={activeEnclaveId ? filteredNotes.filter(n => noteVisibilityFromRecord(n) !== 'enclave') : filteredNotes}
-            sharedNotes={sharedNotes}
-            enclaveNotes={enclaveNotes.filter(n => !notesSearch || (n.title || '').toLowerCase().includes(notesSearch.toLowerCase()) || (n.content || '').toLowerCase().includes(notesSearch.toLowerCase()))}
-            activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
-            activeNoteId={activeNote?.id} reminders={reminders}
-            onOpen={openNote} onNew={newNote} onClose={() => setNotesOpen(false)}
-            search={notesSearch} setSearch={setNotesSearch} />
+            activeNoteId={activeNote?.id}
+            onOpenNote={openNote} onNewNote={newNote}
+            notesSearch={notesSearch} setNotesSearch={setNotesSearch} />
 
-          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', background:'rgba(12,11,10,.15)', backdropFilter:'blur(2px)', WebkitBackdropFilter:'blur(2px)' }}>
-            <FullScreenEditor
-              noteTitle={noteTitle} setNoteTitle={setNoteTitle}
-              noteContent={noteContent} setNoteContent={setNoteContent}
-              noteImages={noteImages} setNoteImages={setNoteImages}
-              noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
-              saveStatus={saveStatus} user={user} supabase={getSupabase()}
-              chatHeight={editorChatHeight} contentRef={contentRef}
-              detectedReminders={detectedReminders}
-              onReminderClick={phrase => setReminderCard(phrase)}
-              onImageUploaded={handleImageUploaded}
-              activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />
+          <div className="v8-center">
+            <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column' }}>
+              <FullScreenEditor
+                noteTitle={noteTitle} setNoteTitle={setNoteTitle}
+                noteContent={noteContent} setNoteContent={setNoteContent}
+                noteImages={noteImages} setNoteImages={setNoteImages}
+                noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
+                saveStatus={saveStatus} user={user} supabase={getSupabase()}
+                chatHeight={0} contentRef={contentRef}
+                detectedReminders={detectedReminders}
+                onReminderClick={phrase => setReminderCard(phrase)}
+                onImageUploaded={handleImageUploaded}
+                activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
+                topPad="20px" />
+            </div>
+            <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
+              chatHeight={0} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
+              onDropToBoard={handleDropToBoard} />
           </div>
 
-          <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
-            chatHeight={chatHeight} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
-            onDropToBoard={handleDropToBoard} />
-
-          {!isMobile && <VoiceFAB setNoteContent={setNoteContent} chatHeight={chatHeight} />}
-
-          <LatticeDrawer
-            expanded={chatExpanded} setExpanded={setChatExpanded}
+          <RightLattice
             messages={messages} chatInput={chatInput} setChatInput={setChatInput}
             onSend={handleSend} onKeyDown={handleKeyDown}
             thinking={thinking} aiLocked={aiLocked}
@@ -2991,13 +3282,93 @@ export default function Dashboard() {
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
             neuronOpen={neuronOpen} onNeuronToggle={() => setNeuronOpen(v => !v)}
             onOpenPatternLibrary={openPatternLibrary}
-            canViewPatternLibrary={canViewPatternLibrary}
-            isMobile={isMobile} />
-        </>
+            canViewPatternLibrary={canViewPatternLibrary} />
+        </div>
       )}
 
+      {/* ── Mobile layout ── */}
       {isMobile && (
         <>
+          <TopBar
+            noteTitle={noteTitle} notesCount={notes.length} onNotesToggle={() => setNotesOpen(v => !v)}
+            onlineUsers={onlineUsers} allProfiles={allProfiles} profile={profile} user={user}
+            yourState={yourState} architectState={architectState} sparkState={sparkState}
+            enclaves={enclaves} activeEnclaveId={activeEnclaveId}
+            onEnclaveSwitch={switchActiveEnclave}
+            onCreateEnclave={() => setShowCreateEnclave(true)}
+            onEnclaveSettings={() => setShowEnclaveSettings(true)}
+            boardCount={boardStickyCount}
+            scribeActive={scribeActive}
+            scribeAvailable={enclaveNotes.length > 0 && messages.length >= 3}
+            scribeState={scribeState}
+            onScribeSummon={summonScribe}
+            stewardActive={awaitingStewardEstimate}
+            stewardAvatarState={stewardAvatarState}
+            advocateAvatarState={advocateAvatarState}
+            contrarianAvatarState={contrarianAvatarState}
+            isMobile={true} mobileMode={mobileMode} onMobileModeChange={setMobileModePersist}
+            onSignOut={handleSignOut} />
+
+          {mobileMode === 'voice' ? (
+            <VoiceCapture
+              user={user}
+              enclaves={enclaves}
+              onOpenNote={note => { setMobileModePersist('dashboard'); openNote(note) }} />
+          ) : (
+            <>
+              {notesOpen && <div className="drawer-overlay" onClick={() => setNotesOpen(false)} />}
+              <NotesDrawer open={notesOpen}
+                notes={activeEnclaveId ? filteredNotes.filter(n => noteVisibilityFromRecord(n) !== 'enclave') : filteredNotes}
+                sharedNotes={sharedNotes}
+                enclaveNotes={enclaveNotes.filter(n => !notesSearch || (n.title || '').toLowerCase().includes(notesSearch.toLowerCase()) || (n.content || '').toLowerCase().includes(notesSearch.toLowerCase()))}
+                activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
+                activeNoteId={activeNote?.id} reminders={reminders}
+                onOpen={openNote} onNew={newNote} onClose={() => setNotesOpen(false)}
+                search={notesSearch} setSearch={setNotesSearch} />
+
+              <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', background:'rgba(12,11,10,.15)', backdropFilter:'blur(2px)', WebkitBackdropFilter:'blur(2px)' }}>
+                <FullScreenEditor
+                  noteTitle={noteTitle} setNoteTitle={setNoteTitle}
+                  noteContent={noteContent} setNoteContent={setNoteContent}
+                  noteImages={noteImages} setNoteImages={setNoteImages}
+                  noteVisibility={noteVisibility} onVisibilityToggle={handleVisibilityToggle}
+                  saveStatus={saveStatus} user={user} supabase={getSupabase()}
+                  chatHeight={editorChatHeight} contentRef={contentRef}
+                  detectedReminders={detectedReminders}
+                  onReminderClick={phrase => setReminderCard(phrase)}
+                  onImageUploaded={handleImageUploaded}
+                  activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null} />
+              </div>
+
+              <FloatingToolbar contentRef={contentRef} setNoteContent={setNoteContent}
+                chatHeight={chatHeight} onImageClick={() => { const el = document.querySelector('input[accept="image/*"]'); if (el) el.click() }}
+                onDropToBoard={handleDropToBoard} />
+
+              <LatticeDrawer
+                expanded={chatExpanded} setExpanded={setChatExpanded}
+                messages={messages} chatInput={chatInput} setChatInput={setChatInput}
+                onSend={handleSend} onKeyDown={handleKeyDown}
+                thinking={thinking} aiLocked={aiLocked}
+                autoAI={autoAI} setAutoAI={setAutoAI}
+                onAskArchitect={() => askOne('claude')}
+                onAskSpark={() => askOne('gpt')}
+                onAskSteward={handleAskSteward}
+                allProfiles={allProfiles} currentUserId={user?.id}
+                onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
+                architectState={architectState} sparkState={sparkState} yourState={yourState}
+                noteTitle={noteTitle}
+                activeEnclave={enclaves.find(e => e.id === activeEnclaveId) || null}
+                sleeping={sleeping}
+                scribeActive={scribeActive} scribeState={scribeState}
+                stewardActive={awaitingStewardEstimate} stewardState={stewardAvatarState}
+                advocateState={advocateAvatarState} contrarianState={contrarianAvatarState}
+                focusMode={focusMode} onFocusToggle={toggleFocusMode}
+                neuronOpen={neuronOpen} onNeuronToggle={() => setNeuronOpen(v => !v)}
+                onOpenPatternLibrary={openPatternLibrary}
+                canViewPatternLibrary={canViewPatternLibrary}
+                isMobile={true} />
+            </>
+          )}
           <MobileBottomNav
             mobileMode={mobileMode}
             onModeChange={setMobileModePersist}
