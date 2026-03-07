@@ -945,10 +945,10 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
               <button
                 onClick={onClose}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', fontSize: 20, lineHeight: 1, padding: '2px 6px', transition: 'color 0.15s' }}
-                onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.7)'}
-                onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.25)'}>
-                ×
+                style={{ background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '3px', cursor: 'pointer', color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--font-mono)', fontSize: '10px', padding: '.2rem .45rem', transition: 'all 0.15s', flexShrink: 0 }}
+                onMouseEnter={e => { e.target.style.color = 'rgba(255,255,255,0.85)'; e.target.style.borderColor = 'rgba(255,255,255,0.35)' }}
+                onMouseLeave={e => { e.target.style.color = 'rgba(255,255,255,0.45)'; e.target.style.borderColor = 'rgba(255,255,255,0.15)' }}>
+                ✕
               </button>
             </>
           )}
