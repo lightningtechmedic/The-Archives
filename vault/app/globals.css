@@ -688,7 +688,7 @@
 /* View toggle in topbar */
 .vt-pills { display: flex; align-items: center; gap: 4px; padding: 0 12px; }
 .vt-pill {
-  font-family: var(--font-mono); font-size: .44rem; letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--font-mono); font-size: .52rem; letter-spacing: .1em; text-transform: uppercase;
   padding: 2px 8px; border-radius: 3px; border: 1px solid transparent;
   background: transparent; color: rgba(255,248,238,.11); cursor: none; transition: all .16s;
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
