@@ -27,6 +27,7 @@ import TheGuideWidget from '@/components/TheGuideWidget'
 import Neuron, { detectShape } from '@/components/Neuron'
 import ImpressionThumb from '@/components/ImpressionThumb'
 import PatternLibrary from '@/components/PatternLibrary'
+import { EchoWave } from '@/app/components/Echo'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -390,7 +391,7 @@ function CreateEnclaveModal({ onCreate, onClose }) {
 }
 
 // ── Enclave Settings Panel ────────────────────────────────────────────────────
-function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }) {
+function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, onOpenPatternLibrary }) {
   const [tab, setTab] = useState('members') // 'members' | 'ledger'
   const [members, setMembers] = useState([])
   const [loadingMembers, setLoadingMembers] = useState(true)
@@ -401,7 +402,6 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
   const [loadingBuilds, setLoadingBuilds] = useState(false)
   const [enclaveBudget, setEnclaveBudget] = useState(null)
   const [viewingImpression, setViewingImpression] = useState(null)
-  const [patternLibraryOpen, setPatternLibraryOpen] = useState(false)
 
   async function fetchMembers() {
     if (!enclave?.id) return
@@ -477,7 +477,7 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
               const impressionCount = builds.filter(b => b.neuron_snapshot).length
               return (
                 <button
-                  onClick={() => setPatternLibraryOpen(true)}
+                  onClick={() => onOpenPatternLibrary?.(builds)}
                   style={{ background:'none', border:'1px solid #9a785044', borderRadius:6, padding:'7px 16px', cursor:'pointer', color:'#9a7850', fontSize:10, fontFamily:'monospace', letterSpacing:'0.12em', marginBottom:16, width:'100%', transition:'all 0.2s' }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = '#9a785088'}
                   onMouseLeave={e => e.currentTarget.style.borderColor = '#9a785044'}>
@@ -623,20 +623,6 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
         </div>
         </>)}
       </div>
-      {patternLibraryOpen && (
-        <PatternLibrary
-          builds={builds}
-          onSelectImpression={(build) => {
-            setPatternLibraryOpen(false)
-            setViewingImpression({
-              snapshot: build.neuron_snapshot,
-              buildSummary: build.description || '',
-              buildId: build.id,
-            })
-          }}
-          onClose={() => setPatternLibraryOpen(false)}
-        />
-      )}
       {viewingImpression && (
         <Neuron
           impression={viewingImpression}
@@ -1426,7 +1412,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenEcho, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1523,6 +1509,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
             style={{ background:'none', border:'1px solid #2e2b27', borderRadius:'6px', padding:'5px 10px', cursor:'pointer', color:'#6a6460', fontSize:'11px', fontFamily:'monospace', letterSpacing:'0.1em', display:'flex', alignItems:'center', gap:'6px', transition:'all 0.2s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#8ab4c844'; e.currentTarget.style.color = '#8ab4c8' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#2e2b27'; e.currentTarget.style.color = '#6a6460' }}
+            onClick={e => { e.stopPropagation(); onOpenPatternLibrary?.() }}
             title="The Pattern Library — Echo is watching">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M2,6 C3,3 5,2 6,4 C7,6 7,6 8,4 C9,2 11,3 11,6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
@@ -1675,9 +1662,11 @@ export default function Dashboard() {
   const [contrarianAvatarState, setContrarianAvatarState] = useState('idle')
   const [focusMode, setFocusMode] = useState(false)
   const [neuronOpen, setNeuronOpen] = useState(false)
-  const [echoOpen, setEchoOpen] = useState(false)
-  const [echoBuilds, setEchoBuilds] = useState([])
+  const [patternLibraryOpen, setPatternLibraryOpen] = useState(false)
+  const [patternLibraryBuilds, setPatternLibraryBuilds] = useState([])
   const [echoImpression, setEchoImpression] = useState(null)
+  const [echoBadgeVisible, setEchoBadgeVisible] = useState(false)
+  const [echoBadgeText, setEchoBadgeText] = useState('')
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMode, setMobileMode] = useState('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -2148,13 +2137,74 @@ export default function Dashboard() {
     }
   }
 
-  // ── Echo / Pattern Library ──
-  async function openEcho() {
-    if (!activeEnclaveId) return
-    const history = await getBuildHistory(activeEnclaveId)
-    setEchoBuilds(history || [])
-    setEchoOpen(true)
+  // ── Pattern Library ──
+  async function openPatternLibrary(existingBuilds) {
+    if (Array.isArray(existingBuilds)) {
+      setPatternLibraryBuilds(existingBuilds)
+      setPatternLibraryOpen(true)
+    } else if (activeEnclaveIdRef.current) {
+      const history = await getBuildHistory(activeEnclaveIdRef.current)
+      setPatternLibraryBuilds(history || [])
+      setPatternLibraryOpen(true)
+    }
   }
+
+  // ── Echo background analysis (fires 30s after steward approval) ──
+  async function triggerEchoBackground() {
+    const enclaveId = activeEnclaveIdRef.current
+    if (!enclaveId) return
+    const allBuilds = await getBuildHistory(enclaveId)
+    const recentBuilds = (allBuilds || []).filter(b => b.neuron_snapshot).slice(0, 20)
+    if (recentBuilds.length < 2) return
+
+    const impressionData = recentBuilds.map(b => ({
+      id: b.id,
+      summary: b.description || b.summary || '',
+      shape: b.neuron_snapshot?.shape,
+      agentsPresent: b.neuron_snapshot?.agentsPresent,
+      messageCount: b.neuron_snapshot?.messageCount,
+      capturedAt: b.neuron_snapshot?.capturedAt,
+      buildId: b.id,
+    }))
+
+    try {
+      const res = await fetch('/vault/api/chat/echo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trigger: 'background', impressions: impressionData, focusedImpression: null }),
+      })
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let fullText = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        fullText += decoder.decode(value)
+      }
+      if (fullText.length > 100) {
+        setEchoBadgeText(fullText)
+        setEchoBadgeVisible(true)
+      }
+    } catch (err) {
+      console.error('Echo background error:', err)
+    }
+  }
+
+  // Auto-dismiss Echo badge after 60s
+  useEffect(() => {
+    if (!echoBadgeVisible) return
+    const t = setTimeout(() => setEchoBadgeVisible(false), 60000)
+    return () => clearTimeout(t)
+  }, [echoBadgeVisible])
+
+  // Inject Echo badge keyframes once
+  useEffect(() => {
+    if (document.getElementById('echo-badge-kf')) return
+    const s = document.createElement('style')
+    s.id = 'echo-badge-kf'
+    s.textContent = '@keyframes echoBounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}60%{transform:translateY(-2px)}}'
+    document.head.appendChild(s)
+  }, [])
 
   // ── Reaction trigger (called by reaction engine) ──
   async function triggerReaction(model, reactionPrompt, isCrossReaction = false, replyToId = null) {
@@ -2484,6 +2534,7 @@ export default function Dashboard() {
         ),
       }
       await logBuild(activeEnclaveId, user.id, pending.content, currentEstimate.estimate_cents, currentEstimate.reasoning, snapshot)
+      setTimeout(() => { triggerEchoBackground() }, 30000)
     }
 
     // Continue AI flow
@@ -2756,7 +2807,8 @@ export default function Dashboard() {
           onInvite={handleInviteMember}
           onRemove={handleRemoveMember}
           onDelete={handleDeleteEnclave}
-          onClose={() => setShowEnclaveSettings(false)} />
+          onClose={() => setShowEnclaveSettings(false)}
+          onOpenPatternLibrary={openPatternLibrary} />
       )}
       {reminderCard && (
         <ReminderCard phrase={reminderCard} noteTitle={noteTitle}
@@ -2852,7 +2904,7 @@ export default function Dashboard() {
             advocateState={advocateAvatarState} contrarianState={contrarianAvatarState}
             focusMode={focusMode} onFocusToggle={toggleFocusMode}
             neuronOpen={neuronOpen} onNeuronToggle={() => setNeuronOpen(v => !v)}
-            onOpenEcho={openEcho}
+            onOpenPatternLibrary={openPatternLibrary}
             isMobile={isMobile} />
         </>
       )}
@@ -2875,14 +2927,14 @@ export default function Dashboard() {
         </>
       )}
       <Neuron messages={messages} open={neuronOpen} onScrollToMessage={handleScrollToMessage} onClose={() => setNeuronOpen(false)} />
-      {echoOpen && (
+      {patternLibraryOpen && (
         <PatternLibrary
-          builds={echoBuilds}
+          builds={patternLibraryBuilds}
           onSelectImpression={(build) => {
-            setEchoOpen(false)
+            setPatternLibraryOpen(false)
             setEchoImpression({ snapshot: build.neuron_snapshot, buildSummary: build.description || '', buildId: build.id })
           }}
-          onClose={() => setEchoOpen(false)}
+          onClose={() => setPatternLibraryOpen(false)}
         />
       )}
       {echoImpression && (
@@ -2893,6 +2945,35 @@ export default function Dashboard() {
           onClose={() => setEchoImpression(null)}
           onScrollToMessage={() => {}}
         />
+      )}
+      {echoBadgeVisible && (
+        <div
+          onClick={() => { openPatternLibrary(); setEchoBadgeVisible(false) }}
+          style={{
+            position: 'fixed', bottom: 90, right: 24, zIndex: 9100,
+            width: 220, background: '#0d0c0b',
+            border: '1px solid #8ab4c833', borderRadius: 12,
+            padding: '12px 14px', cursor: 'pointer',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(138,180,200,0.08)',
+            animation: 'echoBounce 2s ease-in-out infinite',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <EchoWave mood="delighted" size={24} />
+            <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#8ab4c8', letterSpacing: '0.14em' }}>
+              ECHO · PATTERN FOUND
+            </span>
+          </div>
+          <div style={{ position: 'relative', height: 48, overflow: 'hidden' }}>
+            <div style={{ fontSize: 12, lineHeight: 1.6, color: '#8a9ea8', fontFamily: "'Georgia', serif", fontStyle: 'italic' }}>
+              {echoBadgeText}
+            </div>
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 28, background: 'linear-gradient(to bottom, transparent, #0d0c0b)', pointerEvents: 'none' }} />
+          </div>
+          <div style={{ marginTop: 8, fontSize: 10, color: '#3a3530', fontFamily: 'monospace', letterSpacing: '0.08em' }}>
+            Open Pattern Library →
+          </div>
+        </div>
       )}
       <TheGuideWidget />
     </div>
