@@ -478,3 +478,9 @@
 @keyframes boardDrift2 { 0%,100%{transform:translate(0,0)} 40%{transform:translate(1px,2px)} 80%{transform:translate(-2px,-1px)} }
 @keyframes boardDrift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-1px,-2px)} 90%{transform:translate(2px,1px)} }
 @keyframes pinFly { 0%{opacity:1;transform:scale(1) translate(0,0)} 100%{opacity:0;transform:scale(0.4) translate(var(--fly-x),var(--fly-y))} }
+
+/* ── Agent face keyframes ── */
+@keyframes cursorBlink  { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
+@keyframes balancePole  { 0%,100% { transform:rotate(-7deg); } 50% { transform:rotate(7deg); } }
+@keyframes socraGlow    { 0%,100% { text-shadow: 0 0 8px rgba(255,240,160,0.25); } 50% { text-shadow: 0 0 18px rgba(255,240,160,0.8), 0 0 36px rgba(255,220,100,0.35); } }
+@keyframes rotateCCW    { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }

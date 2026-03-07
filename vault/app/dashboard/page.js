@@ -1765,6 +1765,158 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
   )
 }
 
+// ── CSS Agent Faces (used only in RightChatMessage at 34px) ──────────────────
+
+function FaceArchitect() {
+  return (
+    <div style={{ width:34, height:34, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+      <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(212,90,32,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(212,90,32,0.06) 1px, transparent 1px)', backgroundSize:'6px 6px', borderRadius:3 }} />
+      <div style={{ width:28, height:26, background:'rgba(12,8,5,0.95)', border:'1px solid rgba(212,90,32,0.35)', borderRadius:3, position:'relative', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+        <div style={{ position:'absolute', top:0, bottom:0, left:'50%', width:1, background:'rgba(212,90,32,0.18)', animation:'scanEyes 2.4s ease-in-out infinite', transformOrigin:'center' }} />
+        {[0,1].map(i => (
+          <div key={i} style={{ width:8, height:5, background:'rgba(2,1,0,0.95)', borderRadius:1, overflow:'hidden', position:'relative', flexShrink:0 }}>
+            <div style={{ position:'absolute', top:1, left:2, width:3, height:3, background:'#d45a20', borderRadius:'50%', boxShadow:'0 0 3px rgba(212,90,32,0.7)', animation:'scanEyes 2.4s ease-in-out infinite', animationDelay: i === 1 ? '0.12s' : '0s' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FaceSpark() {
+  const [wink, setWink] = useState(null)
+  useEffect(() => {
+    let id
+    function schedule() {
+      id = setTimeout(() => {
+        const eye = Math.random() < 0.5 ? 0 : 1
+        setWink(eye)
+        setTimeout(() => { setWink(null); schedule() }, 180)
+      }, 2600 + Math.random() * 1400)
+    }
+    schedule()
+    return () => clearTimeout(id)
+  }, [])
+  return (
+    <div style={{ width:34, height:34, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+      {[0,1,2].map(i => (
+        <div key={i} style={{ position:'absolute', top:'50%', left:'50%', width:0, height:0, transformOrigin:'0 0', animation:`rotateCW 2.6s linear infinite`, animationDelay:`${-(i * 2.6 / 3).toFixed(2)}s` }}>
+          <span style={{ position:'absolute', left:14, top:-4, fontSize:'5px', color:'rgba(200,151,58,0.8)', lineHeight:1, userSelect:'none' }}>✦</span>
+        </div>
+      ))}
+      <div style={{ width:26, height:26, background:'rgba(12,10,4,0.95)', border:'1px solid rgba(200,151,58,0.35)', borderRadius:'50%', position:'relative', display:'flex', alignItems:'center', justifyContent:'center', gap:5, zIndex:1 }}>
+        {[0,1].map(i => (
+          <div key={i} style={{ width:6, height:6, background:'rgba(2,2,0,0.9)', borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <div style={{ width:4, height:4, background:'#c8973a', borderRadius:'50%', boxShadow:'0 0 3px rgba(200,151,58,0.5)', transform: wink === i ? 'scaleY(0.05)' : 'scaleY(1)', transition:'transform 0.06s ease' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FaceScribe() {
+  return (
+    <div style={{ width:34, height:34, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+      <div style={{ width:30, height:24, background:'rgba(4,6,18,0.96)', border:'1px solid rgba(100,140,255,0.3)', borderRadius:2, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 3px)', pointerEvents:'none' }} />
+        <span style={{ fontFamily:'monospace', fontSize:'7px', color:'rgba(100,140,255,0.85)', letterSpacing:'0.02em', userSelect:'none', position:'relative', zIndex:1 }}>fn</span>
+        <span style={{ fontFamily:'monospace', fontSize:'7px', color:'rgba(100,140,255,0.85)', animation:'cursorBlink 1.05s step-end infinite', marginLeft:'1px', userSelect:'none', position:'relative', zIndex:1 }}>▌</span>
+      </div>
+    </div>
+  )
+}
+
+function FaceSteward() {
+  return (
+    <div style={{ width:34, height:34, position:'relative', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0, gap:2 }}>
+      <div style={{ width:10, height:10, background:'rgba(15,12,8,0.95)', border:'1px solid rgba(200,180,140,0.35)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ display:'flex', gap:2 }}>
+          {[0,1].map(i => <div key={i} style={{ width:2, height:2, background:'rgba(200,180,140,0.75)', borderRadius:'50%' }} />)}
+        </div>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
+        <div style={{ width:28, height:2, background:'rgba(200,180,140,0.45)', borderRadius:1, position:'relative', animation:'balancePole 2s ease-in-out infinite', transformOrigin:'50% 50%' }}>
+          <div style={{ position:'absolute', left:2, top:-2, width:4, height:4, borderRadius:'50%', background:'rgba(200,180,140,0.35)' }} />
+          <div style={{ position:'absolute', right:2, top:-2, width:4, height:4, borderRadius:'50%', background:'rgba(200,180,140,0.35)' }} />
+        </div>
+        <div style={{ width:2, height:8, background:'rgba(200,180,140,0.3)', borderRadius:1 }} />
+      </div>
+    </div>
+  )
+}
+
+function FaceAdvocate() {
+  const [heart, setHeart] = useState(false)
+  useEffect(() => {
+    let id
+    function schedule() {
+      id = setTimeout(() => {
+        setHeart(true)
+        setTimeout(() => { setHeart(false); schedule() }, 1400)
+      }, 3200 + Math.random() * 800)
+    }
+    schedule()
+    return () => clearTimeout(id)
+  }, [])
+  return (
+    <div style={{ width:34, height:34, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+      {heart && (
+        <span style={{ position:'absolute', top:1, left:'50%', transform:'translateX(-50%)', fontSize:'8px', color:'rgba(184,149,106,0.9)', animation:'sparkle 1.4s ease-out forwards', pointerEvents:'none', userSelect:'none' }}>♥</span>
+      )}
+      <div style={{ width:26, height:26, background:'rgba(10,8,5,0.95)', border:'1px solid rgba(184,149,106,0.3)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+        {[0,1].map(i => (
+          <div key={i} style={{ width:6, height:6, background:'rgba(2,1,0,0.9)', borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <div style={{ width:3.5, height:3.5, background:'rgba(184,149,106,0.85)', borderRadius:'50%', animation:'blinkEye 3.5s ease-in-out infinite', animationDelay: i === 0 ? '0s' : '0.5s', transformOrigin:'center 60%' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FaceContrarian() {
+  const [q, setQ] = useState(false)
+  useEffect(() => {
+    let id
+    function schedule() {
+      id = setTimeout(() => {
+        setQ(true)
+        setTimeout(() => { setQ(false); schedule() }, 1200)
+      }, 4000 + Math.random() * 1200)
+    }
+    schedule()
+    return () => clearTimeout(id)
+  }, [])
+  return (
+    <div style={{ width:34, height:34, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+      {q && (
+        <span style={{ position:'absolute', top:1, left:'50%', transform:'translateX(-50%)', fontSize:'8px', fontFamily:'monospace', color:'rgba(138,154,170,0.9)', animation:'sparkle 1.2s ease-out forwards', pointerEvents:'none', userSelect:'none' }}>?</span>
+      )}
+      <div style={{ width:26, height:24, background:'rgba(8,9,12,0.95)', border:'1px solid rgba(138,154,170,0.3)', borderRadius:3, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3 }}>
+        <div style={{ display:'flex', gap:6 }}>
+          {[0,1].map(i => <div key={i} style={{ width:6, height:1.5, background:'rgba(138,154,170,0.6)', borderRadius:1 }} />)}
+        </div>
+        <div style={{ display:'flex', gap:5 }}>
+          {[0,1].map(i => (
+            <div key={i} style={{ width:5, height:4, background:'rgba(2,2,4,0.9)', borderRadius:1, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <div style={{ width:3, height:3, background:'rgba(138,154,170,0.75)', borderRadius:'50%' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FaceSocra() {
+  return (
+    <div style={{ width:34, height:34, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+      <span style={{ fontFamily:'Georgia, serif', fontStyle:'italic', fontWeight:300, fontSize:'22px', color:'rgba(255,248,200,0.9)', userSelect:'none', animation:'socraGlow 2.6s ease-in-out infinite', lineHeight:1 }}>S</span>
+    </div>
+  )
+}
+
 // ── Right Lattice (v8 permanent column) ──────────────────────────────────────
 function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState }) {
   const role = msg.role === 'user' ? 'human' : msg.role
@@ -1774,20 +1926,22 @@ function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, on
   const isSteward    = role === 'steward'
   const isAdvocate   = role === 'advocate'
   const isContrarian = role === 'contrarian'
-  const isAI = isArchitect || isSpark || isScribe || isSteward || isAdvocate || isContrarian
+  const isSocra      = role === 'socra'
+  const isAI = isArchitect || isSpark || isScribe || isSteward || isAdvocate || isContrarian || isSocra
   const isReaction = !!msg.isReaction
   const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : isAdvocate ? AI.advocate : isContrarian ? AI.contrarian : null
   const prof = allProfiles?.find(p => p.id === msg.user_id)
   const isMe = msg.user_id === currentUserId
-  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : (msg.display_name || prof?.display_name || 'Team')
+  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : isSocra ? 'Socra' : (msg.display_name || prof?.display_name || 'Team')
 
   let avatar
-  if (isArchitect)         avatar = <AvatarArchitect size={34} state={architectState} />
-  else if (isSpark)        avatar = <AvatarSpark size={34} state={sparkState} />
-  else if (isScribe)       avatar = <AvatarScribe size={34} state={scribeState} />
-  else if (isSteward)      avatar = <AvatarSteward size={34} state={stewardState || 'idle'} />
-  else if (isAdvocate)     avatar = <AvatarAdvocate size={34} state={advocateState || 'idle'} />
-  else if (isContrarian)   avatar = <AvatarContrarian size={34} state={contrarianState || 'idle'} />
+  if (isArchitect)         avatar = <FaceArchitect />
+  else if (isSpark)        avatar = <FaceSpark />
+  else if (isScribe)       avatar = <FaceScribe />
+  else if (isSteward)      avatar = <FaceSteward />
+  else if (isAdvocate)     avatar = <FaceAdvocate />
+  else if (isContrarian)   avatar = <FaceContrarian />
+  else if (isSocra)        avatar = <FaceSocra />
   else if (isSmara(prof))  avatar = <AvatarSmara size={34} />
   else if (isMe)           avatar = <AvatarYou size={34} state={yourState} />
   else                     avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={34} />
