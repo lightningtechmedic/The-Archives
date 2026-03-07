@@ -1,20 +1,7 @@
-import { Cormorant_Garamond, Space_Mono, Caveat } from 'next/font/google'
+import { Caveat } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import Cursor from '@/components/Cursor'
-
-const cormorant = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['300', '400', '600'],
-  style: ['normal', 'italic'],
-  variable: '--font-serif',
-})
-
-const spaceMono = Space_Mono({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-mono',
-})
 
 const caveat = Caveat({
   subsets: ['latin'],
@@ -35,7 +22,15 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${spaceMono.variable} ${caveat.variable}`}>
+    <html lang="en" className={caveat.variable}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@300;400;500;700;800&family=Lora:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body>
         <Script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" strategy="afterInteractive" />
         <Cursor />

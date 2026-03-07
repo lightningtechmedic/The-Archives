@@ -4,23 +4,60 @@
 
 @layer base {
   :root {
-    --ember:      #d4541a;
-    --ember-dim:  rgba(212,84,26,0.18);
-    --ember-glow: rgba(212,84,26,0.07);
-    --gold:       #c8973a;
-    --gold-dim:   rgba(200,151,58,0.18);
+    /* Fonts */
+    --font-display: 'Cabinet Grotesk', system-ui, sans-serif;
+    --font-prose:   'Lora', Georgia, serif;
+    --font-serif:   'Lora', Georgia, serif;
+    --font-mono:    'DM Mono', monospace;
+
+    /* Legacy accent tokens */
+    --ember:      #d45a20;
+    --ember-dim:  rgba(212,90,32,.08);
+    --ember-glow: rgba(212,90,32,.05);
+    --gold:       #c49030;
+    --gold-dim:   rgba(196,144,48,.18);
     --cyan:       #3ad4c8;
     --cyan-dim:   rgba(58,212,200,0.18);
     --green:      #50c864;
     --green-dim:  rgba(80,200,100,0.18);
     --ash:        #c8c0b4;
-    --ink:        #0b0a08;
-    --border:     rgba(255,255,255,0.055);
-    --border-h:   rgba(255,255,255,0.12);
-    --text:       rgba(255,255,255,0.88);
-    --muted:      rgba(255,255,255,0.35);
-    --mid:        rgba(255,255,255,0.6);
+    --ink:        #0c0b0a;
+    --border:     rgba(255,248,238,.06);
+    --border-h:   rgba(255,248,238,.18);
+    --text:       #fff8ee;
+    --muted:      rgba(255,248,238,.35);
+    --mid:        rgba(255,248,238,.6);
     --ease:       cubic-bezier(0.16,1,0.3,1);
+
+    /* Surfaces */
+    --color-bg:       #0c0b0a;
+    --color-surface:  #131210;
+    --color-raised:   #191714;
+    --color-hover:    #211f1b;
+
+    /* Borders */
+    --color-border:     rgba(255,248,238,.06);
+    --color-border-mid: rgba(255,248,238,.11);
+    --color-border-hi:  rgba(255,248,238,.18);
+
+    /* Text */
+    --color-text:       #fff8ee;
+    --color-text-2:     rgba(255,248,238,.55);
+    --color-text-3:     rgba(255,248,238,.28);
+    --color-text-ghost: rgba(255,248,238,.12);
+
+    /* Agents */
+    --color-arch:   #d45a20;
+    --color-spark:  #c49030;
+    --color-scribe: #5870e0;
+    --color-stew:   #a07840;
+    --color-adv:    #c86070;
+    --color-con:    #6888a0;
+    --color-socra:  #d8c060;
+
+    /* Accent */
+    --color-accent:       #d45a20;
+    --color-accent-faint: rgba(212,90,32,.08);
   }
 
   *, *::before, *::after { box-sizing: border-box; }
@@ -28,7 +65,7 @@
   html { color-scheme: dark; scroll-behavior: smooth; }
 
   body {
-    background-color: #0b0a08;
+    background-color: #0c0b0a;
     background-image:
       linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px),
@@ -36,7 +73,7 @@
       linear-gradient(90deg, rgba(255,255,255,0.009) 1px, transparent 1px);
     background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
     color: var(--text);
-    font-family: var(--font-mono), 'Space Mono', monospace;
+    font-family: var(--font-display), system-ui, sans-serif;
     cursor: none;
     overflow-x: hidden;
     min-height: 100vh;
@@ -47,8 +84,10 @@
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 2px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
 
-  ::selection { background: var(--ember-dim); color: var(--text); }
+  ::selection { background: rgba(212,90,32,.18); color: var(--text); }
   input, textarea, button { cursor: none; }
+  button { font-family: var(--font-display); }
+  h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); }
 }
 
 @layer components {
@@ -159,7 +198,7 @@
     display: flex; align-items: center; justify-content: center;
     background: transparent; border: none; border-radius: 6px;
     color: var(--muted); font-size: .78rem;
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     transition: all .15s;
   }
   .tb-btn:hover { background: rgba(255,255,255,0.07); color: var(--text); }
@@ -329,7 +368,7 @@
   .vault-textarea {
     background: transparent; border: none;
     color: var(--text); outline: none; resize: none;
-    font-family: var(--font-serif), Georgia, serif;
+    font-family: var(--font-prose);
     font-size: 1rem; font-weight: 300; line-height: 1.8;
     width: 100%;
   }
