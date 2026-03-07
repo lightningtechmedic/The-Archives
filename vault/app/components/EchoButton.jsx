@@ -154,9 +154,12 @@ export default function EchoButton({
   }
 
   function handleAvatarClick(e) {
+    console.log('[EchoButton] handleAvatarClick fired')
+    console.log('[EchoButton] onOpenOverlay is:', typeof onOpenOverlay)
     e.stopPropagation()
     setOpen(false)
     onOpenOverlay?.()
+    console.log('[EchoButton] onOpenOverlay called')
   }
 
   const glyphAnim = reading ? 'echoGlyphFast 1.5s ease-in-out infinite' : 'echoGlyphIdle 4s ease-in-out infinite'

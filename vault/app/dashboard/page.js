@@ -1245,7 +1245,10 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           topConcepts={echoTopConcepts}
           avatarPattern={profile?.avatar_pattern || null}
           avatarEmote={profile?.avatar_emote || 'neutral'}
-          onOpenOverlay={onOpenEchoOverlay}
+          onOpenOverlay={() => {
+            console.log('[TopBar] onOpenOverlay called, forwarding to onOpenEchoOverlay')
+            onOpenEchoOverlay?.()
+          }}
         />
 
         <div style={{ display:'flex', alignItems:'center' }}>
@@ -3647,6 +3650,7 @@ export default function Dashboard() {
       <ReminderNotifications notifs={reminderNotifs} onGoTo={handleGoToNote} onDismiss={dismissReminder} />
 
       {/* ── Echo Avatar Overlay — rendered at root to escape TopBar stacking context ── */}
+      {(() => { console.log('[Dashboard] echoOverlayOpen:', echoOverlayOpen); return null })()}
       {echoOverlayOpen && (
         <EchoOverlay
           userId={user?.id}
@@ -3691,7 +3695,10 @@ export default function Dashboard() {
             hasActiveNote={!!activeNote}
             onCloseNote={() => { setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setNoteVisibility('private') }}
             onAvatarSaved={(data) => setProfile(prev => prev ? { ...prev, avatar_pattern: data.pattern, avatar_name: data.name, avatar_emote: data.emote, avatar_observation: data.observation } : prev)}
-            onOpenEchoOverlay={() => setEchoOverlayOpen(true)}
+            onOpenEchoOverlay={() => {
+              console.log('[Dashboard] setEchoOverlayOpen(true) firing')
+              setEchoOverlayOpen(true)
+            }}
             onEchoPulseAll={() => {
               AGENT_ROLES_ORDER.forEach((role, i) => {
                 const pIdx = AGENT_PULSE_INDEX[role]
