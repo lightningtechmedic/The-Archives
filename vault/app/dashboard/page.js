@@ -74,6 +74,12 @@ const AI = {
     textColor: 'rgba(210,220,230,0.88)',
     thinkingLabel: 'weighing this…',
   },
+  socra: {
+    label: 'Socra', role: 'socra',
+    color: '#d8c060', dim: 'rgba(216,192,96,0.08)', border: 'rgba(216,192,96,0.35)',
+    textColor: 'rgba(255,248,200,0.9)',
+    thinkingLabel: 'listening…',
+  },
 }
 
 // Triggers Scribe when message contains build/code intent or direct address
@@ -1691,7 +1697,7 @@ function SocraScrollPanel({ open, onClose, noteTitle, wisdomIdx }) {
 }
 
 // ── Lattice Drawer ────────────────────────────────────────────────────────────
-function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary = false, isMobile = false }) {
+function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, onAskSocra, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary = false, isMobile = false }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -1823,7 +1829,7 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
 
           {!autoAI && (
             <div style={{ display:'flex', gap:'.5rem', padding:'.4rem 1rem 0', flexShrink:0 }}>
-              {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }, { fn: onAskSteward, meta: AI.steward }].map(({ fn, meta }) => (
+              {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }, { fn: onAskSteward, meta: AI.steward }, { fn: onAskSocra, meta: AI.socra }].map(({ fn, meta }) => (
                 <button key={meta.role} onClick={fn} disabled={aiLocked}
                   style={{ flex:1, padding:'.35rem', border:`1px solid ${meta.border}`, borderRadius:'2px', background: aiLocked ? 'transparent' : meta.dim, color: aiLocked ? 'var(--muted)' : meta.color, fontFamily:'var(--font-mono)', fontSize:'.48rem', letterSpacing:'.1em', textTransform:'uppercase', transition:'all .15s', opacity: aiLocked ? .4 : 1 }}>
                   Ask {meta.label}
@@ -2099,7 +2105,7 @@ function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, on
   )
 }
 
-function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary, hasActiveNote = true }) {
+function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, thinking, aiLocked, autoAI, setAutoAI, onAskArchitect, onAskSpark, onAskSteward, onAskSocra, allProfiles, currentUserId, onPin, pinnedIds, onPinToBoard, architectState, sparkState, yourState, noteTitle, activeEnclave, sleeping, scribeActive, scribeState, stewardActive, stewardState, advocateState, contrarianState, focusMode, onFocusToggle, neuronOpen, onNeuronToggle, onOpenPatternLibrary, canViewPatternLibrary, hasActiveNote = true }) {
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
@@ -2170,7 +2176,7 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
       {/* Agent pill buttons (manual mode) */}
       {!autoAI && (
         <div style={{ display:'flex', gap:'.3rem', padding:'0 .65rem .3rem', flexShrink:0 }}>
-          {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }, { fn: onAskSteward, meta: AI.steward }].map(({ fn, meta }) => (
+          {[{ fn: onAskArchitect, meta: AI.claude }, { fn: onAskSpark, meta: AI.gpt }, { fn: onAskSteward, meta: AI.steward }, { fn: onAskSocra, meta: AI.socra }].map(({ fn, meta }) => (
             <button key={meta.role} onClick={fn} disabled={aiLocked}
               style={{ flex:1, padding:'.25rem .35rem', border:`1px solid ${meta.border}`, borderRadius:'10px', background: aiLocked ? 'transparent' : meta.dim, color: aiLocked ? 'var(--muted)' : meta.color, fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.06em', textTransform:'uppercase', transition:'all .15s', opacity: aiLocked ? .4 : 1 }}>
               {meta.label}
@@ -3022,6 +3028,7 @@ export default function Dashboard() {
       { delay: 3800, role: 'gpt',        label: AI.gpt.label,        line: `HERE. Okay — everyone's in, the room's alive. What are we making?` },
       { delay: 5200, role: 'advocate',   label: AI.advocate.label,   line: `Here. I'll be watching for the person on the outside of everything you build today.` },
       { delay: 6800, role: 'contrarian', label: AI.contrarian.label, line: `Present. I'll speak when something needs to be said.` },
+      { delay: 8400, role: 'socra',      label: AI.socra.label,      line: `Here. Why are we building this?` },
     ]
 
     if (scribeOnline) {
@@ -3694,6 +3701,7 @@ export default function Dashboard() {
             onAskArchitect={() => askOne('claude')}
             onAskSpark={() => askOne('gpt')}
             onAskSteward={handleAskSteward}
+            onAskSocra={() => askOne('socra')}
             allProfiles={allProfiles} currentUserId={user?.id}
             onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
             architectState={architectState} sparkState={sparkState} yourState={yourState}
@@ -3778,6 +3786,7 @@ export default function Dashboard() {
                 onAskArchitect={() => askOne('claude')}
                 onAskSpark={() => askOne('gpt')}
                 onAskSteward={handleAskSteward}
+                onAskSocra={() => askOne('socra')}
                 allProfiles={allProfiles} currentUserId={user?.id}
                 onPin={pinMessage} pinnedIds={pinnedIds} onPinToBoard={handlePinToBoard}
                 architectState={architectState} sparkState={sparkState} yourState={yourState}
