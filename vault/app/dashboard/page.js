@@ -30,6 +30,7 @@ import PatternLibrary from '@/components/PatternLibrary'
 import { EchoWave } from '@/app/components/Echo'
 import EchoButton from '@/app/components/EchoButton'
 import Ledger from '@/app/components/Ledger'
+import AgentFace from '@/app/components/AgentFace'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -81,6 +82,13 @@ const AI = {
     thinkingLabel: 'listening…',
   },
 }
+
+// ── Agent face ID mapping ──────────────────────────────────────────────────────
+const ROLE_TO_FACE = { claude:'arch', gpt:'spark', scribe:'scrib', steward:'stew', advocate:'adv', contrarian:'con', socra:'socra' }
+
+// ── Emotional state detection ─────────────────────────────────────────────────
+const AGREE_FACE_RE   = /\b(agree|exactly|yes,|correct|right,|well said|precisely|absolutely)\b/i
+const DISSENT_FACE_RE = /\b(disagree|wrong|no,|actually,|however,|but wait|not quite|push back|shouldn't)\b/i
 
 // Triggers Scribe when message contains build/code intent or direct address
 const SCRIBE_TRIGGER_RE = /\b(build|code|implement|create|fix|ship|deploy|write|refactor|debug|push|commit|make|add|update|delete|remove|connect|integrate)\b/i
@@ -1633,18 +1641,12 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
   )
 }
 
-function ThinkingDot({ model, architectState, sparkState, scribeState, stewardState }) {
+function ThinkingDot({ model }) {
   const meta = AI[model]
-  const avatarEl = model === 'claude'
-    ? <AvatarArchitect size={26} state={architectState} />
-    : model === 'scribe'
-    ? <AvatarScribe size={26} state={scribeState || 'thinking'} />
-    : model === 'steward'
-    ? <AvatarSteward size={26} state={stewardState || 'thinking'} />
-    : <AvatarSpark size={26} state={sparkState} />
+  const faceId = ROLE_TO_FACE[model]
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'.5rem', paddingLeft:'.5rem', borderLeft:`2px solid ${meta.border}`, marginLeft:'-.5rem' }}>
-      {avatarEl}
+    <div style={{ display:'flex', alignItems:'center', gap:'.5rem', paddingLeft:'.5rem', borderLeft:`2px solid ${meta?.border || 'rgba(255,255,255,.1)'}`, marginLeft:'-.5rem' }}>
+      {faceId ? <AgentFace agentId={faceId} state="thinking" size={26} /> : null}
       <div style={{ display:'flex', alignItems:'center', gap:'.4rem' }}>
         <div style={{ width:5, height:5, borderRadius:'50%', background:meta.color, animation:'pulseSlow 1.2s ease-in-out infinite' }} />
         <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.12em', textTransform:'uppercase', color:meta.color, opacity:.8 }}>
@@ -1723,7 +1725,8 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           </span>
         )}
         {[AI.claude, AI.gpt].map(ai => (
-          <span key={ai.role} style={{ padding:'.18rem .45rem', border:`1px solid ${ai.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:ai.color, background:ai.dim }}>
+          <span key={ai.role} style={{ padding:'.18rem .45rem', border:`1px solid ${ai.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:ai.color, background:ai.dim, display:'flex', alignItems:'center', gap:4 }}>
+            <AgentFace agentId={ROLE_TO_FACE[ai.role]} state="idle" size={18} />
             {ai.label}
           </span>
         ))}
@@ -1733,12 +1736,12 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           </span>
         )}
         <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.steward.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.steward.color, background:AI.steward.dim, opacity: stewardActive ? 1 : 0.35, transition:'opacity .3s' }}>
-          <AvatarSteward size={16} state={stewardState} />
+          <AgentFace agentId="stew" state="idle" size={18} />
           {stewardActive ? 'The Steward — reviewing' : 'The Steward'}
         </span>
         {advocateState !== 'idle' && (
           <span style={{ display:'flex', alignItems:'center', gap:'.35rem', padding:'.18rem .45rem', border:`1px solid ${AI.advocate.border}`, borderRadius:'2px', fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:AI.advocate.color, background:AI.advocate.dim }}>
-            <AvatarAdvocate size={16} state={advocateState} />
+            <AgentFace agentId="adv" state="idle" size={18} />
             The Advocate
           </span>
         )}
@@ -2037,7 +2040,7 @@ function FaceSocra() {
 }
 
 // ── Right Lattice (v8 permanent column) ──────────────────────────────────────
-function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState }) {
+function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState, agentFaceState = 'idle' }) {
   const role = msg.role === 'user' ? 'human' : msg.role
   const isArchitect  = role === 'claude'
   const isSpark      = role === 'gpt'
@@ -2048,19 +2051,19 @@ function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, on
   const isSocra      = role === 'socra'
   const isAI = isArchitect || isSpark || isScribe || isSteward || isAdvocate || isContrarian || isSocra
   const isReaction = !!msg.isReaction
-  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : isAdvocate ? AI.advocate : isContrarian ? AI.contrarian : null
+  const aiMeta = isArchitect ? AI.claude : isSpark ? AI.gpt : isScribe ? AI.scribe : isSteward ? AI.steward : isAdvocate ? AI.advocate : isContrarian ? AI.contrarian : isSocra ? AI.socra : null
   const prof = allProfiles?.find(p => p.id === msg.user_id)
   const isMe = msg.user_id === currentUserId
-  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : isSocra ? 'Socra' : (msg.display_name || prof?.display_name || 'Team')
+  const label = isArchitect ? AI.claude.label : isSpark ? AI.gpt.label : isScribe ? AI.scribe.label : isSteward ? AI.steward.label : isAdvocate ? AI.advocate.label : isContrarian ? AI.contrarian.label : isSocra ? AI.socra.label : (msg.display_name || prof?.display_name || 'Team')
 
   let avatar
-  if (isArchitect)         avatar = <FaceArchitect />
-  else if (isSpark)        avatar = <FaceSpark />
-  else if (isScribe)       avatar = <FaceScribe />
-  else if (isSteward)      avatar = <FaceSteward />
-  else if (isAdvocate)     avatar = <FaceAdvocate />
-  else if (isContrarian)   avatar = <FaceContrarian />
-  else if (isSocra)        avatar = <FaceSocra />
+  if (isArchitect)         avatar = <AgentFace agentId="arch"  state={agentFaceState} size={34} />
+  else if (isSpark)        avatar = <AgentFace agentId="spark" state={agentFaceState} size={34} />
+  else if (isScribe)       avatar = <AgentFace agentId="scrib" state={agentFaceState} size={34} />
+  else if (isSteward)      avatar = <AgentFace agentId="stew"  state={agentFaceState} size={34} />
+  else if (isAdvocate)     avatar = <AgentFace agentId="adv"   state={agentFaceState} size={34} />
+  else if (isContrarian)   avatar = <AgentFace agentId="con"   state={agentFaceState} size={34} />
+  else if (isSocra)        avatar = <AgentFace agentId="socra" state={agentFaceState} size={34} />
   else if (isSmara(prof))  avatar = <AvatarSmara size={34} />
   else if (isMe)           avatar = <AvatarYou size={34} state={yourState} />
   else                     avatar = <AvatarGeneric initial={(label || '?')[0]?.toUpperCase()} size={34} />
@@ -2110,6 +2113,70 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
 
+  // ── Agent face emotional state ──────────────────────────────────────────────
+  const [agentStates, setAgentStates] = useState({})
+  const agentTimersRef   = useRef({})
+  const prevStreamingRef = useRef(new Set())
+  const seenMsgIdsRef    = useRef(new Set())
+
+  function setAgentFaceState(faceId, state, durationMs) {
+    if (agentTimersRef.current[faceId]) clearTimeout(agentTimersRef.current[faceId])
+    setAgentStates(prev => ({ ...prev, [faceId]: state }))
+    if (durationMs) {
+      agentTimersRef.current[faceId] = setTimeout(() => {
+        setAgentStates(prev => ({ ...prev, [faceId]: 'idle' }))
+      }, durationMs)
+    }
+  }
+
+  // Thinking state — set while API call is in flight
+  useEffect(() => {
+    if (!thinking) return
+    const faceId = ROLE_TO_FACE[thinking]
+    if (!faceId) return
+    setAgentFaceState(faceId, 'thinking', 0)
+    return () => {
+      setAgentStates(prev => {
+        if (prev[faceId] !== 'thinking') return prev
+        return { ...prev, [faceId]: 'idle' }
+      })
+    }
+  }, [thinking])
+
+  // Message completion — detect speaking/agreeing/dissenting when streaming ends
+  useEffect(() => {
+    const curStreaming = new Set()
+    for (const msg of messages) {
+      if (msg.streaming) { curStreaming.add(msg.id); continue }
+      if (!seenMsgIdsRef.current.has(msg.id)) {
+        seenMsgIdsRef.current.add(msg.id)
+        if (msg.role && msg.role !== 'user') {
+          const faceId = ROLE_TO_FACE[msg.role]
+          if (faceId) applyMsgState(msg, faceId)
+        }
+      } else {
+        seenMsgIdsRef.current.add(msg.id)
+      }
+    }
+    for (const id of prevStreamingRef.current) {
+      if (!curStreaming.has(id)) {
+        const msg = messages.find(m => m.id === id)
+        if (msg && msg.role && msg.role !== 'user') {
+          const faceId = ROLE_TO_FACE[msg.role]
+          if (faceId) applyMsgState(msg, faceId)
+        }
+      }
+    }
+    prevStreamingRef.current = curStreaming
+
+    function applyMsgState(msg, faceId) {
+      const c = (msg.content || '').toLowerCase()
+      if (AGREE_FACE_RE.test(c))   setAgentFaceState(faceId, 'agreeing', 3000)
+      else if (DISSENT_FACE_RE.test(c)) setAgentFaceState(faceId, 'dissenting', 3000)
+      else                              setAgentFaceState(faceId, 'speaking', 2000)
+    }
+  }, [messages])
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior:'smooth' }) }, [messages, thinking])
 
   return (
@@ -2148,16 +2215,21 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
             <p style={{ fontFamily:'var(--font-mono)', fontSize:'.44rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', marginTop:'.4rem' }}>The Architect &amp; The Spark are listening</p>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={msg.id || i} id={`msg-${msg.id}`} data-message-id={msg.id}>
-            <RightChatMessage msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
-              onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
-              architectState={architectState} sparkState={sparkState} yourState={yourState}
-              scribeState={scribeState} stewardState={stewardState}
-              advocateState={advocateState} contrarianState={contrarianState} />
-          </div>
-        ))}
-        {thinking && <ThinkingDot model={thinking} architectState={architectState} sparkState={sparkState} scribeState={scribeState} stewardState={stewardState} />}
+        {messages.map((msg, i) => {
+          const faceId = ROLE_TO_FACE[msg.role]
+          const agentFaceState = faceId ? (agentStates[faceId] || 'idle') : 'idle'
+          return (
+            <div key={msg.id || i} id={`msg-${msg.id}`} data-message-id={msg.id}>
+              <RightChatMessage msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
+                onPin={onPin} isPinned={pinnedIds.has(msg.id)} onPinToBoard={onPinToBoard}
+                architectState={architectState} sparkState={sparkState} yourState={yourState}
+                scribeState={scribeState} stewardState={stewardState}
+                advocateState={advocateState} contrarianState={contrarianState}
+                agentFaceState={agentFaceState} />
+            </div>
+          )
+        })}
+        {thinking && <ThinkingDot model={thinking} />}
         <div ref={messagesEndRef} />
       </div>
 
