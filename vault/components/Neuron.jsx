@@ -177,18 +177,24 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
     return () => clearInterval(id)
   }, [])
 
-  // ── Keyboard shortcuts (1/2/3) + Escape when panel open ──
+  // ── Keyboard shortcuts (1/2/3) — only when open ──
   useEffect(() => {
     if (!open) return
     function onKey(e) {
       if (e.key === '1') setZoomLevel(1)
       if (e.key === '2') setZoomLevel(2)
       if (e.key === '3') setZoomLevel(3)
-      if (e.key === 'Escape') onClose?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open])
+
+  // ── Escape to close — always wired so cleanup fires correctly ──
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
 
   // ── Main build ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -907,8 +913,9 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.42rem', letterSpacing: '.08em', color: 'rgba(200,160,80,0.5)', whiteSpace: 'nowrap' }}>
                 {formatImpressionDate(impression?.snapshot?.capturedAt)}
               </span>
-              <button onClick={onClose} data-hover
-                style={{ background: 'none', border: '1px solid rgba(200,160,80,0.25)', borderRadius: '3px', padding: '.2rem .45rem', cursor: 'none', color: 'rgba(200,160,80,0.55)', fontFamily: 'var(--font-mono)', fontSize: '10px', transition: 'all .15s' }}>
+              <button
+                onClick={onClose}
+                style={{ background: 'none', border: '1px solid rgba(200,160,80,0.25)', borderRadius: '3px', padding: '.2rem .45rem', cursor: 'pointer', color: 'rgba(200,160,80,0.55)', fontFamily: 'var(--font-mono)', fontSize: '10px', transition: 'all .15s' }}>
                 ✕
               </button>
             </>
@@ -936,11 +943,11 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
                 {liveMode ? 'LIVE' : 'PAUSED'}
               </button>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
-              <button onClick={onClose}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3a3530', fontSize: 18, lineHeight: 1, padding: '4px 8px', borderRadius: 4, transition: 'color 0.15s', fontFamily: 'monospace' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#c44e18'}
-                onMouseLeave={e => e.currentTarget.style.color = '#3a3530'}
-                title="Close Neuron">
+              <button
+                onClick={onClose}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3a3530', fontSize: 20, lineHeight: 1, padding: '2px 6px', transition: 'color 0.15s' }}
+                onMouseEnter={e => e.target.style.color = '#6a6460'}
+                onMouseLeave={e => e.target.style.color = '#3a3530'}>
                 ×
               </button>
             </>
