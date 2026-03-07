@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
 
@@ -137,16 +137,92 @@ export default function TheGuideWidget() {
   const [sessionNotes, setSessionNotes] = useState([])
   const [showNotes, setShowNotes] = useState(false)
   const [newIds, setNewIds] = useState(new Set())
+  const [pos, setPos] = useState({ x: 28, y: 600 })
+  const [dragging, setDragging] = useState(false)
+
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const conversationRef = useRef([])
+  const posRef = useRef(pos)
+  const dragOffsetRef = useRef({ x: 0, y: 0 })
+  const dragStartRef = useRef(null)
+  const dragMovedRef = useRef(false)
 
+  // Restore saved position on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('guide-fab-pos')
+      if (saved) {
+        const p = JSON.parse(saved)
+        setPos(p); posRef.current = p
+      } else {
+        const p = { x: 28, y: window.innerHeight - 84 }
+        setPos(p); posRef.current = p
+      }
+    } catch {}
+  }, [])
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     if (open) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       setTimeout(() => inputRef.current?.focus(), 120)
     }
   }, [open, messages, loading])
+
+  // Start drag — shared by FAB and panel header
+  const startDrag = useCallback((clientX, clientY) => {
+    dragOffsetRef.current = { x: clientX - posRef.current.x, y: clientY - posRef.current.y }
+    dragStartRef.current = { x: clientX, y: clientY }
+    dragMovedRef.current = false
+    setDragging(true)
+  }, [])
+
+  // Drag move + end listeners (mouse and touch unified)
+  useEffect(() => {
+    if (!dragging) return
+    const FAB = 48
+
+    const onMove = (e) => {
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY
+      if (dragStartRef.current) {
+        const d = Math.hypot(clientX - dragStartRef.current.x, clientY - dragStartRef.current.y)
+        if (d > 4) dragMovedRef.current = true
+      }
+      let nx = clientX - dragOffsetRef.current.x
+      let ny = clientY - dragOffsetRef.current.y
+      nx = Math.max(0, Math.min(window.innerWidth - FAB, nx))
+      ny = Math.max(0, Math.min(window.innerHeight - FAB, ny))
+      const newPos = { x: nx, y: ny }
+      setPos(newPos)
+      posRef.current = newPos
+    }
+
+    const onEnd = () => {
+      setDragging(false)
+      try { localStorage.setItem('guide-fab-pos', JSON.stringify(posRef.current)) } catch {}
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onEnd)
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onEnd)
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+    }
+  }, [dragging])
+
+  // Panel opens above FAB if FAB is in bottom half of screen
+  const openAbove = pos.y > (typeof window !== 'undefined' ? window.innerHeight : 800) / 2
+  // Clamp panel horizontally so it doesn't overflow the right edge
+  const panelOffsetX = typeof window !== 'undefined'
+    ? Math.min(0, window.innerWidth - pos.x - 400 - 8)
+    : 0
+  const panelTop = openAbove ? -(560 + 8) : (48 + 8)
 
   const isNoteRequest = (t) => /take a note|note this|remember this|write (this|that) down|jot (this|that)/i.test(t)
   const extractNote = (t) => t.replace(/^(take a note|note this|remember this|write (this|that) down|jot (this|that)):?\s*/i, '').trim()
@@ -161,7 +237,6 @@ export default function TheGuideWidget() {
     setNewIds(prev => new Set([...prev, userMsg.id]))
     setLoading(true)
 
-    // Note-taking shortcut — no API call needed
     if (isNoteRequest(userText)) {
       const noteContent = extractNote(userText)
       if (noteContent) setSessionNotes(prev => [...prev, noteContent])
@@ -181,7 +256,6 @@ export default function TheGuideWidget() {
       return
     }
 
-    // Show notes shortcut
     if (/show (my )?notes|what('s| is| are) my notes|summarize (my )?notes/i.test(userText)) {
       const replyId = Date.now() + 'a'
       const reply = {
@@ -197,7 +271,6 @@ export default function TheGuideWidget() {
       return
     }
 
-    // Streaming API call
     conversationRef.current = [...conversationRef.current, { role: 'user', content: userText }]
 
     const streamId = Date.now() + 'a'
@@ -254,37 +327,47 @@ export default function TheGuideWidget() {
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        .guide-trigger:hover { box-shadow: 0 0 18px ${PALETTE.ember}55 !important; transform: scale(1.05); }
-        .guide-trigger { transition: box-shadow 0.2s, transform 0.15s !important; }
+        .guide-trigger:hover { box-shadow: 0 0 18px ${PALETTE.ember}55 !important; }
+        .guide-trigger { transition: box-shadow 0.2s !important; }
         .guide-suggestion:hover { background: #2e2b27 !important; border-color: ${PALETTE.ember}55 !important; color: ${PALETTE.text} !important; }
         .guide-send:hover:not(:disabled) { background: #a83e10 !important; }
         .guide-send:disabled { opacity: 0.35; cursor: not-allowed; }
         .guide-messages::-webkit-scrollbar { width: 3px; }
         .guide-messages::-webkit-scrollbar-track { background: transparent; }
         .guide-messages::-webkit-scrollbar-thumb { background: #2e2b27; border-radius: 2px; }
+        .guide-drag-handle:hover { background: rgba(255,255,255,0.02) !important; }
       `}</style>
 
-      <div style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 9500 }}>
-        {/* Collapsed trigger button */}
+      <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9500 }}>
+
+        {/* FAB — shown when panel is closed */}
         {!open && (
           <button
             className="guide-trigger"
-            onClick={() => setOpen(true)}
-            title="The Guide — ask anything about The Vault"
+            onMouseDown={e => { if (e.button === 0) { e.preventDefault(); startDrag(e.clientX, e.clientY) } }}
+            onTouchStart={e => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
+            onClick={() => { if (!dragMovedRef.current) setOpen(true) }}
+            title="The Guide — drag to reposition · click to open"
             style={{
               width: 48, height: 48, borderRadius: '50%', border: 'none',
-              background: PALETTE.bg, cursor: 'pointer', padding: 0,
+              background: PALETTE.bg,
+              cursor: dragging ? 'grabbing' : 'grab',
+              padding: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: `0 2px 16px rgba(0,0,0,0.5), 0 0 0 1.5px ${PALETTE.ember}`,
+              userSelect: 'none',
             }}
           >
             <GuideAvatar thinking={false} size={48} />
           </button>
         )}
 
-        {/* Expanded panel */}
+        {/* Panel — shown when open */}
         {open && (
           <div style={{
+            position: 'absolute',
+            top: panelTop,
+            left: panelOffsetX,
             width: 400, height: 560,
             display: 'flex', flexDirection: 'column',
             background: PALETTE.bg,
@@ -294,13 +377,22 @@ export default function TheGuideWidget() {
             overflow: 'hidden',
             animation: 'guideWidgetSlideUp 0.2s ease forwards',
           }}>
-            {/* Header */}
-            <div style={{
-              padding: '14px 16px 12px',
-              borderBottom: `1px solid ${PALETTE.border}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              flexShrink: 0,
-            }}>
+
+            {/* Header — drag handle for panel */}
+            <div
+              className="guide-drag-handle"
+              onMouseDown={e => { if (e.button === 0) { e.preventDefault(); startDrag(e.clientX, e.clientY) } }}
+              onTouchStart={e => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
+              style={{
+                padding: '14px 16px 12px',
+                borderBottom: `1px solid ${PALETTE.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                flexShrink: 0,
+                cursor: dragging ? 'grabbing' : 'grab',
+                userSelect: 'none',
+                transition: 'background 0.15s',
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <GuideAvatar thinking={loading} size={32} />
                 <div>
@@ -314,7 +406,7 @@ export default function TheGuideWidget() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {sessionNotes.length > 0 && (
-                  <button onClick={() => setShowNotes(!showNotes)} style={{
+                  <button onClick={e => { e.stopPropagation(); setShowNotes(!showNotes) }} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     color: PALETTE.gold, fontSize: 11, fontFamily: 'monospace',
                     display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px',
@@ -322,7 +414,7 @@ export default function TheGuideWidget() {
                     ◆ {sessionNotes.length}
                   </button>
                 )}
-                <button onClick={() => setOpen(false)} style={{
+                <button onClick={e => { e.stopPropagation(); setOpen(false) }} style={{
                   background: 'none', border: 'none', cursor: 'pointer',
                   color: PALETTE.muted, fontSize: 18, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 4,
@@ -360,7 +452,7 @@ export default function TheGuideWidget() {
               <div ref={bottomRef} />
             </div>
 
-            {/* Suggestions — only show on first message */}
+            {/* Suggestions — only on first message */}
             {messages.length <= 1 && (
               <div style={{ padding: '0 16px 10px', display: 'flex', flexWrap: 'wrap', gap: 6, flexShrink: 0 }}>
                 {SUGGESTED.map((q, i) => (

@@ -1425,15 +1425,32 @@ function LatticeDrawer({ expanded, setExpanded, messages, chatInput, setChatInpu
           Auto {autoAI ? 'ON' : 'OFF'}
         </button>
         <button onClick={e => { e.stopPropagation(); onNeuronToggle?.() }}
-          title="The Neuron — conversation topology"
-          style={{ display:'flex', alignItems:'center', justifyContent:'center', background:'transparent', border:`1px solid ${neuronOpen ? 'rgba(200,160,96,0.5)' : 'var(--border)'}`, borderRadius:'2px', padding:'.22rem .45rem', color: neuronOpen ? 'rgba(200,160,96,0.9)' : 'var(--muted)', transition:'all .2s', opacity: neuronOpen ? 1 : 0.55 }}>
-          <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-            <circle cx="3" cy="6" r="2" fill="currentColor" opacity="0.8" />
-            <circle cx="13" cy="2" r="2" fill="currentColor" opacity="0.8" />
-            <circle cx="13" cy="10" r="2" fill="currentColor" opacity="0.8" />
-            <line x1="5" y1="6" x2="11" y2="2.5" stroke="currentColor" strokeOpacity="0.55" strokeWidth="1" />
-            <line x1="5" y1="6" x2="11" y2="9.5" stroke="currentColor" strokeOpacity="0.55" strokeWidth="1" />
+          style={{
+            background: neuronOpen ? '#c44e1818' : 'none',
+            border: `1px solid ${neuronOpen ? '#c44e1855' : '#2e2b27'}`,
+            borderRadius: '6px',
+            padding: '5px 10px',
+            cursor: 'pointer',
+            color: neuronOpen ? '#c44e18' : '#6a6460',
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s',
+          }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="2" cy="6" r="1.5" fill="currentColor"/>
+            <circle cx="6" cy="2" r="1.5" fill="currentColor"/>
+            <circle cx="10" cy="6" r="1.5" fill="currentColor"/>
+            <circle cx="6" cy="10" r="1.5" fill="currentColor"/>
+            <line x1="3.5" y1="6" x2="4.5" y2="2.8" stroke="currentColor" strokeWidth="1"/>
+            <line x1="7.5" y1="2.8" x2="8.5" y2="6" stroke="currentColor" strokeWidth="1"/>
+            <line x1="3.5" y1="6" x2="4.5" y2="9.2" stroke="currentColor" strokeWidth="1"/>
+            <line x1="7.5" y1="9.2" x2="8.5" y2="6" stroke="currentColor" strokeWidth="1"/>
           </svg>
+          NEURON
         </button>
         <span style={{ fontFamily:'var(--font-mono)', fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--green)' }}>◆ Live</span>
       </div>
