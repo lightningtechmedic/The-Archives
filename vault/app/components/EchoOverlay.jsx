@@ -4,45 +4,25 @@ import { useState, useEffect, useRef, forwardRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { PATTERNS, EMOTE_NAMES, PATTERN_VOICE } from '@/lib/patternSVGs'
 
-// ── Web Speech ─────────────────────────────────────────────────────────────────
-function echoSpeak(text) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return
+// ── OpenAI TTS ─────────────────────────────────────────────────────────────────
+async function echoSpeak(text) {
+  if (!text) return
+  try {
+    const res = await fetch('/vault/api/echo-speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    })
+    if (!res.ok) return
 
-  // Cancel anything currently speaking
-  window.speechSynthesis.cancel()
-
-  const doSpeak = () => {
-    const utterance = new SpeechSynthesisUtterance(text)
-    const voices = window.speechSynthesis.getVoices()
-
-    const preferred = voices.find(v =>
-      v.name.includes('Samantha') ||
-      v.name.includes('Karen') ||
-      v.name.includes('Moira') ||
-      v.name.includes('Google UK English Female') ||
-      v.name.includes('Microsoft Zira')
-    ) || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
-      || voices.find(v => v.lang.startsWith('en'))
-      || voices[0]
-
-    if (preferred) utterance.voice = preferred
-    utterance.rate = 0.88
-    utterance.pitch = 0.95
-    utterance.volume = 0.9
-
-    utterance.onerror = (e) => console.warn('[Echo] speech error:', e.error)
-    window.speechSynthesis.speak(utterance)
-  }
-
-  // Voices are loaded async on Chrome — wait if empty
-  const voices = window.speechSynthesis.getVoices()
-  if (voices.length === 0) {
-    window.speechSynthesis.onvoiceschanged = () => {
-      window.speechSynthesis.onvoiceschanged = null
-      doSpeak()
-    }
-  } else {
-    doSpeak()
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const audio = new Audio(url)
+    audio.volume = 0.9
+    audio.play()
+    audio.onended = () => URL.revokeObjectURL(url)
+  } catch (err) {
+    console.warn('[Echo] TTS error:', err)
   }
 }
 
