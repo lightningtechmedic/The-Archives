@@ -153,7 +153,9 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     s.id = 'neuron-kf'
     s.textContent = [
       '@keyframes neuronSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}',
-      '@keyframes neuronEmptyBreathe{0%,100%{opacity:.3}50%{opacity:.6}}',
+      '@keyframes neuronEmptyBreathe{0%,100%{opacity:.35}50%{opacity:.7}}',
+      '@keyframes neuronCompassSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
+      '@keyframes neuronLivePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.65)}}',
     ].join('')
     document.head.appendChild(s)
   }, [])
@@ -237,16 +239,18 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     // Radial gradient background
     const bgGrad = defs.append('radialGradient').attr('id', 'ng-bg')
       .attr('cx', '50%').attr('cy', '50%').attr('r', '70%')
-    bgGrad.append('stop').attr('offset', '0%').attr('stop-color', '#0f0e0c')
+    bgGrad.append('stop').attr('offset', '0%').attr('stop-color', '#141210')
     bgGrad.append('stop').attr('offset', '100%').attr('stop-color', '#080706')
 
-    // Glow filters
+    // Glow filters — boosted to ~45% visible glow
     Object.keys(ROLE_CONFIG).forEach(role => {
       const f = defs.append('filter').attr('id', `ng-${role}`)
-        .attr('x', '-60%').attr('y', '-60%').attr('width', '220%').attr('height', '220%')
-      f.append('feGaussianBlur').attr('stdDeviation', '3.5').attr('result', 'blur')
+        .attr('x', '-80%').attr('y', '-80%').attr('width', '260%').attr('height', '260%')
+      f.append('feGaussianBlur').attr('stdDeviation', '6').attr('result', 'blur')
+      f.append('feComponentTransfer').attr('in', 'blur').attr('result', 'boostedBlur')
+        .append('feFuncA').attr('type', 'linear').attr('slope', '2.8')
       const fm = f.append('feMerge')
-      fm.append('feMergeNode').attr('in', 'blur')
+      fm.append('feMergeNode').attr('in', 'boostedBlur')
       fm.append('feMergeNode').attr('in', 'SourceGraphic')
     })
 
@@ -850,26 +854,24 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       {/* Header */}
       <div style={{ height: 44, padding: '0 1rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.55rem' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(200,160,96,0.75)' }} />
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(200,160,96,0.75)', flexShrink: 0 }} />
           <div>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.55rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--mid)' }}>The Neuron</span>
-            {!isEmpty && (
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.38rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(58,53,48,1)', marginTop: '.05rem' }}>{shape}</div>
-            )}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--mid)' }}>The Neuron</span>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: '2px', color: isEmpty ? 'transparent' : 'var(--ember)', transition: 'color .4s' }}>{shape}</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}>
-          {/* Zoom buttons */}
-          {[{ k: 1, icon: '⊟' }, { k: 2, icon: '⊡' }, { k: 3, icon: '⊞' }].map(({ k, icon }) => (
+          {/* Zoom tabs */}
+          {[{ k: 1, label: 'ALL' }, { k: 2, label: 'MAP' }, { k: 3, label: 'READ' }].map(({ k, label }) => (
             <button key={k} onClick={() => setZoomLevel(k)} data-hover
               style={{
-                fontFamily: 'var(--font-mono)', fontSize: '.42rem', letterSpacing: '.08em',
-                background: 'transparent',
-                border: `1px solid ${zoomLevel === k ? 'var(--ember)' : 'var(--border)'}`,
-                borderRadius: '2px', padding: '.18rem .38rem', cursor: 'none',
-                color: zoomLevel === k ? 'var(--ember)' : 'var(--muted)', transition: 'all .15s',
+                fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '.1em',
+                background: zoomLevel === k ? 'rgba(196,78,24,0.08)' : 'transparent',
+                border: `1px solid ${zoomLevel === k ? 'rgba(196,78,24,0.5)' : '#2e2b27'}`,
+                borderRadius: '3px', padding: '.2rem .45rem', cursor: 'none',
+                color: zoomLevel === k ? 'var(--ember)' : '#3a3530', transition: 'all .15s',
               }}>
-              {icon} {k}
+              {label}
             </button>
           ))}
           <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
@@ -880,18 +882,45 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
           )}
           <button onClick={handleLiveToggle} data-hover
             style={{
-              fontFamily: 'var(--font-mono)', fontSize: '.45rem', letterSpacing: '.12em', textTransform: 'uppercase',
-              background: 'transparent',
-              border: `1px solid ${liveMode ? 'rgba(80,200,100,0.4)' : 'var(--border)'}`,
-              borderRadius: '2px', padding: '.2rem .5rem', cursor: 'none',
-              color: liveMode ? 'var(--green)' : 'var(--muted)',
-              display: 'flex', alignItems: 'center', gap: '.3rem', transition: 'all .2s',
+              fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase',
+              background: liveMode ? 'rgba(212,84,26,0.06)' : 'transparent',
+              border: `1px solid ${liveMode ? 'rgba(212,84,26,0.4)' : '#2e2b27'}`,
+              borderRadius: '3px', padding: '.2rem .5rem', cursor: 'none',
+              color: liveMode ? 'var(--ember)' : '#3a3530',
+              display: 'flex', alignItems: 'center', gap: '.35rem', transition: 'all .2s',
             }}>
-            <span style={{ width: 4, height: 4, borderRadius: '50%', background: liveMode ? 'var(--green)' : 'var(--muted)', flexShrink: 0 }} />
-            {liveMode ? 'Live' : 'Paused'}
+            <span style={{
+              width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+              background: liveMode ? 'var(--ember)' : '#3a3530',
+              animation: liveMode ? 'neuronLivePulse 1.6s ease-in-out infinite' : 'none',
+            }} />
+            {liveMode ? 'LIVE' : 'PAUSED'}
           </button>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
         </div>
+      </div>
+
+      {/* Legend bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '1.4rem',
+        padding: '.5rem 1rem', borderBottom: '1px solid var(--border)',
+        background: 'rgba(0,0,0,0.25)', flexShrink: 0,
+        opacity: isEmpty ? 0.25 : 1, transition: 'opacity .4s',
+      }}>
+        {[
+          { label: 'REPLY',    stroke: EDGE_STYLE.reply.stroke,    dash: '',    color: 'rgba(255,255,255,0.55)' },
+          { label: 'TENSION',  stroke: EDGE_STYLE.tension.stroke,  dash: '4,3', color: 'rgba(255,96,96,0.8)'   },
+          { label: 'APPROVAL', stroke: EDGE_STYLE.approval.stroke, dash: '2,4', color: 'rgba(80,200,100,0.8)' },
+        ].map(e => (
+          <div key={e.label} style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+            <svg width={26} height={8} style={{ flexShrink: 0 }}>
+              <line x1={0} y1={4} x2={26} y2={4} stroke={e.stroke} strokeWidth={1.5} strokeDasharray={e.dash} />
+            </svg>
+            <span style={{ fontFamily: 'monospace', fontSize: '10px', letterSpacing: '.1em', color: e.color, textTransform: 'uppercase' }}>
+              {e.label}
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* Graph area */}
@@ -902,16 +931,54 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
         {isEmpty && (
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', flexDirection: 'column', gap: '.5rem',
+            justifyContent: 'center', flexDirection: 'column', gap: '1rem',
             pointerEvents: 'none',
-            animation: 'neuronEmptyBreathe 4s ease-in-out infinite',
           }}>
-            <p style={{
-              fontFamily: 'Georgia, serif', fontStyle: 'italic',
-              fontSize: '14px', color: '#3a3530', textAlign: 'center', lineHeight: 1.7,
-            }}>
-              The conversation hasn't taken shape yet.<br />Keep thinking.
-            </p>
+            {/* Compass rose — slow rotate at 8% opacity */}
+            <div style={{ position: 'absolute', opacity: 0.08, animation: 'neuronCompassSpin 32s linear infinite' }}>
+              <svg width={160} height={160} viewBox="0 0 100 100" fill="none">
+                <circle cx={50} cy={50} r={46} stroke="#c8a060" strokeWidth={0.5} strokeDasharray="2,4"/>
+                <circle cx={50} cy={50} r={30} stroke="#c8a060" strokeWidth={0.5}/>
+                <circle cx={50} cy={50} r={3} fill="#c8a060"/>
+                {/* Cardinal spokes */}
+                {[0,90,180,270].map(a => {
+                  const rad = a * Math.PI / 180
+                  const x1 = 50 + Math.cos(rad) * 6, y1 = 50 + Math.sin(rad) * 6
+                  const x2 = 50 + Math.cos(rad) * 44, y2 = 50 + Math.sin(rad) * 44
+                  const tipL = { x: 50 + Math.cos(rad - 0.18) * 36, y: 50 + Math.sin(rad - 0.18) * 36 }
+                  const tipR = { x: 50 + Math.cos(rad + 0.18) * 36, y: 50 + Math.sin(rad + 0.18) * 36 }
+                  return (
+                    <g key={a}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#c8a060" strokeWidth={0.6}/>
+                      <polygon points={`${x2},${y2} ${tipL.x},${tipL.y} ${tipR.x},${tipR.y}`} fill="#c8a060"/>
+                    </g>
+                  )
+                })}
+                {/* Ordinal spokes */}
+                {[45,135,225,315].map(a => {
+                  const rad = a * Math.PI / 180
+                  const x1 = 50 + Math.cos(rad) * 8, y1 = 50 + Math.sin(rad) * 8
+                  const x2 = 50 + Math.cos(rad) * 38, y2 = 50 + Math.sin(rad) * 38
+                  return <line key={a} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#c8a060" strokeWidth={0.4}/>
+                })}
+              </svg>
+            </div>
+            {/* Text */}
+            <div style={{ animation: 'neuronEmptyBreathe 5s ease-in-out infinite', textAlign: 'center' }}>
+              <p style={{
+                fontFamily: 'Georgia, serif', fontStyle: 'italic',
+                fontSize: '15px', color: '#5a5248', lineHeight: 1.75,
+                letterSpacing: '0.01em',
+              }}>
+                The conversation hasn't<br />taken shape yet.
+              </p>
+              <p style={{
+                fontFamily: 'monospace', fontSize: '9px', letterSpacing: '.18em',
+                textTransform: 'uppercase', color: '#3a3530', marginTop: '.7rem',
+              }}>
+                Keep thinking.
+              </p>
+            </div>
           </div>
         )}
 
@@ -919,24 +986,6 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
         {!d3Ready && !isEmpty && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.5rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--muted)' }}>loading graph…</span>
-          </div>
-        )}
-
-        {/* Legend */}
-        {!isEmpty && (
-          <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: '.28rem' }}>
-            {[
-              { label: 'reply',    stroke: EDGE_STYLE.reply.stroke,    dash: '' },
-              { label: 'tension',  stroke: EDGE_STYLE.tension.stroke,  dash: '4,3' },
-              { label: 'approval', stroke: EDGE_STYLE.approval.stroke, dash: '2,4' },
-            ].map(e => (
-              <div key={e.label} style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                <svg width={18} height={6}>
-                  <line x1={0} y1={3} x2={18} y2={3} stroke={e.stroke} strokeWidth={1.2} strokeDasharray={e.dash} />
-                </svg>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.36rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', opacity: .6 }}>{e.label}</span>
-              </div>
-            ))}
           </div>
         )}
 
