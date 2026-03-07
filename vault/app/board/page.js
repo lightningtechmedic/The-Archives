@@ -100,7 +100,7 @@ function StickyChip({ type, tag, label, icon, onClick, onRemove }) {
       display:'inline-flex', alignItems:'center', gap:'.15rem',
       background:c.bg, color:c.text, border:`1px solid ${c.border}`,
       borderRadius:100, padding:'.08rem .35rem',
-      fontFamily:"'Space Mono',monospace", fontSize:'.4rem', letterSpacing:'.07em',
+      fontFamily:"var(--font-mono),monospace", fontSize:'.4rem', letterSpacing:'.07em',
       cursor:onClick?'none':'default', whiteSpace:'nowrap', flexShrink:0,
       maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', transition:'opacity .15s',
     }}>
@@ -129,7 +129,7 @@ function SketchOverlay({ sticky, onSave, onClose }) {
     const pEls=all.map(d=>`<path d="${d}" stroke="${strokeColor}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)
     onSave(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${pEls.join('')}</svg>`)
   }
-  const skBtn={background:'transparent',border:'1px solid rgba(255,255,255,0.15)',borderRadius:2,color:'rgba(240,236,228,0.5)',fontFamily:"'Space Mono',monospace",fontSize:'.44rem',letterSpacing:'.1em',textTransform:'uppercase',padding:'.25rem .5rem',cursor:'none'}
+  const skBtn={background:'transparent',border:'1px solid rgba(255,255,255,0.15)',borderRadius:2,color:'rgba(240,236,228,0.5)',fontFamily:"var(--font-mono),monospace",fontSize:'.44rem',letterSpacing:'.1em',textTransform:'uppercase',padding:'.25rem .5rem',cursor:'none'}
   return (
     <div style={{position:'absolute',inset:0,zIndex:200,background:'rgba(0,0,0,0.82)',borderRadius:4,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
       <svg ref={svgRef} width={W} height={H} style={{background:'rgba(0,0,0,0.5)',borderRadius:4,cursor:'crosshair',touchAction:'none',userSelect:'none'}}
@@ -290,10 +290,10 @@ function StickyCard({ sticky, columnId, isIdle, onDelete, onUpdate, isDragOverla
         {/* Stale hover prompt */}
         {stale && hovered && (
           <div style={{position:'absolute',bottom:0,left:0,right:0,background:'rgba(0,0,0,0.75)',borderRadius:'0 0 4px 4px',padding:'.3rem .5rem',display:'flex',alignItems:'center',justifyContent:'space-between',zIndex:20}}>
-            <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.38rem',color:'rgba(240,236,228,0.35)',letterSpacing:'.08em'}}>Still relevant?</span>
+            <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.38rem',color:'rgba(240,236,228,0.35)',letterSpacing:'.08em'}}>Still relevant?</span>
             <div style={{display:'flex',gap:6}}>
-              <button onClick={()=>onUpdate(sticky.id,{updated_at:new Date().toISOString()})} style={{background:'none',border:'none',color:'rgba(80,200,100,0.7)',fontFamily:"'Space Mono',monospace",fontSize:'.38rem',cursor:'none',letterSpacing:'.06em'}}>↵ keep</button>
-              <button onClick={()=>onUpdate(sticky.id,{color:'charcoal',updated_at:new Date().toISOString()})} style={{background:'none',border:'none',color:'rgba(212,84,26,0.6)',fontFamily:"'Space Mono',monospace",fontSize:'.38rem',cursor:'none',letterSpacing:'.06em'}}>✕ archive</button>
+              <button onClick={()=>onUpdate(sticky.id,{updated_at:new Date().toISOString()})} style={{background:'none',border:'none',color:'rgba(80,200,100,0.7)',fontFamily:"var(--font-mono),monospace",fontSize:'.38rem',cursor:'none',letterSpacing:'.06em'}}>↵ keep</button>
+              <button onClick={()=>onUpdate(sticky.id,{color:'charcoal',updated_at:new Date().toISOString()})} style={{background:'none',border:'none',color:'rgba(212,84,26,0.6)',fontFamily:"var(--font-mono),monospace",fontSize:'.38rem',cursor:'none',letterSpacing:'.06em'}}>✕ archive</button>
             </div>
           </div>
         )}
@@ -316,9 +316,9 @@ function StickyCard({ sticky, columnId, isIdle, onDelete, onUpdate, isDragOverla
         {/* Note link suggestion */}
         {noteSugg && editing && !dismissed && (
           <div style={{margin:'6px 0 0 12px',display:'flex',alignItems:'center',gap:6,padding:'.25rem .45rem',background:'rgba(200,151,58,0.1)',border:'1px solid rgba(200,151,58,0.3)',borderRadius:4}}>
-            <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.4rem',color:'#c8973a',letterSpacing:'.06em'}}>🔗 Link to "{noteSugg.title}"?</span>
-            <button onClick={()=>{onUpdate(sticky.id,{note_link_id:noteSugg.id,updated_at:new Date().toISOString()});setNoteSugg(null)}} style={{background:'rgba(200,151,58,0.2)',border:'none',color:'#c8973a',fontFamily:"'Space Mono',monospace",fontSize:'.38rem',padding:'.1rem .3rem',borderRadius:2,cursor:'none'}}>Link</button>
-            <button onClick={()=>{setDismissed(true);setNoteSugg(null)}} style={{background:'none',border:'none',color:'rgba(240,236,228,0.3)',fontFamily:"'Space Mono',monospace",fontSize:'.38rem',cursor:'none'}}>✕</button>
+            <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.4rem',color:'#c8973a',letterSpacing:'.06em'}}>🔗 Link to "{noteSugg.title}"?</span>
+            <button onClick={()=>{onUpdate(sticky.id,{note_link_id:noteSugg.id,updated_at:new Date().toISOString()});setNoteSugg(null)}} style={{background:'rgba(200,151,58,0.2)',border:'none',color:'#c8973a',fontFamily:"var(--font-mono),monospace",fontSize:'.38rem',padding:'.1rem .3rem',borderRadius:2,cursor:'none'}}>Link</button>
+            <button onClick={()=>{setDismissed(true);setNoteSugg(null)}} style={{background:'none',border:'none',color:'rgba(240,236,228,0.3)',fontFamily:"var(--font-mono),monospace",fontSize:'.38rem',cursor:'none'}}>✕</button>
           </div>
         )}
 
@@ -347,7 +347,7 @@ function StickyCard({ sticky, columnId, isIdle, onDelete, onUpdate, isDragOverla
               <StickyChip key={chip.key} type={chip.type} tag={chip.tag} label={chip.label} icon={chip.icon} onClick={chip.onClick} />
             ))}
             {extraChips > 0 && (
-              <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.38rem',color:'rgba(240,236,228,0.3)',padding:'.08rem .25rem'}}>+{extraChips} more</span>
+              <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.38rem',color:'rgba(240,236,228,0.3)',padding:'.08rem .25rem'}}>+{extraChips} more</span>
             )}
             {noteLinkTitle && (
               <button onClick={()=>onUpdate(sticky.id,{note_link_id:null})} style={{background:'none',border:'none',color:'rgba(240,236,228,0.2)',fontSize:'.4rem',cursor:'none',padding:0}}>×link</button>
@@ -371,7 +371,7 @@ function ColumnDropZone({ columnId }) {
   const { setNodeRef, isOver } = useDroppable({ id:`drop-${columnId}`, data:{type:'column-drop',columnId} })
   return (
     <div ref={setNodeRef} style={{flex:1,minHeight:60,border:isOver?'1px dashed rgba(212,84,26,0.4)':'1px dashed rgba(255,255,255,0.06)',borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',transition:'border-color .15s',marginTop:4}}>
-      <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.75rem',color:isOver?'rgba(212,84,26,0.4)':'rgba(255,255,255,0.1)'}}>+</span>
+      <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.75rem',color:isOver?'rgba(212,84,26,0.4)':'rgba(255,255,255,0.1)'}}>+</span>
     </div>
   )
 }
@@ -381,19 +381,19 @@ function TagFilterBar({ allTags, activeTags, onToggle, onClear }) {
   if (!allTags.length) return null
   return (
     <div style={{display:'flex',alignItems:'center',gap:6,padding:'.5rem 1.25rem',borderBottom:'1px solid rgba(255,255,255,0.04)',flexWrap:'wrap',flexShrink:0}}>
-      <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.44rem',letterSpacing:'.12em',textTransform:'uppercase',color:'rgba(240,236,228,0.25)',flexShrink:0}}>Filter:</span>
+      <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.44rem',letterSpacing:'.12em',textTransform:'uppercase',color:'rgba(240,236,228,0.25)',flexShrink:0}}>Filter:</span>
       {allTags.map(tag => {
         const active = activeTags.has(tag)
         const c = tagColor(tag)
         return (
           <button key={tag} onClick={()=>onToggle(tag)}
-            style={{display:'inline-flex',alignItems:'center',gap:'.2rem',padding:'.18rem .5rem',borderRadius:100,border:`1px solid ${active?c.border:'rgba(255,255,255,0.08)'}`,background:active?c.bg:'transparent',color:active?c.text:'rgba(240,236,228,0.3)',fontFamily:"'Space Mono',monospace",fontSize:'.42rem',letterSpacing:'.07em',cursor:'none',transition:'all .15s'}}>
+            style={{display:'inline-flex',alignItems:'center',gap:'.2rem',padding:'.18rem .5rem',borderRadius:100,border:`1px solid ${active?c.border:'rgba(255,255,255,0.08)'}`,background:active?c.bg:'transparent',color:active?c.text:'rgba(240,236,228,0.3)',fontFamily:"var(--font-mono),monospace",fontSize:'.42rem',letterSpacing:'.07em',cursor:'none',transition:'all .15s'}}>
             #{tag}
           </button>
         )
       })}
       {activeTags.size > 0 && (
-        <button onClick={onClear} style={{background:'none',border:'none',color:'rgba(240,236,228,0.25)',fontFamily:"'Space Mono',monospace",fontSize:'.42rem',letterSpacing:'.08em',cursor:'none',textTransform:'uppercase'}}>✕ clear</button>
+        <button onClick={onClear} style={{background:'none',border:'none',color:'rgba(240,236,228,0.25)',fontFamily:"var(--font-mono),monospace",fontSize:'.42rem',letterSpacing:'.08em',cursor:'none',textTransform:'uppercase'}}>✕ clear</button>
       )}
     </div>
   )
@@ -405,10 +405,10 @@ function AIPanel({ title, loading, text, onClose, onPin, avatar }) {
     <div style={{position:'fixed',bottom:0,left:0,right:0,zIndex:600,background:'rgba(11,10,8,0.97)',borderTop:'1px solid rgba(212,84,26,0.3)',padding:'1.25rem 1.5rem',maxHeight:'38vh',display:'flex',flexDirection:'column',gap:'.75rem',animation:'fadeUp .3s cubic-bezier(.16,1,.3,1)'}}>
       <div style={{display:'flex',alignItems:'center',gap:'.75rem',flexShrink:0}}>
         <span style={{fontSize:'1.1rem'}}>{avatar}</span>
-        <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.52rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(212,84,26,0.8)'}}>{title}</span>
+        <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.52rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(212,84,26,0.8)'}}>{title}</span>
         <div style={{flex:1}}/>
         {text && !loading && (
-          <button onClick={onPin} style={{fontFamily:"'Space Mono',monospace",fontSize:'.46rem',letterSpacing:'.1em',textTransform:'uppercase',color:'rgba(240,236,228,0.4)',background:'transparent',border:'1px solid rgba(255,255,255,0.08)',borderRadius:3,padding:'.25rem .6rem',cursor:'none',transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.color='rgba(240,236,228,0.8)';e.currentTarget.style.borderColor='rgba(255,255,255,0.18)'}} onMouseLeave={e=>{e.currentTarget.style.color='rgba(240,236,228,0.4)';e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'}}>
+          <button onClick={onPin} style={{fontFamily:"var(--font-mono),monospace",fontSize:'.46rem',letterSpacing:'.1em',textTransform:'uppercase',color:'rgba(240,236,228,0.4)',background:'transparent',border:'1px solid rgba(255,255,255,0.08)',borderRadius:3,padding:'.25rem .6rem',cursor:'none',transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.color='rgba(240,236,228,0.8)';e.currentTarget.style.borderColor='rgba(255,255,255,0.18)'}} onMouseLeave={e=>{e.currentTarget.style.color='rgba(240,236,228,0.4)';e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'}}>
             Pin as sticky
           </button>
         )}
@@ -416,7 +416,7 @@ function AIPanel({ title, loading, text, onClose, onPin, avatar }) {
       </div>
       <div style={{flex:1,overflowY:'auto',scrollbarWidth:'none'}}>
         {loading ? (
-          <p style={{fontFamily:"'Space Mono',monospace",fontSize:'.48rem',letterSpacing:'.12em',textTransform:'uppercase',color:'rgba(240,236,228,0.25)',animation:'pulseSlow 1.5s ease-in-out infinite'}}>thinking…</p>
+          <p style={{fontFamily:"var(--font-mono),monospace",fontSize:'.48rem',letterSpacing:'.12em',textTransform:'uppercase',color:'rgba(240,236,228,0.25)',animation:'pulseSlow 1.5s ease-in-out infinite'}}>thinking…</p>
         ) : (
           <p style={{fontFamily:"'Caveat',cursive",fontSize:'1.2rem',color:'rgba(240,236,228,0.8)',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{text}</p>
         )}
@@ -487,20 +487,20 @@ function BoardColumn({ column, colStickies, isIdle, onAddSticky, onDeleteSticky,
             onBlur={saveName}
             onKeyDown={e=>{if(e.key==='Enter')saveName();if(e.key==='Escape'){setNameVal(column.name);setEditingName(false)}}}
             autoFocus
-            style={{flex:1,background:'transparent',border:'none',outline:'none',fontFamily:"'Space Mono',monospace",fontSize:'.5rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(240,236,228,0.7)'}} />
+            style={{flex:1,background:'transparent',border:'none',outline:'none',fontFamily:"var(--font-mono),monospace",fontSize:'.5rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(240,236,228,0.7)'}} />
         ) : (
           <span onDoubleClick={()=>setEditingName(true)}
-            style={{flex:1,fontFamily:"'Space Mono',monospace",fontSize:'.5rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(240,236,228,0.45)',cursor:'none'}}>
+            style={{flex:1,fontFamily:"var(--font-mono),monospace",fontSize:'.5rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(240,236,228,0.45)',cursor:'none'}}>
             {column.name}
           </span>
         )}
 
-        <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.42rem',color:'rgba(255,255,255,0.18)'}}>{colStickies.length}</span>
+        <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.42rem',color:'rgba(255,255,255,0.18)'}}>{colStickies.length}</span>
 
         {/* Type pill */}
         <div style={{position:'relative'}}>
           <button onClick={()=>setShowTypeMenu(v=>!v)}
-            style={{background:'transparent',border:'1px solid rgba(255,255,255,0.07)',borderRadius:3,color:'rgba(255,255,255,0.25)',fontFamily:"'Space Mono',monospace",fontSize:'.38rem',letterSpacing:'.06em',padding:'.1rem .3rem',cursor:'none',transition:'all .15s'}}
+            style={{background:'transparent',border:'1px solid rgba(255,255,255,0.07)',borderRadius:3,color:'rgba(255,255,255,0.25)',fontFamily:"var(--font-mono),monospace",fontSize:'.38rem',letterSpacing:'.06em',padding:'.1rem .3rem',cursor:'none',transition:'all .15s'}}
             onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.15)';e.currentTarget.style.color='rgba(255,255,255,0.6)'}}
             onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.07)';e.currentTarget.style.color='rgba(255,255,255,0.25)'}}>
             {colType}
@@ -509,7 +509,7 @@ function BoardColumn({ column, colStickies, isIdle, onAddSticky, onDeleteSticky,
             <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,zIndex:500,background:'rgba(11,10,8,0.98)',border:'1px solid rgba(255,255,255,0.09)',borderRadius:4,overflow:'hidden',minWidth:110,boxShadow:'0 8px 32px rgba(0,0,0,0.7)'}}>
               {COL_TYPES.map(t=>(
                 <button key={t} onClick={()=>{onUpdateColumn(column.id,{type:t});setShowTypeMenu(false)}}
-                  style={{width:'100%',padding:'.45rem .65rem',background:colType===t?'rgba(212,84,26,0.08)':'transparent',color:colType===t?'#d4541a':'rgba(240,236,228,0.45)',fontFamily:"'Space Mono',monospace",fontSize:'.44rem',letterSpacing:'.08em',textAlign:'left',display:'block',transition:'background .1s',cursor:'none'}}
+                  style={{width:'100%',padding:'.45rem .65rem',background:colType===t?'rgba(212,84,26,0.08)':'transparent',color:colType===t?'#d4541a':'rgba(240,236,228,0.45)',fontFamily:"var(--font-mono),monospace",fontSize:'.44rem',letterSpacing:'.08em',textAlign:'left',display:'block',transition:'background .1s',cursor:'none'}}
                   onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.04)'}
                   onMouseLeave={e=>e.currentTarget.style.background=colType===t?'rgba(212,84,26,0.08)':'transparent'}>
                   {COL_TYPE_LABELS[t]}
@@ -551,7 +551,7 @@ function BoardColumn({ column, colStickies, isIdle, onAddSticky, onDeleteSticky,
 
       {/* Add sticky */}
       <button onClick={()=>onAddSticky(column.id)}
-        style={{margin:'.4rem .75rem .75rem',padding:'.4rem',background:'transparent',border:'1px dashed rgba(212,84,26,0.2)',borderRadius:3,color:'rgba(212,84,26,0.5)',fontFamily:"'Space Mono',monospace",fontSize:'.46rem',letterSpacing:'.1em',textTransform:'uppercase',transition:'all .2s',cursor:'none',flexShrink:0}}
+        style={{margin:'.4rem .75rem .75rem',padding:'.4rem',background:'transparent',border:'1px dashed rgba(212,84,26,0.2)',borderRadius:3,color:'rgba(212,84,26,0.5)',fontFamily:"var(--font-mono),monospace",fontSize:'.46rem',letterSpacing:'.1em',textTransform:'uppercase',transition:'all .2s',cursor:'none',flexShrink:0}}
         onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(212,84,26,0.45)';e.currentTarget.style.color='#d4541a'}}
         onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(212,84,26,0.2)';e.currentTarget.style.color='rgba(212,84,26,0.5)'}}>
         + Add Sticky
@@ -563,7 +563,7 @@ function BoardColumn({ column, colStickies, isIdle, onAddSticky, onDeleteSticky,
 // ── Board TopBar ──────────────────────────────────────────────────────────────
 function BoardTopBar({ stickyCount, onSignOut, onSummary, onCluster, onPrep, inkMode, onInkToggle }) {
   const tbBtn = (active) => ({
-    fontFamily:"'Space Mono',monospace", fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase',
+    fontFamily:"var(--font-mono),monospace", fontSize:'.5rem', letterSpacing:'.1em', textTransform:'uppercase',
     background: active ? 'rgba(212,84,26,0.12)' : 'transparent',
     border: `1px solid ${active ? 'rgba(212,84,26,0.4)' : 'rgba(255,255,255,0.08)'}`,
     borderRadius:4, padding:'.32rem .65rem', color: active ? '#d4541a' : 'rgba(240,236,228,0.35)',
@@ -573,7 +573,7 @@ function BoardTopBar({ stickyCount, onSignOut, onSummary, onCluster, onPrep, ink
     <div style={{height:52,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 1.25rem',borderBottom:'1px solid rgba(255,255,255,0.055)',background:'rgba(11,10,8,0.9)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',position:'relative',zIndex:100}}>
       <div style={{display:'flex',alignItems:'center',gap:'.65rem'}}>
         <div style={{width:7,height:7,borderRadius:'50%',background:'#d4541a',boxShadow:'0 0 10px rgba(212,84,26,0.5)',animation:'pulseSlow 3s ease-in-out infinite'}} />
-        <span style={{fontFamily:"'Cormorant Garamond',Georgia,serif",fontSize:'1.2rem',fontWeight:300,fontStyle:'italic',color:'rgba(240,236,228,0.9)'}}>
+        <span style={{fontFamily:"var(--font-prose),Georgia,serif",fontSize:'1.2rem',fontWeight:300,fontStyle:'italic',color:'rgba(240,236,228,0.9)'}}>
           The <em style={{color:'#d4541a'}}>Vault</em>
         </span>
       </div>
@@ -608,19 +608,19 @@ function BoardTopBar({ stickyCount, onSignOut, onSummary, onCluster, onPrep, ink
         <div style={{width:1,height:16,background:'rgba(255,255,255,0.08)',margin:'0 .15rem'}} />
 
         <a href="/vault/dashboard"
-          style={{fontFamily:"'Space Mono',monospace",fontSize:'.5rem',letterSpacing:'.1em',textTransform:'uppercase',color:'rgba(240,236,228,0.3)',textDecoration:'none',padding:'.32rem .65rem',border:'1px solid rgba(255,255,255,0.055)',borderRadius:4,transition:'all .2s'}}
+          style={{fontFamily:"var(--font-mono),monospace",fontSize:'.5rem',letterSpacing:'.1em',textTransform:'uppercase',color:'rgba(240,236,228,0.3)',textDecoration:'none',padding:'.32rem .65rem',border:'1px solid rgba(255,255,255,0.055)',borderRadius:4,transition:'all .2s'}}
           onMouseEnter={e=>{e.currentTarget.style.color='rgba(240,236,228,0.7)';e.currentTarget.style.borderColor='rgba(255,255,255,0.14)'}}
           onMouseLeave={e=>{e.currentTarget.style.color='rgba(240,236,228,0.3)';e.currentTarget.style.borderColor='rgba(255,255,255,0.055)'}}>
           Workspace
         </a>
 
         <div style={{display:'flex',alignItems:'center',gap:'.4rem',padding:'.32rem .65rem',border:'1px solid rgba(212,84,26,0.3)',borderRadius:4,background:'rgba(212,84,26,0.06)'}}>
-          <span style={{fontFamily:"'Space Mono',monospace",fontSize:'.5rem',letterSpacing:'.1em',textTransform:'uppercase',color:'#d4541a'}}>Board</span>
+          <span style={{fontFamily:"var(--font-mono),monospace",fontSize:'.5rem',letterSpacing:'.1em',textTransform:'uppercase',color:'#d4541a'}}>Board</span>
           {stickyCount>0&&<span style={{background:'#d4541a',color:'#0b0a08',borderRadius:3,padding:'0 .3rem',fontSize:'.44rem',fontWeight:700,lineHeight:'1.4'}}>{stickyCount}</span>}
         </div>
 
         <button onClick={onSignOut}
-          style={{fontFamily:"'Space Mono',monospace",fontSize:'.48rem',letterSpacing:'.1em',textTransform:'uppercase',color:'rgba(240,236,228,0.25)',background:'transparent',border:'1px solid rgba(255,255,255,0.055)',borderRadius:4,padding:'.32rem .65rem',cursor:'none',transition:'all .2s'}}
+          style={{fontFamily:"var(--font-mono),monospace",fontSize:'.48rem',letterSpacing:'.1em',textTransform:'uppercase',color:'rgba(240,236,228,0.25)',background:'transparent',border:'1px solid rgba(255,255,255,0.055)',borderRadius:4,padding:'.32rem .65rem',cursor:'none',transition:'all .2s'}}
           onMouseEnter={e=>{e.currentTarget.style.color='rgba(240,236,228,0.7)';e.currentTarget.style.borderColor='rgba(255,255,255,0.14)'}}
           onMouseLeave={e=>{e.currentTarget.style.color='rgba(240,236,228,0.25)';e.currentTarget.style.borderColor='rgba(255,255,255,0.055)'}}>
           Out
@@ -948,11 +948,11 @@ export default function BoardPage() {
     <div style={{minHeight:'100vh',background:'#0b0a08',display:'flex',alignItems:'center',justifyContent:'center'}}>
       {loadError ? (
         <div style={{textAlign:'center',maxWidth:420,padding:'0 2rem'}}>
-          <p style={{fontFamily:"'Space Mono',monospace",fontSize:'.52rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(212,84,26,0.7)',marginBottom:'.75rem'}}>Board error</p>
+          <p style={{fontFamily:"var(--font-mono),monospace",fontSize:'.52rem',letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(212,84,26,0.7)',marginBottom:'.75rem'}}>Board error</p>
           <p style={{fontFamily:"'Caveat',cursive",fontSize:'1.15rem',color:'rgba(240,236,228,0.45)',lineHeight:1.5}}>{loadError}</p>
         </div>
       ) : (
-        <p style={{fontFamily:"'Space Mono',monospace",fontSize:'.52rem',letterSpacing:'.18em',textTransform:'uppercase',color:'rgba(240,236,228,0.2)'}}>Loading board…</p>
+        <p style={{fontFamily:"var(--font-mono),monospace",fontSize:'.52rem',letterSpacing:'.18em',textTransform:'uppercase',color:'rgba(240,236,228,0.2)'}}>Loading board…</p>
       )}
     </div>
   )
@@ -1024,7 +1024,7 @@ export default function BoardPage() {
 
           {/* Add column button */}
           <button onClick={handleAddColumn}
-            style={{flexShrink:0,width:240,minHeight:120,background:'transparent',border:'1px dashed rgba(255,255,255,0.06)',borderRadius:6,color:'rgba(255,255,255,0.18)',fontFamily:"'Space Mono',monospace",fontSize:'.5rem',letterSpacing:'.14em',textTransform:'uppercase',cursor:'none',transition:'all .2s',alignSelf:'stretch',display:'flex',alignItems:'center',justifyContent:'center',gap:'.4rem'}}
+            style={{flexShrink:0,width:240,minHeight:120,background:'transparent',border:'1px dashed rgba(255,255,255,0.06)',borderRadius:6,color:'rgba(255,255,255,0.18)',fontFamily:"var(--font-mono),monospace",fontSize:'.5rem',letterSpacing:'.14em',textTransform:'uppercase',cursor:'none',transition:'all .2s',alignSelf:'stretch',display:'flex',alignItems:'center',justifyContent:'center',gap:'.4rem'}}
             onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(212,84,26,0.3)';e.currentTarget.style.color='rgba(212,84,26,0.6)'}}
             onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.06)';e.currentTarget.style.color='rgba(255,255,255,0.18)'}}>
             + Add Column

@@ -11,7 +11,7 @@ export default function Error({ error, reset }) {
         justifyContent: 'center',
         background: '#0a0a0a',
         color: 'rgba(255,255,255,0.4)',
-        fontFamily: 'Space Mono, monospace',
+        fontFamily: 'var(--font-mono), monospace',
         fontSize: '0.65rem',
         letterSpacing: '0.15em',
         gap: '1.5rem',

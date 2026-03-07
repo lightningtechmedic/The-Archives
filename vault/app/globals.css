@@ -1,16 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@300;400;500;700;800&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Fonts — --font-mono and --font-prose set by next/font on <html> */
+    /* Fonts — --font-prose and --font-mono set by next/font on <html>; fallbacks here */
     --font-display: 'Cabinet Grotesk', system-ui, sans-serif;
-    --font-serif:   var(--font-prose, 'Lora', Georgia, serif);
+    --font-prose:   'Lora', Georgia, serif;
+    --font-mono:    'DM Mono', monospace;
+    --font-serif:   var(--font-prose);
 
-    /* Legacy accent tokens */
+    /* Accent tokens */
     --ember:      #d45a20;
     --ember-dim:  rgba(212,90,32,.08);
     --ember-glow: rgba(212,90,32,.05);
@@ -20,6 +20,8 @@
     --cyan-dim:   rgba(58,212,200,0.18);
     --green:      #50c864;
     --green-dim:  rgba(80,200,100,0.18);
+    --silver:     #8ab4c8;
+    --silver-dim: rgba(138,180,200,.14);
     --ash:        #c8c0b4;
     --ink:        #0c0b0a;
     --border:     rgba(255,248,238,.06);
@@ -125,7 +127,7 @@
   /* ── Typography ── */
   .font-caveat { font-family: var(--font-caveat), 'Caveat', cursive; }
   .font-serif  { font-family: var(--font-serif), Georgia, serif; }
-  .font-mono   { font-family: var(--font-mono), 'Space Mono', monospace; }
+  .font-mono   { font-family: var(--font-mono), monospace; }
 
   /* ── Topbar ── */
   .topbar {
@@ -355,7 +357,8 @@
   }
   .msg-timestamp {
     font-family: var(--font-mono), monospace;
-    font-size: .46rem; letter-spacing: .08em;
+    font-size: .44rem; letter-spacing: .1em;
+    text-transform: uppercase;
     color: var(--muted); opacity: .65;
   }
   .online-dot {
@@ -413,12 +416,69 @@
     width: 100%;
   }
   .vault-textarea::placeholder { color: var(--muted); }
+
+  /* ── v8 Typography System ── */
+
+  /* Note body & editable content */
+  .note-body,
+  [contenteditable] {
+    font-family: var(--font-prose);
+    font-size: 1rem;
+    line-height: 1.9;
+  }
+
+  /* Note / doc title */
+  .note-title,
+  textarea.title {
+    font-family: var(--font-display);
+    font-weight: 800;
+  }
+
+  /* Lattice message bubbles */
+  .msg-bubble {
+    font-family: var(--font-prose);
+    font-style: italic;
+    font-size: .88rem;
+    line-height: 1.62;
+  }
+
+  /* Agent question sub-labels */
+  .agent-question-label {
+    font-family: var(--font-prose);
+    font-style: italic;
+    font-size: .52rem;
+  }
+
+  /* Tags (#nlp etc) */
+  .tag-chip {
+    font-family: var(--font-mono);
+    font-size: .75rem;
+  }
+
+  /* Quoted / pinned text */
+  .quote-block,
+  blockquote {
+    font-family: var(--font-prose);
+    font-style: italic;
+  }
+
+  /* Format toolbar B/I/U glyphs */
+  .tb-btn.format-glyph {
+    font-family: var(--font-prose);
+  }
+
+  /* Echo floating thought labels */
+  .echo-thought {
+    font-family: var(--font-mono);
+    font-size: .4rem;
+    letter-spacing: .1em;
+  }
 }
 
 @layer utilities {
   .font-caveat { font-family: var(--font-caveat), 'Caveat', cursive; }
   .font-serif  { font-family: var(--font-serif), Georgia, serif; }
-  .font-mono   { font-family: var(--font-mono), 'Space Mono', monospace; }
+  .font-mono   { font-family: var(--font-mono), monospace; }
   .text-ember  { color: var(--ember); }
   .text-gold   { color: var(--gold); }
   .text-cyan   { color: var(--cyan); }

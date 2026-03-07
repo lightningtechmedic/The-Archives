@@ -396,7 +396,7 @@ export default function TheGuideWidget() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <GuideAvatar thinking={loading} size={32} />
                 <div>
-                  <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 17, fontWeight: 600, letterSpacing: '0.02em', color: PALETTE.text, lineHeight: 1.1 }}>
+                  <div style={{ fontFamily: "'Lora', Georgia, serif", fontSize: 17, fontWeight: 600, letterSpacing: '0.02em', color: PALETTE.text, lineHeight: 1.1 }}>
                     The Guide
                   </div>
                   <div style={{ fontSize: 9.5, color: loading ? PALETTE.ember : PALETTE.muted, fontFamily: 'monospace', letterSpacing: '0.1em', transition: 'color 0.3s' }}>
