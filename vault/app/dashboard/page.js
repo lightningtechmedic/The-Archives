@@ -1809,7 +1809,7 @@ export default function Dashboard() {
     }
   }
 
-  async function loadEnclaveData(enclaveId) {
+  async function loadEnclaveData(enclaveId, userId = null) {
     const sb = getSupabase()
     // No relational joins — fetch each table independently to avoid cross-table policy chain
     const [{ data: eNotes }, { data: membersData }] = await Promise.all([
@@ -1830,7 +1830,7 @@ export default function Dashboard() {
     const membersWithProfiles = (membersData || []).map(m => ({ ...m, profiles: profileMap[m.user_id] || null }))
     setEnclaveNotes(eNotes || [])
     setActiveEnclaveMembers(membersWithProfiles)
-    const myRow = membersWithProfiles.find(m => m.user_id === userRef.current?.id)
+    const myRow = membersWithProfiles.find(m => m.user_id === (userId || userRef.current?.id))
     setCanViewPatternLibrary(myRow?.role === 'owner' || myRow?.pattern_library_access === true)
   }
 
@@ -1873,7 +1873,7 @@ export default function Dashboard() {
           setActiveEnclaveId(savedEnclaveId)
           activeEnclaveIdRef.current = savedEnclaveId
           if (active) {
-            await loadEnclaveData(savedEnclaveId)
+            await loadEnclaveData(savedEnclaveId, u.id)
             if (active) await fetchMessages(u.id, savedEnclaveId)
           }
         } else {
