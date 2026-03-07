@@ -1363,7 +1363,7 @@ function ChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinTo
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:'flex', alignItems:'baseline', gap:'.5rem', marginBottom:'.1rem' }}>
           <span style={{ fontFamily:'var(--font-mono)', fontSize: isReaction ? '.48rem' : '.52rem', letterSpacing:'.12em', textTransform:'uppercase', color: isReaction ? (aiMeta?.color ? aiMeta.color.replace(')', ', 0.7)').replace('rgb', 'rgba') : 'rgba(255,255,255,0.45)') : (aiMeta?.color || (isSmara(prof) ? 'var(--cyan)' : 'rgba(255,255,255,0.6)')) }}>{label}</span>
-          <span className="msg-timestamp">{formatTime(msg.created_at)}</span>
+          <span className="msg-timestamp">{formatTime(msg.inserted_at || msg.created_at)}</span>
         </div>
         <p style={{ fontFamily:'var(--font-caveat)', fontSize: isReaction ? '0.9rem' : '1rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
           {msg.content}
@@ -1781,7 +1781,7 @@ export default function Dashboard() {
   async function fetchMessages(uid, enclaveId) {
     const sb = getSupabase()
     const resolvedUid = uid ?? userRef.current?.id
-    let q = sb.from('messages').select('*').order('created_at', { ascending: true }).limit(100)
+    let q = sb.from('messages').select('*').order('inserted_at', { ascending: true }).limit(200)
     if (enclaveId) {
       q = q.eq('enclave_id', enclaveId)
     } else {
@@ -2316,7 +2316,7 @@ export default function Dashboard() {
       user_id: userRef.current?.id, display_name: meta.label, content: text, role: model,
       enclave_id: activeEnclaveIdRef.current, reply_to_id: replyToId || null,
     }).select().single()
-    const final = saved || { id: tempId, role: model, display_name: meta.label, content: text, created_at: new Date().toISOString() }
+    const final = saved || { id: tempId, role: model, display_name: meta.label, content: text, created_at: new Date().toISOString(), inserted_at: new Date().toISOString() }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, isReaction: true, isCrossReaction, replyToId } : m))
     return { ...final, isReaction: true, isCrossReaction, replyToId }
   }
@@ -2325,7 +2325,7 @@ export default function Dashboard() {
   // ── Chat ──
   async function saveHumanMessage(content) {
     const tempId = `${Date.now()}-h`
-    const optimistic = { id: tempId, user_id: user.id, display_name: profile?.display_name || user.email, content, role: 'human', created_at: new Date().toISOString() }
+    const optimistic = { id: tempId, user_id: user.id, display_name: profile?.display_name || user.email, content, role: 'human', created_at: new Date().toISOString(), inserted_at: new Date().toISOString() }
     setMessages(prev => prev.find(m => m.id === tempId) ? prev : [...prev, optimistic])
     const { data: saved } = await getSupabase().from('messages').insert({ user_id: user.id, display_name: optimistic.display_name, content, role: 'human', enclave_id: activeEnclaveIdRef.current }).select().single()
     const final = saved || optimistic
@@ -2336,7 +2336,7 @@ export default function Dashboard() {
   async function triggerAI(model, history, noteContext, publicNotes, extraBody = {}, replyToId = null) {
     const meta = AI[model]
     const tempId = `${Date.now()}-${model}`
-    const placeholder = { id: tempId, role: model, display_name: meta.label, content: '', streaming: true, replyToId, created_at: new Date().toISOString() }
+    const placeholder = { id: tempId, role: model, display_name: meta.label, content: '', streaming: true, replyToId, created_at: new Date().toISOString(), inserted_at: new Date().toISOString() }
     setMessages(prev => [...prev, placeholder])
     setThinking(model)
     if (model === 'scribe')  setScribeState('thinking')
@@ -2426,7 +2426,7 @@ export default function Dashboard() {
           enclave_id: activeEnclaveIdRef.current,
           reply_to_id: lastHumanMsgIdRef.current || null,
         }).select().single()
-        const msg = saved || { id: `${Date.now()}-rc-${agent.role}`, role: agent.role, display_name: agent.label, content: agent.line, created_at: new Date().toISOString() }
+        const msg = saved || { id: `${Date.now()}-rc-${agent.role}`, role: agent.role, display_name: agent.label, content: agent.line, created_at: new Date().toISOString(), inserted_at: new Date().toISOString() }
         setMessages(prev => [...prev, msg])
       }, agent.delay)
     }
