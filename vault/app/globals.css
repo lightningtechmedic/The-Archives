@@ -1,14 +1,14 @@
+@import url("https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@300;400;500;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Fonts */
+    /* Fonts — --font-mono and --font-prose set by next/font on <html> */
     --font-display: 'Cabinet Grotesk', system-ui, sans-serif;
-    --font-prose:   'Lora', Georgia, serif;
-    --font-serif:   'Lora', Georgia, serif;
-    --font-mono:    'DM Mono', monospace;
+    --font-serif:   var(--font-prose, 'Lora', Georgia, serif);
 
     /* Legacy accent tokens */
     --ember:      #d45a20;
