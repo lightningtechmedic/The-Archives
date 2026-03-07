@@ -412,9 +412,11 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, 
     if (!enclave?.id) return
     setLoadingMembers(true)
     const sb = createClient()
-    const { data: membersData } = await sb.from('enclave_members')
-      .select('id, role, joined_at, user_id, pattern_library_access')
+    // enclave_members has no `id` column — PK is composite (enclave_id, user_id)
+    const { data: membersData, error: membersError } = await sb.from('enclave_members')
+      .select('role, joined_at, user_id, pattern_library_access')
       .eq('enclave_id', enclave.id)
+    if (membersError) console.error('fetchMembers error:', membersError)
     const userIds = membersData?.map(m => m.user_id).filter(Boolean) || []
     const { data: profilesData } = userIds.length
       ? await sb.from('profiles').select('id, display_name, email').in('id', userIds)
@@ -453,12 +455,13 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, 
     fetchMembers()
   }
 
-  async function togglePatternLibraryAccess(memberId, newValue) {
+  async function togglePatternLibraryAccess(memberUserId, newValue) {
     const sb = createClient()
+    // Use composite PK: user_id + enclave_id (no `id` column on this table)
     const { error } = await sb
       .from('enclave_members')
       .update({ pattern_library_access: newValue })
-      .eq('id', memberId)
+      .eq('user_id', memberUserId)
       .eq('enclave_id', enclave.id)
     if (!error) fetchMembers()
   }
@@ -611,7 +614,7 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose, 
                       letterSpacing: '0.1em', transition: 'color 0.2s',
                     }}>ECHO</span>
                     <div
-                      onClick={() => togglePatternLibraryAccess(m.id, !m.pattern_library_access)}
+                      onClick={() => togglePatternLibraryAccess(m.user_id, !m.pattern_library_access)}
                       style={{
                         width: 28, height: 16, borderRadius: 8,
                         background: m.pattern_library_access ? '#8ab4c822' : '#1e1c19',
