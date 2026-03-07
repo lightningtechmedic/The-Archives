@@ -7,37 +7,42 @@ import { PATTERNS, EMOTE_NAMES, PATTERN_VOICE } from '@/lib/patternSVGs'
 // ── Web Speech ─────────────────────────────────────────────────────────────────
 function echoSpeak(text) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return
+
+  // Cancel anything currently speaking
   window.speechSynthesis.cancel()
 
-  const speak = () => {
+  const doSpeak = () => {
     const utterance = new SpeechSynthesisUtterance(text)
     const voices = window.speechSynthesis.getVoices()
-    const preferred =
-      voices.find(v =>
-        v.name.includes('Samantha') ||
-        v.name.includes('Karen') ||
-        v.name.includes('Moira') ||
-        v.name.includes('Google UK English Female') ||
-        v.name.includes('Microsoft Zira')
-      ) ||
-      voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
-      voices.find(v => v.lang.startsWith('en')) ||
-      voices[0]
+
+    const preferred = voices.find(v =>
+      v.name.includes('Samantha') ||
+      v.name.includes('Karen') ||
+      v.name.includes('Moira') ||
+      v.name.includes('Google UK English Female') ||
+      v.name.includes('Microsoft Zira')
+    ) || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+      || voices.find(v => v.lang.startsWith('en'))
+      || voices[0]
 
     if (preferred) utterance.voice = preferred
     utterance.rate = 0.88
     utterance.pitch = 0.95
     utterance.volume = 0.9
+
+    utterance.onerror = (e) => console.warn('[Echo] speech error:', e.error)
     window.speechSynthesis.speak(utterance)
   }
 
-  if (window.speechSynthesis.getVoices().length === 0) {
+  // Voices are loaded async on Chrome — wait if empty
+  const voices = window.speechSynthesis.getVoices()
+  if (voices.length === 0) {
     window.speechSynthesis.onvoiceschanged = () => {
-      speak()
       window.speechSynthesis.onvoiceschanged = null
+      doSpeak()
     }
   } else {
-    speak()
+    doSpeak()
   }
 }
 
@@ -213,11 +218,10 @@ export default function EchoOverlay({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // ── Speak Beat 1 question when stage 1 opens ──
+  // ── Show "take your time" hint after stage 1 opens ──
   useEffect(() => {
     if (stage !== '1') return
     setShowTakeYourTime(false)
-    echoSpeak("Tell me what you notice that others don't.")
     const t = setTimeout(() => setShowTakeYourTime(true), 1200)
     return () => clearTimeout(t)
   }, [stage])
@@ -400,7 +404,36 @@ export default function EchoOverlay({
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.52rem', letterSpacing: '.28em', color: 'rgba(138,180,200,.5)', marginBottom: '1.8rem', textTransform: 'uppercase' }}>
                   Echo · Pattern Intelligence
                 </div>
-                <EchoFace size="large" />
+                <div style={{
+                  width: 80, height: 80, borderRadius: 16,
+                  background: '#060c10',
+                  position: 'relative',
+                  flexShrink: 0,
+                  margin: '0 auto 24px',
+                }}>
+                  {[
+                    { size: 14, opacity: 0.85, duration: '4s',  dir: 'normal'  },
+                    { size: 30, opacity: 0.50, duration: '7s',  dir: 'reverse' },
+                    { size: 50, opacity: 0.26, duration: '12s', dir: 'normal'  },
+                    { size: 70, opacity: 0.12, duration: '20s', dir: 'reverse' },
+                  ].map((r, i) => (
+                    <div key={i} style={{
+                      position: 'absolute', top: '50%', left: '50%',
+                      width: r.size, height: r.size, borderRadius: '50%',
+                      border: `1px solid rgba(138,180,200,${r.opacity})`,
+                      transform: 'translate(-50%,-50%)',
+                      animation: `echoRing ${r.duration} linear infinite ${r.dir}`,
+                    }} />
+                  ))}
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    width: 4, height: 4, borderRadius: '50%',
+                    background: '#8ab4c8',
+                    transform: 'translate(-50%,-50%)',
+                    boxShadow: '0 0 8px rgba(138,180,200,.9)',
+                    animation: 'echoPulse 3s ease-in-out infinite',
+                  }} />
+                </div>
               </div>
 
               <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .5s both' }}>
@@ -423,7 +456,7 @@ export default function EchoOverlay({
               </div>
 
               <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .9s both' }}>
-                <GhostButton onClick={() => goToStage('1')}>I&apos;m ready →</GhostButton>
+                <GhostButton onClick={() => { goToStage('1'); echoSpeak("Tell me what you notice that others don't.") }}>I&apos;m ready →</GhostButton>
               </div>
             </div>
           )}
@@ -433,13 +466,34 @@ export default function EchoOverlay({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', textAlign: 'center' }}>
               <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .2s both' }}>
                 <div style={{
-                  width: 72, height: 72, borderRadius: '50%',
-                  border: '1px solid rgba(138,180,200,.35)',
-                  overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  animation: 'echoAvatarGlow 3s ease-in-out infinite',
-                  background: 'rgba(138,180,200,.04)',
+                  width: 80, height: 80, borderRadius: 16,
+                  background: '#060c10',
+                  position: 'relative',
+                  flexShrink: 0,
+                  margin: '0 auto 24px',
                 }}>
-                  <PatternAvatar pattern={avatarPattern} emote={initialAvatarEmote || 'neutral'} size={68} />
+                  {[
+                    { size: 14, opacity: 0.85, duration: '4s',  dir: 'normal'  },
+                    { size: 30, opacity: 0.50, duration: '7s',  dir: 'reverse' },
+                    { size: 50, opacity: 0.26, duration: '12s', dir: 'normal'  },
+                    { size: 70, opacity: 0.12, duration: '20s', dir: 'reverse' },
+                  ].map((r, i) => (
+                    <div key={i} style={{
+                      position: 'absolute', top: '50%', left: '50%',
+                      width: r.size, height: r.size, borderRadius: '50%',
+                      border: `1px solid rgba(138,180,200,${r.opacity})`,
+                      transform: 'translate(-50%,-50%)',
+                      animation: `echoRing ${r.duration} linear infinite ${r.dir}`,
+                    }} />
+                  ))}
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    width: 4, height: 4, borderRadius: '50%',
+                    background: '#8ab4c8',
+                    transform: 'translate(-50%,-50%)',
+                    boxShadow: '0 0 8px rgba(138,180,200,.9)',
+                    animation: 'echoPulse 3s ease-in-out infinite',
+                  }} />
                 </div>
               </div>
 
@@ -469,6 +523,39 @@ export default function EchoOverlay({
           {/* ── Stage 1 — Two-beat conversation ── */}
           {stage === '1' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Echo face */}
+              <div style={{ display: 'flex', justifyContent: 'center', animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) both' }}>
+                <div style={{
+                  width: 80, height: 80, borderRadius: 16,
+                  background: '#060c10',
+                  position: 'relative',
+                  flexShrink: 0,
+                }}>
+                  {[
+                    { size: 14, opacity: 0.85, duration: '4s',  dir: 'normal'  },
+                    { size: 30, opacity: 0.50, duration: '7s',  dir: 'reverse' },
+                    { size: 50, opacity: 0.26, duration: '12s', dir: 'normal'  },
+                    { size: 70, opacity: 0.12, duration: '20s', dir: 'reverse' },
+                  ].map((r, i) => (
+                    <div key={i} style={{
+                      position: 'absolute', top: '50%', left: '50%',
+                      width: r.size, height: r.size, borderRadius: '50%',
+                      border: `1px solid rgba(138,180,200,${r.opacity})`,
+                      transform: 'translate(-50%,-50%)',
+                      animation: `echoRing ${r.duration} linear infinite ${r.dir}`,
+                    }} />
+                  ))}
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    width: 4, height: 4, borderRadius: '50%',
+                    background: '#8ab4c8',
+                    transform: 'translate(-50%,-50%)',
+                    boxShadow: '0 0 8px rgba(138,180,200,.9)',
+                    animation: 'echoPulse 3s ease-in-out infinite',
+                  }} />
+                </div>
+              </div>
+
               {/* Beat 1 */}
               <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .1s both' }}>
                 <EchoMsg text="Tell me what you notice that others don't." />
