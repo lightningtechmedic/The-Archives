@@ -32,6 +32,8 @@ import { EchoWave } from '@/app/components/Echo'
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
 
+const AGENT_ROLES_ORDER = ['claude', 'gpt', 'scribe', 'steward', 'advocate', 'contrarian', 'socra']
+
 // ── AI config ──────────────────────────────────────────────────────────────────
 const AI = {
   claude: {
@@ -879,8 +881,8 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
         paddingLeft: '1rem', paddingRight: '1rem',
         boxSizing: 'border-box',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: 'rgba(11,10,8,0.92)',
-        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+        background: 'rgba(12,11,10,0.7)',
+        backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}>
@@ -1752,6 +1754,10 @@ export default function Dashboard() {
   const scribePendingApprovalRef = useRef(false)
   const lastHumanMsgIdRef = useRef(null)
   const lastScribeMsgIdRef = useRef(null)
+  const neuronBackdropRef = useRef(null)
+
+  // Agent role → pulseAgent index (mirrors AGENT_ROLES in Neuron.jsx)
+  const AGENT_PULSE_INDEX = { claude: 0, gpt: 1, scribe: 2, steward: 3, advocate: 4, contrarian: 5, socra: 6 }
 
   useEffect(() => { historyRef.current = messages }, [messages])
   useEffect(() => { aiLockedRef.current = aiLocked }, [aiLocked])
@@ -2241,6 +2247,11 @@ export default function Dashboard() {
       if (fullText.length > 100) {
         setEchoBadgeText(fullText)
         setEchoBadgeVisible(true)
+        // Echo runs → sequential pulse across all agent nodes
+        AGENT_ROLES_ORDER.forEach((role, i) => {
+          const pIdx = AGENT_PULSE_INDEX[role]
+          if (pIdx !== undefined) setTimeout(() => neuronBackdropRef.current?.pulseAgent(pIdx, 0.7), i * 120)
+        })
       }
     } catch (err) {
       console.error('Echo background error:', err)
@@ -2368,6 +2379,9 @@ export default function Dashboard() {
     const final = saved || { ...placeholder, content: text, streaming: false }
     if (model === 'scribe' && final.id) lastScribeMsgIdRef.current = final.id
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, replyToId } : m))
+    // Pulse backdrop on agent message arrival
+    const pIdx = AGENT_PULSE_INDEX[model]
+    if (pIdx !== undefined) neuronBackdropRef.current?.pulseAgent(pIdx, 1.0)
     return { ...final, replyToId }
   }
 
@@ -2676,6 +2690,10 @@ export default function Dashboard() {
     setPinToast(true)
     setTimeout(() => setPinToast(false), 2200)
     pinPendingRef.current = true
+    // Pulse backdrop on pin — stronger intensity
+    const msgRole = msg.role === 'user' ? null : msg.role
+    const pIdx = msgRole ? AGENT_PULSE_INDEX[msgRole] : undefined
+    if (pIdx !== undefined) neuronBackdropRef.current?.pulseAgent(pIdx, 1.5)
 
     // Your avatar dims-then-reignites
     setYourState('pinning')
@@ -2847,6 +2865,13 @@ export default function Dashboard() {
 
   return (
     <div style={{ height:'100vh', overflow:'hidden', position:'relative' }}>
+      {/* ── Neuron backdrop + vignette ── */}
+      <Neuron ref={neuronBackdropRef} backdrop messages={messages} open={false} onClose={() => {}} />
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(8,7,6,0.72) 100%), linear-gradient(to bottom, rgba(8,7,6,0.55) 0%, transparent 18%, transparent 82%, rgba(8,7,6,0.55) 100%)',
+      }} />
+
       {needsName && <DisplayNameModal onSave={saveDisplayName} />}
       {showWelcome && !needsName && <WelcomeModal supabase={getSupabase()} onDismiss={() => setShowWelcome(false)} />}
       {visConfirmOpen && (
@@ -2922,7 +2947,7 @@ export default function Dashboard() {
             onOpen={openNote} onNew={newNote} onClose={() => setNotesOpen(false)}
             search={notesSearch} setSearch={setNotesSearch} />
 
-          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column' }}>
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', background:'rgba(12,11,10,.15)', backdropFilter:'blur(2px)', WebkitBackdropFilter:'blur(2px)' }}>
             <FullScreenEditor
               noteTitle={noteTitle} setNoteTitle={setNoteTitle}
               noteContent={noteContent} setNoteContent={setNoteContent}

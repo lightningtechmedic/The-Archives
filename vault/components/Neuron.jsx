@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,9 @@ const ARROW_FILL = {
 const WIDTH = 480
 const NODE_CAP = 200
 const NODE_TRIM = 20
+
+// Agent index 0-6 → role key (matches user spec)
+const AGENT_ROLES = ['claude', 'gpt', 'scribe', 'steward', 'advocate', 'contrarian', 'socra']
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -120,7 +123,7 @@ function formatImpressionDate(iso) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function Neuron({ messages, open, onScrollToMessage, impression, onClose }) {
+const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, impression, onClose, backdrop }, ref) {
   // ── Refs ──
   const svgRef           = useRef(null)
   const minimapRef       = useRef(null)
@@ -142,6 +145,27 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
   const liveModeRef      = useRef(true)
   const hasOpenedRef     = useRef(false)   // stagger on first open only
   const heightRef        = useRef(600)
+  const simWRef          = useRef(WIDTH)   // effective sim width (viewport in backdrop mode)
+
+  // ── Imperative API ──
+  useImperativeHandle(ref, () => ({
+    pulseAgent(agentIndex, intensity = 1.0) {
+      const role = AGENT_ROLES[agentIndex]
+      if (!role || !nodeElsRef.current || !window.d3) return
+      const d3 = window.d3
+      nodeElsRef.current.filter(d => d.role === role).each(function(d) {
+        const g = d3.select(this)
+        const r0 = d._r || d.r
+        const rPeak = r0 * (1 + intensity * 0.55)
+        setNodeRadius(d3, g, d, rPeak)
+        g.select('circle,rect,polygon').attr('opacity', Math.min(1, 0.82 + intensity * 0.18))
+        setTimeout(() => {
+          setNodeRadius(d3, g, d, r0)
+          g.select('circle,rect,polygon').attr('opacity', 0.82)
+        }, 380 + intensity * 180)
+      })
+    },
+  }), []) // eslint-disable-line
 
   // ── State ──
   const [detail, setDetail]             = useState(null)
@@ -207,9 +231,11 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
           isReaction: false, isCrossReaction: false,
         }))
       : messages
-    if (!open || !d3Ready || !svgRef.current || effectMsgs.length < 3) return
+    if ((backdrop ? false : !open) || !d3Ready || !svgRef.current || effectMsgs.length < 3) return
     const d3 = window.d3
-    const HEIGHT = svgRef.current.parentElement?.clientHeight || window.innerHeight - 44
+    const SIM_W = backdrop ? window.innerWidth : WIDTH
+    const HEIGHT = backdrop ? window.innerHeight : (svgRef.current.parentElement?.clientHeight || window.innerHeight - 44)
+    simWRef.current = SIM_W
     heightRef.current = HEIGHT
 
     if (simRef.current) { simRef.current.stop(); simRef.current = null }
@@ -226,7 +252,7 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
         created_at: m.created_at, replyToId: m.replyToId || null,
         isReaction: m.isReaction || false, isCrossReaction: m.isCrossReaction || false,
         r: m.role === 'human' ? 7 : (m.isReaction ? 5 : 9),
-        x: WIDTH / 2 + (Math.random() - 0.5) * 200,
+        x: SIM_W / 2 + (Math.random() - 0.5) * 200,
         y: HEIGHT / 2 + (Math.random() - 0.5) * 200,
       }
       nodeMap.set(m.id, n)
@@ -256,7 +282,7 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
     setShape(detectShape(nodes, links))
 
     // SVG
-    const svg = d3.select(svgRef.current).attr('width', WIDTH).attr('height', HEIGHT)
+    const svg = d3.select(svgRef.current).attr('width', SIM_W).attr('height', HEIGHT)
 
     // ── Defs ──
     const defs = svg.append('defs')
@@ -293,9 +319,11 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
     grad.append('stop').attr('offset', '0%').attr('stop-color', '#b8856a')
     grad.append('stop').attr('offset', '100%').attr('stop-color', '#c44e18')
 
-    // Background rect (outside zoom — stays fixed)
-    svg.append('rect').attr('width', WIDTH).attr('height', HEIGHT)
-      .attr('fill', 'url(#ng-bg)').attr('pointer-events', 'none')
+    // Background rect (outside zoom — stays fixed; skip in backdrop mode, canvas is transparent)
+    if (!backdrop) {
+      svg.append('rect').attr('width', SIM_W).attr('height', HEIGHT)
+        .attr('fill', 'url(#ng-bg)').attr('pointer-events', 'none')
+    }
 
     // ── Zoom container ──
     const zoomContainer = svg.append('g').attr('id', 'ng-zc')
@@ -313,15 +341,15 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
 
     // ── Socra field (inside zoom container) ──
     zoomContainer.append('circle')
-      .attr('cx', WIDTH / 2).attr('cy', HEIGHT / 2).attr('r', 120)
+      .attr('cx', SIM_W / 2).attr('cy', HEIGHT / 2).attr('r', 120)
       .attr('fill', 'none').attr('stroke', 'rgba(200,160,96,0.1)')
       .attr('stroke-width', 1).attr('stroke-dasharray', '3,5')
     zoomContainer.append('circle')
-      .attr('cx', WIDTH / 2).attr('cy', HEIGHT / 2).attr('r', 4)
+      .attr('cx', SIM_W / 2).attr('cy', HEIGHT / 2).attr('r', 4)
       .attr('fill', ROLE_CONFIG.socra.color).attr('opacity', 0.5)
       .attr('filter', 'url(#ng-socra)')
     zoomContainer.append('text')
-      .attr('x', WIDTH / 2 + 8).attr('y', HEIGHT / 2 + 3)
+      .attr('x', SIM_W / 2 + 8).attr('y', HEIGHT / 2 + 3)
       .attr('font-family', 'var(--font-mono)').attr('font-size', 7)
       .attr('fill', 'rgba(200,160,96,0.45)').attr('letter-spacing', '0.12em')
       .text('SOCRA')
@@ -350,16 +378,16 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
     const sim = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(links).id(d => d.id).distance(72).strength(0.5))
       .force('charge', d3.forceManyBody().strength(-95))
-      .force('center', d3.forceCenter(WIDTH / 2, HEIGHT / 2))
+      .force('center', d3.forceCenter(SIM_W / 2, HEIGHT / 2))
       .force('collide', d3.forceCollide(d => d._r + 5))
-    sim.force('socra', makeSocraForce(nodes, WIDTH, HEIGHT))
+    sim.force('socra', makeSocraForce(nodes, SIM_W, HEIGHT))
     simRef.current = sim
 
     function tick() {
       const all = nodesRef.current.filter(n => !n._ghost)
       for (const n of all) {
         const r = n._r + 5
-        n.x = Math.max(r, Math.min(WIDTH - r, n.x))
+        n.x = Math.max(r, Math.min(SIM_W - r, n.x))
         n.y = Math.max(r, Math.min(HEIGHT - r, n.y))
       }
       linkGroupRef.current?.selectAll('path').each(function(d) {
@@ -425,11 +453,11 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
       sim.stop()
       cancelAnimationFrame(rafRef.current)
     }
-  }, [open, d3Ready, rebuildKey, impression]) // eslint-disable-line
+  }, [open, d3Ready, rebuildKey, impression, backdrop]) // eslint-disable-line
 
   // ── Live update effect ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!open || !d3Ready || !simRef.current || !liveModeRef.current || !!impression) return
+    if ((backdrop ? false : !open) || !d3Ready || !simRef.current || !liveModeRef.current || !!impression) return
     if (messages.length < 3) return
 
     const existingIds = new Set(nodesRef.current.map(n => n.id))
@@ -457,6 +485,7 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
 
   // ── Zoom level effect ───────────────────────────────────────────────────────
   useEffect(() => {
+    if (backdrop) return
     if (!open || !d3Ready || !svgRef.current || !zoomRef.current) return
     const d3 = window.d3
     const svg = d3.select(svgRef.current)
@@ -468,8 +497,8 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
         const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y)
         const minX = Math.min(...xs) - 24, maxX = Math.max(...xs) + 24
         const minY = Math.min(...ys) - 24, maxY = Math.max(...ys) + 24
-        const scale = Math.min(WIDTH / (maxX - minX), HEIGHT / (maxY - minY)) * 0.85
-        const tx = WIDTH / 2 - ((minX + maxX) / 2) * scale
+        const scale = Math.min(simWRef.current / (maxX - minX), HEIGHT / (maxY - minY)) * 0.85
+        const tx = simWRef.current / 2 - ((minX + maxX) / 2) * scale
         const ty = HEIGHT / 2 - ((minY + maxY) / 2) * scale
         svg.transition().duration(600).call(zoomRef.current.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
       }
@@ -506,11 +535,12 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
       const mx = (e.clientX - rect.left) / 80
       const my = (e.clientY - rect.top) / 60
       const HEIGHT = heightRef.current
-      const targetX = mx * WIDTH, targetY = my * HEIGHT
+      const simW = simWRef.current
+      const targetX = mx * simW, targetY = my * HEIGHT
       const t = currentXfRef.current || d3.zoomIdentity
       d3.select(svgRef.current).transition().duration(300)
         .call(zoomRef.current.transform,
-          d3.zoomIdentity.translate(WIDTH / 2 - targetX * t.k, HEIGHT / 2 - targetY * t.k).scale(t.k))
+          d3.zoomIdentity.translate(simW / 2 - targetX * t.k, HEIGHT / 2 - targetY * t.k).scale(t.k))
     }
     canvas.style.cursor = 'crosshair'
     canvas.addEventListener('click', onMinimapClick)
@@ -531,15 +561,16 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
       r: baseR, _r: baseR,
     }
 
+    const W = simWRef.current
     if (isSocra) {
-      n.x = WIDTH / 2; n.y = HEIGHT / 2
+      n.x = W / 2; n.y = HEIGHT / 2
     } else {
       const cluster = nodesRef.current.filter(nd => nd.role === msg.role && !nd._ghost)
       const sourceNode = msg.replyToId ? nodeMap.get(msg.replyToId) : null
-      let ex = WIDTH / 2
+      let ex = W / 2
       if (cluster.length) ex = cluster.reduce((s, nd) => s + nd.x, 0) / cluster.length
       else if (sourceNode) ex = sourceNode.x
-      n.x = Math.max(20, Math.min(WIDTH - 20, ex)) + (Math.random() - 0.5) * 30
+      n.x = Math.max(20, Math.min(W - 20, ex)) + (Math.random() - 0.5) * 30
       n.y = 0
     }
 
@@ -772,7 +803,7 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
 
   function doRoomDivides(d3, advN, contrN) {
     const target = nodesRef.current.find(n => n.id === (advN.replyToId || contrN.replyToId))
-    const baseX = target?.x || WIDTH / 2
+    const baseX = target?.x || simWRef.current / 2
     const baseY = target?.y || heightRef.current / 2
     advN.fx = baseX - 55; advN.fy = baseY
     contrN.fx = baseX + 55; contrN.fy = baseY
@@ -814,7 +845,7 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
     const nodes = nodesRef.current
     const ctx = canvas.getContext('2d')
     const W = 80, H = 60
-    const svgW = WIDTH, svgH = heightRef.current
+    const svgW = simWRef.current, svgH = heightRef.current
     ctx.clearRect(0, 0, W, H)
     ctx.fillStyle = 'rgba(8,7,6,0.88)'
     ctx.fillRect(0, 0, W, H)
@@ -861,6 +892,15 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+
+  // ── Backdrop render (full-screen, no chrome, pointer-events:none) ──
+  if (backdrop) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <svg ref={svgRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+      </div>
+    )
+  }
 
   if (!open) return null
 
@@ -1125,4 +1165,6 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
       )}
     </div>
   )
-}
+})
+
+export default Neuron
