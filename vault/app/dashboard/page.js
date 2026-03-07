@@ -134,11 +134,13 @@ function extractConcepts(text) {
     if (next && next.length >= 3 && !CONCEPT_STOP.has(next)) {
       phrases.push(tokens[i] + ' ' + next)
       i++
-    } else if (tokens[i].length >= 5) {
+    } else if (tokens[i].length >= 3) {
       phrases.push(tokens[i])
     }
   }
-  return [...new Set(phrases)].slice(0, 3)
+  const result = [...new Set(phrases)].slice(0, 3)
+  console.log('[Neuron] concepts extracted:', result)
+  return result
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -2972,6 +2974,14 @@ export default function Dashboard() {
       return nodes.length > 40 ? nodes.slice(-40) : nodes
     })
   }
+
+  // Seed concepts from existing messages on first load
+  useEffect(() => {
+    if (messages.length === 0 || conceptNodes.length > 0) return
+    messages.slice(-10).forEach(m => {
+      if (m.content) ingestConcepts(m.role || 'human', m.content)
+    })
+  }, [messages]) // eslint-disable-line
 
   // Derive concept-concept edges: two concepts share an edge when they share an engaging agent
   useEffect(() => {
