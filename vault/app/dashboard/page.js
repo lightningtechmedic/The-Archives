@@ -112,33 +112,93 @@ const WAKE_MESSAGES = [
 
 // ── Concept extraction ─────────────────────────────────────────────────────────
 const CONCEPT_STOP = new Set([
-  'the','a','an','is','are','was','were','be','been','being','have','has','had',
-  'do','does','did','will','would','shall','should','may','might','can','could',
-  'it','its','this','that','these','those','i','you','we','they','he','she',
-  'of','in','on','at','to','for','with','by','from','as','but','and','or','not',
-  'so','if','when','what','how','why','where','which','who','about','just','very',
-  'more','also','than','then','into','there','here','any','all','some','no','only',
-  'really','actually','think','know','get','like','even','still','after','before',
-  'up','out','down','over','under','right','going','need','want','make','take',
-  'see','look','well','good','new','old','first','last','use','now','back','way',
-  'time','work','one','two','three','let','them','their','your','our','yes',
+  'the','a','an','is','are','was','were','be','been','being',
+  'have','has','had','do','does','did','will','would','could','should',
+  'may','might','shall','can','need','dare','ought',
+  'to','of','in','on','at','by','for','with','about','as','into',
+  'through','during','before','after','above','below','from',
+  'up','down','out','off','over','under','again','then','once',
+  'and','but','or','nor','so','yet','both','either','neither',
+  'not','no','i','me','my','myself','we','our','you','your',
+  'he','she','it','they','them','this','that','these','those',
+  'what','which','who','whom','its',"it's","i'm","we're",
+  'there','here','just','also','very','really','quite',
 ])
 
 function extractConcepts(text) {
   if (!text) return []
-  const clean = text.toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ')
-  const tokens = clean.split(/\s+/).filter(w => w.length >= 3 && !CONCEPT_STOP.has(w))
+
+  // Boost: collect mid-sentence capitalized words before lowercasing
+  const capWords = (text.match(/(?<!\.\s|\?\s|!\s|^)\b[A-Z][a-zA-Z0-9]{1,}\b/g) || [])
+    .map(w => w.toLowerCase())
+
+  // Split on sentence-ending punctuation to get segments, then process each
+  const segments = text.split(/[.!?]+/)
   const phrases = []
-  for (let i = 0; i < tokens.length; i++) {
-    const next = tokens[i + 1]
-    if (next && next.length >= 3 && !CONCEPT_STOP.has(next)) {
-      phrases.push(tokens[i] + ' ' + next)
-      i++
-    } else if (tokens[i].length >= 3) {
-      phrases.push(tokens[i])
+
+  for (const seg of segments) {
+    const clean = seg.toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ')
+    const tokens = clean.split(/\s+/).filter(w => w.length >= 3 && !CONCEPT_STOP.has(w))
+
+    // Scan for 2–3 word noun phrases (consecutive non-stop tokens)
+    let i = 0
+    while (i < tokens.length) {
+      if (
+        i + 1 < tokens.length &&
+        !CONCEPT_STOP.has(tokens[i + 1]) &&
+        tokens[i + 1].length >= 3
+      ) {
+        // Check for 3-word phrase
+        if (
+          i + 2 < tokens.length &&
+          !CONCEPT_STOP.has(tokens[i + 2]) &&
+          tokens[i + 2].length >= 3
+        ) {
+          phrases.push(tokens[i] + ' ' + tokens[i + 1] + ' ' + tokens[i + 2])
+          i += 3
+        } else {
+          phrases.push(tokens[i] + ' ' + tokens[i + 1])
+          i += 2
+        }
+      } else {
+        phrases.push(tokens[i])
+        i++
+      }
     }
   }
-  const result = [...new Set(phrases)].slice(0, 3)
+
+  // Deduplicate, prefer multi-word phrases and capitalized terms
+  const seen = new Set()
+  const ranked = []
+  // Multi-word first
+  for (const p of phrases) {
+    const key = p.toLowerCase()
+    if (!seen.has(key) && p.includes(' ')) { seen.add(key); ranked.push(p) }
+  }
+  // Capitalized single words next
+  for (const w of capWords) {
+    if (!seen.has(w) && !CONCEPT_STOP.has(w) && w.length >= 3) { seen.add(w); ranked.push(w) }
+  }
+  // Remaining single words
+  for (const p of phrases) {
+    const key = p.toLowerCase()
+    if (!seen.has(key)) { seen.add(key); ranked.push(p) }
+  }
+
+  let result = ranked.slice(0, 6)
+
+  // Fallback: if under 2 concepts and message is substantial, take 2 longest non-stop words
+  const wordCount = text.trim().split(/\s+/).length
+  if (result.length < 2 && wordCount >= 10) {
+    const allWords = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+      .filter(w => w.length >= 3 && !CONCEPT_STOP.has(w))
+      .sort((a, b) => b.length - a.length)
+    for (const w of allWords) {
+      if (!seen.has(w)) { seen.add(w); result.push(w) }
+      if (result.length >= 2) break
+    }
+  }
+
   console.log('[Neuron] concepts extracted:', result)
   return result
 }
