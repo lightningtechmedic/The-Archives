@@ -1151,16 +1151,16 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
     display:'flex', alignItems:'center', gap:'.4rem',
     background:'transparent', border:'1px solid var(--border)', borderRadius:'4px',
     padding:'.38rem .75rem', color:'var(--muted)',
-    fontFamily:'var(--font-mono)', fontSize:'.52rem', letterSpacing:'.18em',
+    fontFamily:'var(--font-mono)', fontSize:'.58rem', letterSpacing:'.18em',
     textTransform:'uppercase', transition:'all .2s', whiteSpace:'nowrap',
   }
   return (
     <div className={v8 ? 'topbar-v8' : 'topbar'}>
       {/* Left: brand section (220px wide in v8 to align with LeftNav) */}
-      <div style={{ display:'flex', alignItems:'center', gap:'.55rem', flexShrink:0, ...(v8 ? { width:220, paddingRight:'.75rem', borderRight:'1px solid var(--border)' } : {}) }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'.55rem', flexShrink:0, ...(v8 ? { width:260, paddingRight:'.75rem', borderRight:'1px solid var(--border)' } : {}) }}>
         <div style={{ display:'flex', alignItems:'center', gap:'.55rem' }}>
           <div className="ember-pip" />
-          <span style={{ fontFamily:'var(--font-serif)', fontSize: v8 ? '.95rem' : '1.1rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', whiteSpace:'nowrap' }}>
+          <span style={{ fontFamily:'var(--font-serif)', fontSize: v8 ? '1.05rem' : '1.2rem', fontWeight:300, fontStyle:'italic', color:'var(--text)', whiteSpace:'nowrap' }}>
             The <em style={{ color:'var(--ember)' }}>Vault</em>
           </span>
         </div>
@@ -2040,7 +2040,7 @@ function FaceSocra() {
 }
 
 // ── Right Lattice (v8 permanent column) ──────────────────────────────────────
-function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState, agentFaceState = 'idle' }) {
+function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, onPinToBoard, architectState, sparkState, yourState, scribeState, stewardState, advocateState, contrarianState, agentFaceState = 'idle', isCollapsible = false, isExpanded = false, onToggleExpand }) {
   const role = msg.role === 'user' ? 'human' : msg.role
   const isArchitect  = role === 'claude'
   const isSpark      = role === 'gpt'
@@ -2086,10 +2086,23 @@ function RightChatMessage({ msg, allProfiles, currentUserId, onPin, isPinned, on
           </span>
           <span className="msg-timestamp">{formatTime(msg.inserted_at || msg.created_at)}</span>
         </div>
-        <p style={{ fontFamily:'var(--font-serif)', fontStyle:'italic', fontSize:'.92rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.6, whiteSpace:'pre-wrap', wordBreak:'break-word', margin:0 }}>
-          {msg.content}
-          {msg.streaming && <span style={{ color: aiMeta?.color || 'var(--ember)', marginLeft:1 }} className="animate-pulse-slow">▋</span>}
-        </p>
+        <div style={{ position:'relative' }}>
+          <p style={{ fontFamily:'var(--font-serif)', fontStyle:'italic', fontSize:'.92rem', color: aiMeta?.textColor || 'var(--text)', lineHeight:1.6, whiteSpace:'pre-wrap', wordBreak:'break-word', margin:0, ...(isCollapsible && !isExpanded ? { maxHeight:'72px', overflow:'hidden' } : {}) }}>
+            {msg.content}
+            {msg.streaming && <span style={{ color: aiMeta?.color || 'var(--ember)', marginLeft:1 }} className="animate-pulse-slow">▋</span>}
+          </p>
+          {isCollapsible && !isExpanded && (
+            <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'32px', background:'linear-gradient(to bottom, transparent, rgba(11,10,8,0.95))', pointerEvents:'none' }} />
+          )}
+          {isCollapsible && (
+            <button onClick={onToggleExpand}
+              style={{ display:'block', marginTop:'.2rem', background:'none', border:'none', padding:0, cursor:'none', fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', color:'rgba(255,255,255,0.28)', transition:'color .15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.28)'}>
+              {isExpanded ? '↑ collapse' : '↓ read more'}
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:2, flexShrink:0 }}>
         <button className={`pin-btn${isPinned ? ' pinned' : ''}`} onClick={() => onPin(msg)} title="Pin to note">
@@ -2112,6 +2125,16 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
   const messagesEndRef = useRef(null)
   const [socraOpen, setSocraOpen] = useState(false)
   const [socraWisdomIdx, setSocraWisdomIdx] = useState(0)
+
+  // ── Message collapse ─────────────────────────────────────────────────────────
+  const [expandedMessages, setExpandedMessages] = useState(new Set())
+  function toggleExpanded(msgId) {
+    setExpandedMessages(prev => {
+      const next = new Set(prev)
+      if (next.has(msgId)) next.delete(msgId); else next.add(msgId)
+      return next
+    })
+  }
 
   // ── Agent face emotional state ──────────────────────────────────────────────
   const [agentStates, setAgentStates] = useState({})
@@ -2218,6 +2241,11 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
         {messages.map((msg, i) => {
           const faceId = ROLE_TO_FACE[msg.role]
           const agentFaceState = faceId ? (agentStates[faceId] || 'idle') : 'idle'
+          const isLastMsg = i === messages.length - 1
+          const isUser = msg.role === 'user'
+          const wc = (msg.content || '').trim().split(/\s+/).filter(Boolean).length
+          const isCollapsible = !isUser && !msg.streaming && !isLastMsg && wc > 120
+          const isExpanded = expandedMessages.has(msg.id)
           return (
             <div key={msg.id || i} id={`msg-${msg.id}`} data-message-id={msg.id}>
               <RightChatMessage msg={msg} allProfiles={allProfiles} currentUserId={currentUserId}
@@ -2225,7 +2253,9 @@ function RightLattice({ messages, chatInput, setChatInput, onSend, onKeyDown, th
                 architectState={architectState} sparkState={sparkState} yourState={yourState}
                 scribeState={scribeState} stewardState={stewardState}
                 advocateState={advocateState} contrarianState={contrarianState}
-                agentFaceState={agentFaceState} />
+                agentFaceState={agentFaceState}
+                isCollapsible={isCollapsible} isExpanded={isExpanded}
+                onToggleExpand={() => toggleExpanded(msg.id)} />
             </div>
           )
         })}
