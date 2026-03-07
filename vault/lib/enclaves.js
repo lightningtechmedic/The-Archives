@@ -24,7 +24,7 @@ export async function createEnclave(supabase, { name, userId }) {
   // Step 3 — add creator as owner member
   const { error: memberError } = await supabase
     .from('enclave_members')
-    .insert({ enclave_id: enclave.id, user_id: userId, role: 'owner' })
+    .insert({ enclave_id: enclave.id, user_id: userId, role: 'owner', pattern_library_access: true })
 
   if (memberError) return { data: null, error: memberError }
 
