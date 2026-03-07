@@ -2636,9 +2636,9 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [user]) // eslint-disable-line
 
-  // ── Autosave ──
+  // ── Autosave — only runs when a note is explicitly open ──
   useEffect(() => {
-    if (!user) return
+    if (!user || !activeNote) return
     clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
       if (noteTitle || noteContent) autoSaveNote()
@@ -2647,29 +2647,22 @@ export default function Dashboard() {
   }, [noteTitle, noteContent, noteImages, noteVisibility]) // eslint-disable-line
 
   async function autoSaveNote() {
+    // Never create or modify notes when in ledger mode (no note open)
+    if (!activeNote) { setSaveStatus(''); return }
     setSaveStatus('saving')
     const sb = getSupabase()
     const imgStr = noteImages.map(i => `[img:${i.url}:${i.caption}]`).join('')
     const contentToSave = noteContent + (imgStr ? '\n' + imgStr : '')
     const isEnclave = noteVisibility === 'enclave'
 
-    if (activeNote) {
-      const { data } = await sb.from('notes').update({
-        title: noteTitle || 'Untitled', content: contentToSave,
-        visibility: noteVisibility, is_shared: isEnclave,
-        enclave_id: isEnclave ? activeEnclaveId : null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', activeNote.id).select().single()
-      if (data) { setActiveNote(data); setNotes(prev => prev.map(n => n.id === data.id ? data : n)) }
-    } else {
-      if (!noteTitle && !noteContent) { setSaveStatus(''); return }
-      const { data } = await sb.from('notes').insert({
-        user_id: user.id, title: noteTitle || 'Untitled', content: contentToSave,
-        visibility: noteVisibility, is_shared: isEnclave,
-        enclave_id: isEnclave ? activeEnclaveId : null,
-      }).select().single()
-      if (data) { setActiveNote(data); setNotes(prev => [data, ...prev]) }
-    }
+    const { data } = await sb.from('notes').update({
+      title: noteTitle || 'Untitled', content: contentToSave,
+      visibility: noteVisibility, is_shared: isEnclave,
+      enclave_id: isEnclave ? activeEnclaveId : null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', activeNote.id).select().single()
+    if (data) { setActiveNote(data); setNotes(prev => prev.map(n => n.id === data.id ? data : n)) }
+
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus(''), 2500)
   }
@@ -3651,19 +3644,22 @@ export default function Dashboard() {
 
           <div className="v8-center">
             {!activeNote ? (
-              <Ledger
-                user={profile}
-                notes={[...notes, ...enclaveNotes]}
-                messages={messages}
-                pinnedMessages={pinnedMessages}
-                echoInsight={echoBadgeText}
-                echoTime={echoBadgeTime}
-                echoTopConcepts={echoTopConcepts}
-                patternLibraryBuilds={patternLibraryBuilds}
-                activeEnclaveId={activeEnclaveId}
-                enclaves={enclaves}
-                onOpenNote={openNote}
-              />
+              <div style={{ position: 'absolute', inset: 0 }}>
+                {console.log('[Ledger] props:', { notes: [...notes,...enclaveNotes].length, pinnedMessages: pinnedMessages?.length, echoInsight: !!echoBadgeText, messages: messages?.length, patternLibraryBuilds: patternLibraryBuilds?.length })}
+                <Ledger
+                  user={profile}
+                  notes={[...notes, ...enclaveNotes]}
+                  messages={messages}
+                  pinnedMessages={pinnedMessages}
+                  echoInsight={echoBadgeText}
+                  echoTime={echoBadgeTime}
+                  echoTopConcepts={echoTopConcepts}
+                  patternLibraryBuilds={patternLibraryBuilds}
+                  activeEnclaveId={activeEnclaveId}
+                  enclaves={enclaves}
+                  onOpenNote={openNote}
+                />
+              </div>
             ) : (
               <>
                 <button className="close-note-btn" onClick={() => { setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setNoteVisibility('private') }}>

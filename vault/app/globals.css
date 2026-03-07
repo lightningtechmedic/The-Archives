@@ -541,7 +541,7 @@
 
 /* ── Ledger ── */
 .ledger {
-  grid-column: 2; grid-row: 2;
+  height: 100%;
   display: flex; flex-direction: column;
   position: relative; overflow: hidden;
   background: rgba(12,11,10,.08);
@@ -708,12 +708,12 @@
 
 /* Close note button */
 .close-note-btn {
-  position: absolute; top: 8px; right: 10px; z-index: 10;
+  position: absolute; top: 14px; right: 14px; z-index: 50;
   font-family: var(--font-mono); font-size: .44rem; letter-spacing: .1em; text-transform: uppercase;
-  background: transparent; border: none; color: rgba(255,248,238,.11);
+  background: transparent; border: none; color: rgba(255,248,238,.18);
   cursor: none; padding: 3px 6px; border-radius: 3px; transition: color .15s;
 }
-.close-note-btn:hover { color: rgba(255,248,238,.38); }
+.close-note-btn:hover { color: rgba(255,248,238,.55); }
 
 /* ── Agent face keyframes ── */
 @keyframes cursorBlink  { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
