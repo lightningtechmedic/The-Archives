@@ -4,16 +4,7 @@
 // Static SVG mini-graph of a neuron_snapshot. No D3, no simulation.
 // Nodes positioned by role angle + deterministic jitter.
 
-const colors = {
-  user:        '#e8e0d5',
-  architect:   '#c44e18',
-  spark:       '#a07828',
-  scribe:      '#4a64d8',
-  steward:     '#9a7850',
-  advocate:    '#b8856a',
-  contrarian:  '#607080',
-  socra:       '#3a3530',
-}
+import { agentColors as colors } from '@/lib/agentColors'
 
 const roleAngles = {
   user:        0,
@@ -26,7 +17,7 @@ const roleAngles = {
   socra:       315,
 }
 
-// Map raw message roles → display roles used in colors/angles
+// Map raw message roles → display roles used in roleAngles
 const roleNorm = {
   human:       'user',
   claude:      'architect',

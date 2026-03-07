@@ -26,6 +26,7 @@ import AudioPlayer from '@/components/AudioPlayer'
 import TheGuideWidget from '@/components/TheGuideWidget'
 import Neuron, { detectShape } from '@/components/Neuron'
 import ImpressionThumb from '@/components/ImpressionThumb'
+import PatternLibrary from '@/components/PatternLibrary'
 
 // ── Base path for API routes ───────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/vault'
@@ -400,6 +401,7 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
   const [loadingBuilds, setLoadingBuilds] = useState(false)
   const [enclaveBudget, setEnclaveBudget] = useState(null)
   const [viewingImpression, setViewingImpression] = useState(null)
+  const [patternLibraryOpen, setPatternLibraryOpen] = useState(false)
 
   async function fetchMembers() {
     if (!enclave?.id) return
@@ -470,6 +472,19 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
 
         {tab === 'ledger' && (
           <div>
+            {/* Pattern Library entry */}
+            {builds.filter(b => b.neuron_snapshot).length >= 1 && (() => {
+              const impressionCount = builds.filter(b => b.neuron_snapshot).length
+              return (
+                <button
+                  onClick={() => setPatternLibraryOpen(true)}
+                  style={{ background:'none', border:'1px solid #9a785044', borderRadius:6, padding:'7px 16px', cursor:'pointer', color:'#9a7850', fontSize:10, fontFamily:'monospace', letterSpacing:'0.12em', marginBottom:16, width:'100%', transition:'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#9a785088'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#9a785044'}>
+                  ◈ THE PATTERN LIBRARY — {impressionCount} IMPRESSION{impressionCount !== 1 ? 'S' : ''}
+                </button>
+              )
+            })()}
             {/* Budget summary */}
             {enclaveBudget && (
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.6rem .75rem', background:'rgba(200,180,140,0.05)', border:'1px solid rgba(200,180,140,0.15)', borderRadius:'3px', marginBottom:'1rem' }}>
@@ -608,6 +623,20 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
         </div>
         </>)}
       </div>
+      {patternLibraryOpen && (
+        <PatternLibrary
+          builds={builds}
+          onSelectImpression={(build) => {
+            setPatternLibraryOpen(false)
+            setViewingImpression({
+              snapshot: build.neuron_snapshot,
+              buildSummary: build.description || '',
+              buildId: build.id,
+            })
+          }}
+          onClose={() => setPatternLibraryOpen(false)}
+        />
+      )}
       {viewingImpression && (
         <Neuron
           impression={viewingImpression}
