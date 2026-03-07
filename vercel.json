@@ -1,16 +1,11 @@
 {
   "version": 2,
   "builds": [
-    { "src": "vault/package.json", "use": "@vercel/next" },
-    { "src": "*.html", "use": "@vercel/static" }
+    { "src": "vault/package.json", "use": "@vercel/next" }
   ],
   "routes": [
     { "src": "/vault/(.*)", "dest": "vault/$1" },
     { "src": "/vault", "dest": "vault/index" },
-    { "src": "/", "dest": "/index.html" },
-    { "src": "/nesis.html", "dest": "/nesis.html" },
-    { "src": "/graphite.html", "dest": "/graphite.html" },
-    { "src": "/apex.html", "dest": "/apex.html" },
-    { "src": "/mosignal.html", "dest": "/mosignal.html" }
+    { "src": "/(.*)", "dest": "vault/$1" }
   ]
 }
