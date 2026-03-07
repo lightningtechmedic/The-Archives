@@ -490,6 +490,8 @@
 /* ── Keyframes ── */
 @keyframes fadeUp   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
 @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+@keyframes echoRing { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+@keyframes echoPulse { 0%,100% { box-shadow: 0 0 5px rgba(138,180,200,.5); } 50% { box-shadow: 0 0 14px rgba(138,180,200,.95); } }
 @keyframes pulseSlow{ 0%,100%{ opacity:.45; } 50%{ opacity:1; } }
 @keyframes slideUp  { from { transform:translateY(100%); opacity:0; } to { transform:translateY(0); opacity:1; } }
 @keyframes voicePulse {

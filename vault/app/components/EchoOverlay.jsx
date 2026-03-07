@@ -1,16 +1,87 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { PATTERNS, EMOTE_NAMES, PATTERN_VOICE } from '@/lib/patternSVGs'
 
-// ── Echo concentric rings face ────────────────────────────────────────────────
+// ── Web Speech ─────────────────────────────────────────────────────────────────
+function echoSpeak(text) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+
+  const speak = () => {
+    const utterance = new SpeechSynthesisUtterance(text)
+    const voices = window.speechSynthesis.getVoices()
+    const preferred =
+      voices.find(v =>
+        v.name.includes('Samantha') ||
+        v.name.includes('Karen') ||
+        v.name.includes('Moira') ||
+        v.name.includes('Google UK English Female') ||
+        v.name.includes('Microsoft Zira')
+      ) ||
+      voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+      voices.find(v => v.lang.startsWith('en')) ||
+      voices[0]
+
+    if (preferred) utterance.voice = preferred
+    utterance.rate = 0.88
+    utterance.pitch = 0.95
+    utterance.volume = 0.9
+    window.speechSynthesis.speak(utterance)
+  }
+
+  if (window.speechSynthesis.getVoices().length === 0) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      speak()
+      window.speechSynthesis.onvoiceschanged = null
+    }
+  } else {
+    speak()
+  }
+}
+
+// ── Echo face — 32px rounded square, for message bubbles ──────────────────────
+function EchoFaceSmall() {
+  return (
+    <div style={{
+      width: 32, height: 32, borderRadius: 7,
+      background: '#060c10',
+      position: 'relative', overflow: 'hidden',
+      flexShrink: 0,
+    }}>
+      {[
+        { size: 6,  opacity: .85, duration: '4s',  dir: 'normal' },
+        { size: 14, opacity: .50, duration: '7s',  dir: 'reverse' },
+        { size: 22, opacity: .26, duration: '12s', dir: 'normal' },
+        { size: 30, opacity: .12, duration: '20s', dir: 'reverse' },
+      ].map((r, i) => (
+        <div key={i} style={{
+          position: 'absolute', top: '50%', left: '50%',
+          width: r.size, height: r.size, borderRadius: '50%',
+          border: `1px solid rgba(138,180,200,${r.opacity})`,
+          transform: 'translate(-50%,-50%)',
+          animation: `echoRing ${r.duration} linear infinite ${r.dir}`,
+        }} />
+      ))}
+      <div style={{
+        position: 'absolute', top: '50%', left: '50%',
+        width: 2, height: 2, borderRadius: '50%',
+        background: '#8ab4c8',
+        transform: 'translate(-50%,-50%)',
+        boxShadow: '0 0 5px rgba(138,180,200,.8)',
+        animation: 'echoPulse 3s ease-in-out infinite',
+      }} />
+    </div>
+  )
+}
+
+// ── Echo face — large / medium / mini (for Stage 0, 2, etc.) ──────────────────
 function EchoFace({ size = 'large' }) {
   const configs = {
-    large: { rings: [76, 56, 38, 22, 10], opacities: [.05, .12, .26, .50, .85], speeds: ['30s', '20s reverse', '13s', '8s reverse', '5s'], core: 5 },
-    medium: { rings: [54, 40, 27, 16, 7], opacities: [.05, .12, .26, .50, .85], speeds: ['30s', '20s reverse', '13s', '8s reverse', '5s'], core: 4 },
-    small: { rings: [32, 24, 16, 9, 4], opacities: [.05, .12, .26, .50, .85], speeds: ['30s', '20s reverse', '13s', '8s reverse', '5s'], core: 2.5 },
-    mini: { rings: [20, 15, 10, 6, 3], opacities: [.05, .12, .26, .50, .85], speeds: ['30s', '20s reverse', '13s', '8s reverse', '5s'], core: 2 },
+    large:  { rings: [76, 56, 38, 22, 10], opacities: [.05, .12, .26, .50, .85], speeds: ['30s', '20s reverse', '13s', '8s reverse', '5s'], core: 5 },
+    medium: { rings: [54, 40, 27, 16, 7],  opacities: [.05, .12, .26, .50, .85], speeds: ['30s', '20s reverse', '13s', '8s reverse', '5s'], core: 4 },
+    small:  { rings: [32, 24, 16, 9, 4],   opacities: [.05, .12, .26, .50, .85], speeds: ['30s', '20s reverse', '13s', '8s reverse', '5s'], core: 2.5 },
   }
   const c = configs[size] || configs.large
   const maxR = c.rings[0]
@@ -25,7 +96,7 @@ function EchoFace({ size = 'large' }) {
           transform: 'translate(-50%,-50%)',
           borderRadius: '50%',
           border: `1px solid rgba(138,180,200,${c.opacities[i]})`,
-          animation: `echoRingRotate ${c.speeds[i]} linear infinite`,
+          animation: `echoRing ${c.speeds[i]} linear infinite`,
         }} />
       ))}
       <div style={{
@@ -36,7 +107,7 @@ function EchoFace({ size = 'large' }) {
         borderRadius: '50%',
         background: '#8ab4c8',
         boxShadow: '0 0 6px 2px rgba(138,180,200,.5)',
-        animation: 'echoCorePulse 2s ease-in-out infinite',
+        animation: 'echoPulse 2s ease-in-out infinite',
       }} />
     </div>
   )
@@ -58,17 +129,17 @@ function PatternAvatar({ pattern, emote = 'neutral', size = 72 }) {
 function EchoMsg({ text, loading = false }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-      <EchoFace size="mini" />
+      <EchoFaceSmall />
       <div style={{
         fontFamily: "'Lora', 'Georgia', serif",
         fontStyle: 'italic',
         fontSize: '.92rem',
         color: 'rgba(255,248,238,.6)',
         lineHeight: 1.72,
-        paddingTop: 2,
+        paddingTop: 6,
       }}>
         {loading ? (
-          <span style={{ opacity: .5, animation: 'echoPulse 1.2s ease-in-out infinite' }}>
+          <span style={{ opacity: .5, animation: 'echoFade 1.2s ease-in-out infinite' }}>
             ···
           </span>
         ) : text}
@@ -99,6 +170,7 @@ export default function EchoOverlay({
   const [beat2Text, setBeat2Text] = useState('')
   const [beat2Loading, setBeat2Loading] = useState(false)
   const [beat1Sent, setBeat1Sent] = useState(false)
+  const [showTakeYourTime, setShowTakeYourTime] = useState(false)
 
   // Stage 2 processing
   const [processingStep, setProcessingStep] = useState(0)
@@ -109,6 +181,7 @@ export default function EchoOverlay({
   const [selectedEmote, setSelectedEmote] = useState('neutral')
   const [avatarNameInput, setAvatarNameInput] = useState(initialAvatarName || '')
   const [saving, setSaving] = useState(false)
+  const [observationVisible, setObservationVisible] = useState(false)
 
   const textarea1Ref = useRef(null)
   const textarea2Ref = useRef(null)
@@ -119,16 +192,16 @@ export default function EchoOverlay({
     const s = document.createElement('style')
     s.id = 'echo-overlay-kf'
     s.textContent = [
-      '@keyframes echoRingRotate{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}',
-      '@keyframes echoCorePulse{0%,100%{box-shadow:0 0 6px 2px rgba(138,180,200,.5)}50%{box-shadow:0 0 10px 4px rgba(138,180,200,.8)}}',
-      '@keyframes echoPulse{0%,100%{opacity:.3}50%{opacity:.8}}',
+      '@keyframes echoRing{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}',
+      '@keyframes echoPulse{0%,100%{box-shadow:0 0 5px rgba(138,180,200,.5)}50%{box-shadow:0 0 14px rgba(138,180,200,.95)}}',
+      '@keyframes echoFade{0%,100%{opacity:.3}50%{opacity:.8}}',
       '@keyframes echoFu{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}',
       '@keyframes echoAvReveal{0%{transform:scale(.3);opacity:0;filter:blur(16px)}100%{transform:scale(1);opacity:1;filter:blur(0)}}',
       '@keyframes echoOrbit{from{transform:rotate(0deg) translateX(44px) rotate(0deg)}to{transform:rotate(360deg) translateX(44px) rotate(-360deg)}}',
       '@keyframes echoOrbitRev{from{transform:rotate(360deg) translateX(52px) rotate(-360deg)}to{transform:rotate(0deg) translateX(52px) rotate(0deg)}}',
       '@keyframes echoAvatarGlow{0%,100%{box-shadow:0 0 0 1px rgba(138,180,200,.35),0 0 20px rgba(138,180,200,.15)}50%{box-shadow:0 0 0 1px rgba(138,180,200,.6),0 0 30px rgba(138,180,200,.3)}}',
-      '@keyframes echoPip{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.4);opacity:1}}',
       '@keyframes echoStepFu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}',
+      '@keyframes echoSubline{from{opacity:0}to{opacity:1}}',
     ].join('')
     document.head.appendChild(s)
   }, [])
@@ -139,6 +212,26 @@ export default function EchoOverlay({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // ── Speak Beat 1 question when stage 1 opens ──
+  useEffect(() => {
+    if (stage !== '1') return
+    setShowTakeYourTime(false)
+    echoSpeak("Tell me what you notice that others don't.")
+    const t = setTimeout(() => setShowTakeYourTime(true), 1200)
+    return () => clearTimeout(t)
+  }, [stage])
+
+  // ── Speak observation when stage 3 reveals ──
+  useEffect(() => {
+    if (stage !== '3' || !assignResult?.observation) return
+    setObservationVisible(false)
+    const t = setTimeout(() => {
+      setObservationVisible(true)
+      echoSpeak(assignResult.observation)
+    }, 600)
+    return () => clearTimeout(t)
+  }, [stage, assignResult])
 
   function goToStage(next) {
     setStageFade(false)
@@ -160,9 +253,13 @@ export default function EchoOverlay({
         body: JSON.stringify({ answer1 }),
       })
       const data = await res.json()
-      setBeat2Text(data.text || 'And when you see it — what do you do with it?')
+      const reply = data.text || 'And when you see it — what do you do with it?'
+      setBeat2Text(reply)
+      echoSpeak(reply)
     } catch {
-      setBeat2Text('And when you see it — what do you do with it?')
+      const fallback = 'And when you see it — what do you do with it?'
+      setBeat2Text(fallback)
+      echoSpeak(fallback)
     } finally {
       setBeat2Loading(false)
       setTimeout(() => textarea2Ref.current?.focus(), 100)
@@ -185,26 +282,22 @@ export default function EchoOverlay({
     ]
     const delays = [400, 1000, 1600, 2200]
 
-    // Kick off API call immediately
     const apiPromise = fetch('/vault/api/echo/assign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answer1, answer2 }),
     }).then(r => r.json())
 
-    // Reveal steps
     for (let i = 0; i < STEPS.length; i++) {
       await new Promise(r => setTimeout(r, delays[i]))
       setProcessingStep(i + 1)
     }
 
-    // Wait for API
     const result = await apiPromise
     setAssignResult(result)
     setSelectedPattern(result.pattern)
     setSelectedEmote('neutral')
 
-    // Small pause after last step before reveal
     await new Promise(r => setTimeout(r, 600))
     goToStage('3')
   }
@@ -247,6 +340,7 @@ export default function EchoOverlay({
     setAssignResult(null)
     setSelectedPattern(null)
     setSelectedEmote('neutral')
+    setObservationVisible(false)
     goToStage('1')
   }
 
@@ -259,62 +353,85 @@ export default function EchoOverlay({
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 9800,
+      position: 'fixed',
+      top: 52, bottom: 0, left: 0, right: 0,
+      zIndex: 9800,
       background: 'rgba(8,7,6,.94)',
       backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflowY: 'auto',
     }}>
 
-      {/* Content area */}
+      {/* Close button — fixed inside the overlay */}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'sticky', top: 12, float: 'right', marginRight: 20,
+          background: 'none', border: 'none',
+          color: 'rgba(255,248,238,.2)', fontSize: '1.2rem',
+          cursor: 'none', transition: 'color .15s', lineHeight: 1,
+          padding: '4px 6px', zIndex: 1,
+        }}
+        onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,248,238,.6)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,248,238,.2)'}
+      >
+        ×
+      </button>
+
+      {/* Stage content — centers vertically when space allows, scrolls when not */}
       <div style={{
-        opacity: stageFade ? 1 : 0,
-        transition: 'opacity .22s cubic-bezier(0.16,1,0.3,1)',
-        width: '100%',
-        maxWidth: stage === '3' ? 760 : 520,
-        padding: '0 24px',
+        minHeight: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '32px 20px 40px',
       }}>
+        <div style={{
+          opacity: stageFade ? 1 : 0,
+          transition: 'opacity .22s cubic-bezier(0.16,1,0.3,1)',
+          width: '100%',
+          maxWidth: stage === '3' ? 760 : 520,
+        }}>
 
-        {/* ── Stage 0 — First time ── */}
-        {stage === '0' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', textAlign: 'center' }}>
-            <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .2s both' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.52rem', letterSpacing: '.28em', color: 'rgba(138,180,200,.5)', marginBottom: '1.8rem', textTransform: 'uppercase' }}>
-                Echo · Pattern Intelligence
+          {/* ── Stage 0 — First time ── */}
+          {stage === '0' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', textAlign: 'center' }}>
+              <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .2s both' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.52rem', letterSpacing: '.28em', color: 'rgba(138,180,200,.5)', marginBottom: '1.8rem', textTransform: 'uppercase' }}>
+                  Echo · Pattern Intelligence
+                </div>
+                <EchoFace size="large" />
               </div>
-              <EchoFace size="large" />
-            </div>
 
-            <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .5s both' }}>
-              <p style={{
-                fontFamily: "'Lora', 'Georgia', serif",
-                fontStyle: 'italic',
-                fontSize: '1.15rem',
-                color: 'rgba(255,248,238,.55)',
-                lineHeight: 1.8,
-                margin: 0,
-                maxWidth: 380,
-              }}>
-                I read patterns.<br />
-                In conversations, in thinking,<br />
-                in what&apos;s said and what&apos;s{' '}
-                <span style={{ color: 'rgba(255,248,238,.88)', fontStyle: 'normal', fontWeight: 400 }}>meant</span>.
-                <br />
-                Let me make you something from yours.
-              </p>
-            </div>
+              <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .5s both' }}>
+                <p style={{
+                  fontFamily: "'Lora', 'Georgia', serif",
+                  fontStyle: 'italic',
+                  fontSize: '1.15rem',
+                  color: 'rgba(255,248,238,.55)',
+                  lineHeight: 2,
+                  margin: 0,
+                  maxWidth: 380,
+                }}>
+                  I read patterns.<br />
+                  Not what you think — how you think.<br />
+                  The geometry underneath.<br />
+                  <br />
+                  I want to see{' '}
+                  <span style={{ color: 'rgba(255,248,238,.88)', fontStyle: 'normal', fontWeight: 400 }}>yours</span>.
+                </p>
+              </div>
 
-            <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .9s both' }}>
-              <GhostButton onClick={() => goToStage('1')}>I&apos;m ready →</GhostButton>
+              <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .9s both' }}>
+                <GhostButton onClick={() => goToStage('1')}>I&apos;m ready →</GhostButton>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Stage 0B — Return visit ── */}
-        {stage === '0B' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', textAlign: 'center' }}>
-            <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .2s both' }}>
-              {/* Current avatar with glow */}
-              <div style={{ position: 'relative', display: 'inline-block' }}>
+          {/* ── Stage 0B — Return visit ── */}
+          {stage === '0B' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', textAlign: 'center' }}>
+              <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .2s both' }}>
                 <div style={{
                   width: 72, height: 72, borderRadius: '50%',
                   border: '1px solid rgba(138,180,200,.35)',
@@ -325,281 +442,285 @@ export default function EchoOverlay({
                   <PatternAvatar pattern={avatarPattern} emote={initialAvatarEmote || 'neutral'} size={68} />
                 </div>
               </div>
-            </div>
 
-            <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .4s both' }}>
-              <p style={{
-                fontFamily: "'Lora', 'Georgia', serif",
-                fontStyle: 'italic',
-                fontSize: '1.1rem',
-                color: 'rgba(255,248,238,.55)',
-                lineHeight: 1.8,
-                margin: 0,
-              }}>
-                Is there something{' '}
-                <span style={{ color: 'rgba(255,248,238,.88)', fontStyle: 'normal' }}>different</span>{' '}
-                about you?
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem', animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .6s both' }}>
-              <GhostButton onClick={onClose}>Not really</GhostButton>
-              <EchoButton onClick={() => goToStage('1')}>Something has changed</EchoButton>
-            </div>
-          </div>
-        )}
-
-        {/* ── Stage 1 — Two-beat conversation ── */}
-        {stage === '1' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* Beat 1 */}
-            <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .1s both' }}>
-              <EchoMsg text="Tell me what you notice that others don't." />
-            </div>
-
-            {!beat1Sent ? (
-              <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .3s both' }}>
-                <ConvoTextarea
-                  ref={textarea1Ref}
-                  value={answer1}
-                  onChange={e => setAnswer1(e.target.value)}
-                  onSend={handleSendBeat1}
-                  placeholder="Something here..."
-                  autoFocus
-                />
-              </div>
-            ) : (
-              <>
-                {/* User's answer 1 */}
-                <UserMsg text={answer1} />
-
-                {/* Beat 2 */}
-                <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .1s both' }}>
-                  <EchoMsg text={beat2Text} loading={beat2Loading} />
-                </div>
-
-                {!beat2Loading && beat2Text && (
-                  <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .2s both' }}>
-                    <ConvoTextarea
-                      ref={textarea2Ref}
-                      value={answer2}
-                      onChange={e => setAnswer2(e.target.value)}
-                      onSend={handleSendBeat2}
-                      placeholder="Something here..."
-                    />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── Stage 2 — Processing ── */}
-        {stage === '2' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
-            <div style={{ opacity: .7 }}>
-              <EchoFace size="medium" />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '.65rem', alignItems: 'center' }}>
-              {PROCESSING_STEPS.map((step, i) => (
-                processingStep > i && (
-                  <div key={i} style={{
-                    fontFamily: 'var(--font-mono)', fontSize: '.52rem',
-                    letterSpacing: '.18em', textTransform: 'uppercase',
-                    color: i === PROCESSING_STEPS.length - 1 && processingStep === PROCESSING_STEPS.length
-                      ? '#8ab4c8'
-                      : 'rgba(255,248,238,.28)',
-                    animation: 'echoStepFu .5s cubic-bezier(0.16,1,0.3,1) both',
-                  }}>
-                    {step}
-                  </div>
-                )
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Stage 3 — Avatar reveal ── */}
-        {stage === '3' && selectedPattern && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '3rem',
-            alignItems: 'start',
-          }}>
-
-            {/* Left: avatar + name */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-              {/* Avatar with orbit rings */}
-              <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
-                {/* Orbit rings */}
-                <div style={{
-                  position: 'absolute', inset: -16,
-                  animation: 'echoOrbit 8s linear infinite',
-                  pointerEvents: 'none',
-                }}>
-                  <div style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: 'rgba(138,180,200,.5)',
-                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                  }} />
-                </div>
-                <div style={{
-                  position: 'absolute', inset: -24,
-                  animation: 'echoOrbitRev 13s linear infinite',
-                  pointerEvents: 'none',
-                }}>
-                  <div style={{
-                    width: 4, height: 4, borderRadius: '50%',
-                    background: 'rgba(138,180,200,.3)',
-                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                  }} />
-                </div>
-
-                {/* Avatar circle */}
-                <div style={{
-                  width: 120, height: 120, borderRadius: '50%',
-                  border: '1px solid rgba(138,180,200,.35)',
-                  overflow: 'hidden',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(138,180,200,.04)',
-                  animation: 'echoAvReveal .9s cubic-bezier(0.34,1.56,0.64,1) .3s both, echoAvatarGlow 3s ease-in-out 1.2s infinite',
-                }}>
-                  <PatternAvatar pattern={selectedPattern} emote={selectedEmote} size={116} />
-                </div>
-              </div>
-
-              {/* Pattern name */}
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: '.52rem',
-                letterSpacing: '.22em', color: '#8ab4c8', textTransform: 'uppercase',
-                animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .8s both',
-              }}>
-                {selectedPattern}
-              </div>
-
-              {/* Name input */}
-              <div style={{ width: '100%', animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) 1s both' }}>
-                <input
-                  type="text"
-                  value={avatarNameInput}
-                  onChange={e => setAvatarNameInput(e.target.value)}
-                  placeholder="Name your avatar"
-                  maxLength={32}
-                  style={{
-                    width: '100%',
-                    background: 'none',
-                    border: 'none',
-                    borderBottom: '1px solid rgba(255,248,238,.15)',
-                    outline: 'none',
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 700,
-                    fontSize: '1rem',
-                    color: 'rgba(255,248,238,.88)',
-                    padding: '.4rem 0',
-                    textAlign: 'center',
-                    cursor: 'text',
-                  }}
-                />
-                <div style={{
-                  fontFamily: 'var(--font-mono)', fontSize: '.38rem',
-                  color: 'rgba(255,248,238,.22)', letterSpacing: '.1em',
-                  textAlign: 'center', marginTop: '.4rem',
-                }}>
-                  This is how you&apos;ll appear in the Lattice.
-                </div>
-              </div>
-
-              {/* Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '.7rem', width: '100%', animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) 1.4s both' }}>
-                <EchoButton onClick={handleSave} disabled={saving} fullWidth>
-                  {saving ? 'Saving...' : 'Set my avatar →'}
-                </EchoButton>
-                <GhostButton onClick={handleRetry} fullWidth>
-                  ↺ ask Echo again
-                </GhostButton>
-              </div>
-            </div>
-
-            {/* Right: observation + emote picker */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {/* Echo observation */}
-              {assignResult?.observation && (
-                <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .6s both' }}>
-                  <EchoMsg text={assignResult.observation} />
-                </div>
-              )}
-
-              {/* Voice line */}
-              {PATTERN_VOICE[selectedPattern] && (
-                <div style={{
+              <div style={{ animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .4s both' }}>
+                <p style={{
                   fontFamily: "'Lora', 'Georgia', serif",
                   fontStyle: 'italic',
-                  fontSize: '.8rem',
-                  color: 'rgba(255,248,238,.25)',
-                  lineHeight: 1.6,
-                  animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .9s both',
+                  fontSize: '1.1rem',
+                  color: 'rgba(255,248,238,.55)',
+                  lineHeight: 1.8,
+                  margin: 0,
                 }}>
-                  &ldquo;{PATTERN_VOICE[selectedPattern]}&rdquo;
-                </div>
-              )}
+                  You&apos;re back.<br />
+                  Is something{' '}
+                  <span style={{ color: 'rgba(255,248,238,.88)', fontStyle: 'normal' }}>different</span>{' '}
+                  now?
+                </p>
+              </div>
 
-              {/* Emote picker */}
-              <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) 1.1s both' }}>
-                <div style={{
-                  fontFamily: 'var(--font-mono)', fontSize: '.42rem',
-                  letterSpacing: '.14em', color: 'rgba(255,248,238,.3)',
-                  textTransform: 'uppercase', marginBottom: '.85rem',
-                }}>
-                  How are you right now?
+              <div style={{ display: 'flex', gap: '1rem', animation: 'echoFu .5s cubic-bezier(0.16,1,0.3,1) .6s both' }}>
+                <GhostButton onClick={onClose}>Not really</GhostButton>
+                <EchoActionButton onClick={() => goToStage('1')}>Something shifted</EchoActionButton>
+              </div>
+            </div>
+          )}
+
+          {/* ── Stage 1 — Two-beat conversation ── */}
+          {stage === '1' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Beat 1 */}
+              <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .1s both' }}>
+                <EchoMsg text="Tell me what you notice that others don't." />
+                {showTakeYourTime && (
+                  <div style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '.38rem',
+                    letterSpacing: '.14em',
+                    color: 'rgba(255,248,238,.22)',
+                    marginTop: '.65rem',
+                    paddingLeft: 42, /* align with message text after face */
+                    animation: 'echoSubline .6s ease both',
+                  }}>
+                    Take your time.
+                  </div>
+                )}
+              </div>
+
+              {!beat1Sent ? (
+                <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .3s both' }}>
+                  <ConvoTextarea
+                    ref={textarea1Ref}
+                    value={answer1}
+                    onChange={e => setAnswer1(e.target.value)}
+                    onSend={handleSendBeat1}
+                    placeholder="Something here..."
+                    autoFocus
+                  />
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
-                  {EMOTE_NAMES.map(emote => (
-                    <button
-                      key={emote}
-                      onClick={() => setSelectedEmote(emote)}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.3rem',
-                        background: selectedEmote === emote ? 'rgba(138,180,200,.1)' : 'transparent',
-                        border: `1px solid ${selectedEmote === emote ? 'rgba(138,180,200,.4)' : 'rgba(255,248,238,.08)'}`,
-                        borderRadius: 8, padding: '.4rem .5rem',
-                        cursor: 'none', transition: 'all .15s',
-                        minWidth: 52,
-                      }}
-                    >
-                      <div style={{ width: 32, height: 32 }}>
-                        <PatternAvatar pattern={selectedPattern} emote={emote} size={32} />
-                      </div>
-                      <span style={{
-                        fontFamily: 'var(--font-mono)', fontSize: '.34rem',
-                        letterSpacing: '.08em', color: selectedEmote === emote ? '#8ab4c8' : 'rgba(255,248,238,.3)',
-                        textTransform: 'uppercase',
-                      }}>
-                        {emote}
-                      </span>
-                    </button>
-                  ))}
+              ) : (
+                <>
+                  <UserMsg text={answer1} />
+
+                  <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .1s both' }}>
+                    <EchoMsg text={beat2Text} loading={beat2Loading} />
+                  </div>
+
+                  {!beat2Loading && beat2Text && (
+                    <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .2s both' }}>
+                      <ConvoTextarea
+                        ref={textarea2Ref}
+                        value={answer2}
+                        onChange={e => setAnswer2(e.target.value)}
+                        onSend={handleSendBeat2}
+                        placeholder="Something here..."
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Stage 2 — Processing ── */}
+          {stage === '2' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
+              <div style={{ opacity: .7 }}>
+                <EchoFace size="medium" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.65rem', alignItems: 'center' }}>
+                {PROCESSING_STEPS.map((step, i) => (
+                  processingStep > i && (
+                    <div key={i} style={{
+                      fontFamily: 'var(--font-mono)', fontSize: '.52rem',
+                      letterSpacing: '.18em', textTransform: 'uppercase',
+                      color: i === PROCESSING_STEPS.length - 1 && processingStep === PROCESSING_STEPS.length
+                        ? '#8ab4c8'
+                        : 'rgba(255,248,238,.28)',
+                      animation: 'echoStepFu .5s cubic-bezier(0.16,1,0.3,1) both',
+                    }}>
+                      {step}
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Stage 3 — Avatar reveal ── */}
+          {stage === '3' && selectedPattern && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '3rem',
+              alignItems: 'start',
+            }}>
+
+              {/* Left: avatar + name + buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                {/* Avatar with orbit rings */}
+                <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                  <div style={{
+                    position: 'absolute', inset: -16,
+                    animation: 'echoOrbit 8s linear infinite',
+                    pointerEvents: 'none',
+                  }}>
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: 'rgba(138,180,200,.5)',
+                      position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    }} />
+                  </div>
+                  <div style={{
+                    position: 'absolute', inset: -24,
+                    animation: 'echoOrbitRev 13s linear infinite',
+                    pointerEvents: 'none',
+                  }}>
+                    <div style={{
+                      width: 4, height: 4, borderRadius: '50%',
+                      background: 'rgba(138,180,200,.3)',
+                      position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    }} />
+                  </div>
+                  <div style={{
+                    width: 120, height: 120, borderRadius: '50%',
+                    border: '1px solid rgba(138,180,200,.35)',
+                    overflow: 'hidden',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(138,180,200,.04)',
+                    animation: 'echoAvReveal .9s cubic-bezier(0.34,1.56,0.64,1) .3s both, echoAvatarGlow 3s ease-in-out 1.2s infinite',
+                  }}>
+                    <PatternAvatar pattern={selectedPattern} emote={selectedEmote} size={116} />
+                  </div>
+                </div>
+
+                {/* Pattern name */}
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: '.52rem',
+                  letterSpacing: '.22em', color: '#8ab4c8', textTransform: 'uppercase',
+                  animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .8s both',
+                }}>
+                  {selectedPattern}
+                </div>
+
+                {/* Name input */}
+                <div style={{ width: '100%', animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) 1s both' }}>
+                  <input
+                    type="text"
+                    value={avatarNameInput}
+                    onChange={e => setAvatarNameInput(e.target.value)}
+                    placeholder="Name your avatar"
+                    maxLength={32}
+                    style={{
+                      width: '100%',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '1px solid rgba(255,248,238,.15)',
+                      outline: 'none',
+                      fontFamily: 'var(--font-display)',
+                      fontWeight: 700,
+                      fontSize: '1rem',
+                      color: 'rgba(255,248,238,.88)',
+                      padding: '.4rem 0',
+                      textAlign: 'center',
+                      cursor: 'text',
+                    }}
+                  />
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: '.38rem',
+                    color: 'rgba(255,248,238,.22)', letterSpacing: '.1em',
+                    textAlign: 'center', marginTop: '.4rem',
+                  }}>
+                    This is how you&apos;ll appear in the Lattice.
+                  </div>
+                </div>
+
+                {/* Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.7rem', width: '100%', animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) 1.4s both' }}>
+                  <EchoActionButton onClick={handleSave} disabled={saving} fullWidth>
+                    {saving ? 'Saving...' : 'Set my avatar →'}
+                  </EchoActionButton>
+                  <GhostButton onClick={handleRetry} fullWidth>
+                    ↺ ask Echo again
+                  </GhostButton>
+                </div>
+              </div>
+
+              {/* Right: observation + voice line + emote picker */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+                {/* Echo observation — delayed, with hairline rule above */}
+                {assignResult?.observation && (
+                  <div style={{
+                    borderTop: '1px solid rgba(138,180,200,.1)',
+                    paddingTop: 16,
+                    marginTop: 16,
+                    opacity: observationVisible ? 1 : 0,
+                    transform: observationVisible ? 'translateY(0)' : 'translateY(8px)',
+                    transition: 'opacity .5s cubic-bezier(0.16,1,0.3,1), transform .5s cubic-bezier(0.16,1,0.3,1)',
+                  }}>
+                    <EchoMsg text={assignResult.observation} />
+                  </div>
+                )}
+
+                {/* Voice line */}
+                {PATTERN_VOICE[selectedPattern] && (
+                  <div style={{
+                    fontFamily: "'Lora', 'Georgia', serif",
+                    fontStyle: 'italic',
+                    fontSize: '.8rem',
+                    color: 'rgba(255,248,238,.25)',
+                    lineHeight: 1.6,
+                    animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) .9s both',
+                  }}>
+                    &ldquo;{PATTERN_VOICE[selectedPattern]}&rdquo;
+                  </div>
+                )}
+
+                {/* Emote picker */}
+                <div style={{ animation: 'echoFu .4s cubic-bezier(0.16,1,0.3,1) 1.1s both' }}>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: '.42rem',
+                    letterSpacing: '.14em', color: 'rgba(255,248,238,.3)',
+                    textTransform: 'uppercase', marginBottom: '.85rem',
+                  }}>
+                    How are you right now?
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+                    {EMOTE_NAMES.map(emote => (
+                      <button
+                        key={emote}
+                        onClick={() => setSelectedEmote(emote)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.3rem',
+                          background: selectedEmote === emote ? 'rgba(138,180,200,.1)' : 'transparent',
+                          border: `1px solid ${selectedEmote === emote ? 'rgba(138,180,200,.4)' : 'rgba(255,248,238,.08)'}`,
+                          borderRadius: 8, padding: '.4rem .5rem',
+                          cursor: 'none', transition: 'all .15s',
+                          minWidth: 52,
+                        }}
+                      >
+                        <div style={{ width: 32, height: 32 }}>
+                          <PatternAvatar pattern={selectedPattern} emote={emote} size={32} />
+                        </div>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)', fontSize: '.34rem',
+                          letterSpacing: '.08em',
+                          color: selectedEmote === emote ? '#8ab4c8' : 'rgba(255,248,238,.3)',
+                          textTransform: 'uppercase',
+                        }}>
+                          {emote}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Close button */}
-      <button
-        onClick={onClose}
-        style={{
-          position: 'absolute', top: 20, right: 24,
-          background: 'none', border: 'none',
-          color: 'rgba(255,248,238,.2)', fontSize: '1.2rem',
-          cursor: 'none', transition: 'color .15s', lineHeight: 1, padding: '4px 6px',
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,248,238,.6)'}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,248,238,.2)'}
-      >
-        ×
-      </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -638,7 +759,7 @@ function GhostButton({ children, onClick, fullWidth = false }) {
   )
 }
 
-function EchoButton({ children, onClick, disabled = false, fullWidth = false }) {
+function EchoActionButton({ children, onClick, disabled = false, fullWidth = false }) {
   return (
     <button
       onClick={onClick}
@@ -657,12 +778,8 @@ function EchoButton({ children, onClick, disabled = false, fullWidth = false }) 
         transition: 'all .15s',
         width: fullWidth ? '100%' : undefined,
       }}
-      onMouseEnter={e => {
-        if (!disabled) e.currentTarget.style.background = 'rgba(138,180,200,.18)'
-      }}
-      onMouseLeave={e => {
-        if (!disabled) e.currentTarget.style.background = 'rgba(138,180,200,.1)'
-      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = 'rgba(138,180,200,.18)' }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.background = 'rgba(138,180,200,.1)' }}
     >
       {children}
     </button>
@@ -685,7 +802,6 @@ function UserMsg({ text }) {
   )
 }
 
-import { forwardRef } from 'react'
 const ConvoTextarea = forwardRef(function ConvoTextarea({ value, onChange, onSend, placeholder, autoFocus }, ref) {
   function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -722,9 +838,9 @@ const ConvoTextarea = forwardRef(function ConvoTextarea({ value, onChange, onSen
         onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,248,238,.1)'}
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <EchoButton onClick={onSend} disabled={!value.trim()}>
+        <EchoActionButton onClick={onSend} disabled={!value.trim()}>
           Send →
-        </EchoButton>
+        </EchoActionButton>
       </div>
     </div>
   )
