@@ -109,7 +109,10 @@ const WAKE_MESSAGES = [
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatTime(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 function isSmara(profile) {
   if (!profile) return false
@@ -1818,7 +1821,7 @@ export default function Dashboard() {
         .eq('enclave_id', enclaveId).eq('visibility', 'enclave')
         .order('updated_at', { ascending: false }),
       sb.from('enclave_members')
-        .select('id, role, joined_at, user_id, pattern_library_access')
+        .select('id, role, joined_at, user_id')
         .eq('enclave_id', enclaveId),
     ])
     // Fetch profiles separately to avoid cross-table RLS chain
@@ -1830,8 +1833,20 @@ export default function Dashboard() {
     const membersWithProfiles = (membersData || []).map(m => ({ ...m, profiles: profileMap[m.user_id] || null }))
     setEnclaveNotes(eNotes || [])
     setActiveEnclaveMembers(membersWithProfiles)
+    // Access check: owners always have access; for members, check pattern_library_access
+    // (column added by migration 009 — query is separate so member list still loads if migration is pending)
     const myRow = membersWithProfiles.find(m => m.user_id === (userId || userRef.current?.id))
-    setCanViewPatternLibrary(myRow?.role === 'owner' || myRow?.pattern_library_access === true)
+    if (myRow?.role === 'owner') {
+      setCanViewPatternLibrary(true)
+    } else if (myRow) {
+      const { data: accessRow } = await sb.from('enclave_members')
+        .select('pattern_library_access')
+        .eq('id', myRow.id)
+        .single()
+      setCanViewPatternLibrary(accessRow?.pattern_library_access === true)
+    } else {
+      setCanViewPatternLibrary(false)
+    }
   }
 
   // ── Auth + init ──
@@ -2301,7 +2316,7 @@ export default function Dashboard() {
       user_id: userRef.current?.id, display_name: meta.label, content: text, role: model,
       enclave_id: activeEnclaveIdRef.current, reply_to_id: replyToId || null,
     }).select().single()
-    const final = saved || { id: tempId, role: model, display_name: meta.label, content: text }
+    const final = saved || { id: tempId, role: model, display_name: meta.label, content: text, created_at: new Date().toISOString() }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...final, streaming: false, isReaction: true, isCrossReaction, replyToId } : m))
     return { ...final, isReaction: true, isCrossReaction, replyToId }
   }
