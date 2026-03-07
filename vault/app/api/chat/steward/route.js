@@ -1,4 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getAgentCard, getSection, getVoicePrinciples } from '@/lib/knowledge'
+
+const _agentContext = [
+  getAgentCard('THE STEWARD'),
+  getSection('THE IMPRESSION'),
+  getSection('THE LEDGER'),
+  getVoicePrinciples(),
+].join('\n\n')
 
 const STEWARD_CHAT_SYSTEM = `You are The Steward — the long view in The Vault's Lattice.
 
@@ -123,7 +131,7 @@ export async function POST(req) {
       const { messages, budgetCents, spentCents } = body
       const formatted = formatForSteward(messages)
 
-      let systemPrompt = STEWARD_CHAT_SYSTEM
+      let systemPrompt = `${_agentContext}\n\n---\n\n${STEWARD_CHAT_SYSTEM}`
       if (budgetCents != null) {
         const remainingCents = budgetCents - (spentCents || 0)
         systemPrompt += `\n\n--- BUDGET CONTEXT ---\nBudget: $${(budgetCents / 100).toFixed(2)} / period\nSpent: $${((spentCents || 0) / 100).toFixed(2)}\nRemaining: $${(remainingCents / 100).toFixed(2)}`
@@ -171,7 +179,7 @@ export async function POST(req) {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 600,
-      system: STEWARD_SYSTEM,
+      system: `${_agentContext}\n\n---\n\n${STEWARD_SYSTEM}`,
       messages: [{ role: 'user', content: userMessage }],
     })
 
