@@ -109,9 +109,18 @@ function detectShape(nodes, edges) {
   return 'OPEN'
 }
 
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function formatImpressionDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function Neuron({ messages, open, onScrollToMessage }) {
+export default function Neuron({ messages, open, onScrollToMessage, impression, onClose }) {
   // ── Refs ──
   const svgRef           = useRef(null)
   const minimapRef       = useRef(null)
@@ -182,7 +191,16 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
 
   // ── Main build ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!open || !d3Ready || !svgRef.current || messages.length < 3) return
+    const isImpression = !!impression
+    const effectMsgs = isImpression
+      ? (impression?.snapshot?.nodes || []).map(n => ({
+          id: n.id, role: n.role || 'human',
+          content: n.contentPreview || '', display_name: ROLE_CONFIG[n.role]?.label || n.role,
+          created_at: n.timestamp, replyToId: n.replyToId || null,
+          isReaction: false, isCrossReaction: false,
+        }))
+      : messages
+    if (!open || !d3Ready || !svgRef.current || effectMsgs.length < 3) return
     const d3 = window.d3
     const HEIGHT = svgRef.current.parentElement?.clientHeight || window.innerHeight - 44
     heightRef.current = HEIGHT
@@ -192,7 +210,7 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
     d3.select(svgRef.current).selectAll('*').remove()
     divideRef.current = { adv: 0, contr: 0, advNode: null, contrNode: null }
 
-    const snap = messages
+    const snap = effectMsgs
     const nodeMap = new Map()
     const nodes = snap.map(m => {
       const n = {
@@ -346,6 +364,7 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       updateMinimap()
     }
     sim.on('tick', tick)
+    if (isImpression) sim.on('end', () => sim.stop())
 
     const drag = d3.drag()
       .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y })
@@ -399,11 +418,11 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       sim.stop()
       cancelAnimationFrame(rafRef.current)
     }
-  }, [open, d3Ready, rebuildKey]) // eslint-disable-line
+  }, [open, d3Ready, rebuildKey, impression]) // eslint-disable-line
 
   // ── Live update effect ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!open || !d3Ready || !simRef.current || !liveModeRef.current) return
+    if (!open || !d3Ready || !simRef.current || !liveModeRef.current || !!impression) return
     if (messages.length < 3) return
 
     const existingIds = new Set(nodesRef.current.map(n => n.id))
@@ -838,7 +857,10 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
 
   if (!open) return null
 
-  const isEmpty = messages.length < 3
+  const isImpression = !!impression
+  const isEmpty = isImpression
+    ? (impression?.snapshot?.nodes?.length || 0) < 3
+    : messages.length < 3
 
   return (
     <div style={{
@@ -846,18 +868,22 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
       width: WIDTH, height: '100vh',
       background: 'rgba(8,7,6,0.94)',
       backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-      borderLeft: '1px solid var(--border)',
-      zIndex: 2000, display: 'flex', flexDirection: 'column',
+      borderLeft: isImpression ? '1px solid rgba(200,160,80,0.45)' : '1px solid var(--border)',
+      zIndex: isImpression ? 9100 : 2000, display: 'flex', flexDirection: 'column',
       animation: 'neuronSlideIn 0.28s var(--ease, cubic-bezier(.4,0,.2,1))',
     }}>
 
       {/* Header */}
-      <div style={{ height: 44, padding: '0 1rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={{ height: 44, padding: '0 1rem', borderBottom: `1px solid ${isImpression ? 'rgba(200,160,80,0.2)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.55rem' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(200,160,96,0.75)', flexShrink: 0 }} />
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: isImpression ? 'rgba(200,160,80,0.75)' : 'rgba(200,160,96,0.75)', flexShrink: 0 }} />
           <div>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--mid)' }}>The Neuron</span>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: '2px', color: isEmpty ? 'transparent' : 'var(--ember)', transition: 'color .4s' }}>{shape}</div>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '.18em', textTransform: 'uppercase', color: isImpression ? 'rgba(200,160,80,0.75)' : 'var(--mid)' }}>
+              {isImpression ? 'The Impression' : 'The Neuron'}
+            </span>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: '2px', color: isEmpty ? 'transparent' : (isImpression ? 'rgba(200,160,80,0.55)' : 'var(--ember)'), transition: 'color .4s' }}>
+              {isImpression ? (impression?.buildSummary || '').slice(0, 40) : shape}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}>
@@ -866,37 +892,51 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
             <button key={k} onClick={() => setZoomLevel(k)} data-hover
               style={{
                 fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '.1em',
-                background: zoomLevel === k ? 'rgba(196,78,24,0.08)' : 'transparent',
-                border: `1px solid ${zoomLevel === k ? 'rgba(196,78,24,0.5)' : '#2e2b27'}`,
+                background: zoomLevel === k ? (isImpression ? 'rgba(200,160,80,0.08)' : 'rgba(196,78,24,0.08)') : 'transparent',
+                border: `1px solid ${zoomLevel === k ? (isImpression ? 'rgba(200,160,80,0.4)' : 'rgba(196,78,24,0.5)') : '#2e2b27'}`,
                 borderRadius: '3px', padding: '.2rem .45rem', cursor: 'none',
-                color: zoomLevel === k ? 'var(--ember)' : '#3a3530', transition: 'all .15s',
+                color: zoomLevel === k ? (isImpression ? 'rgba(200,160,80,0.85)' : 'var(--ember)') : '#3a3530', transition: 'all .15s',
               }}>
               {label}
             </button>
           ))}
           <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
-          {!liveMode && snapshotTime && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.38rem', letterSpacing: '.05em', color: 'var(--muted)', opacity: .55 }}>
-              {snapshotTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+          {isImpression ? (
+            <>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.42rem', letterSpacing: '.08em', color: 'rgba(200,160,80,0.5)', whiteSpace: 'nowrap' }}>
+                {formatImpressionDate(impression?.snapshot?.capturedAt)}
+              </span>
+              <button onClick={onClose} data-hover
+                style={{ background: 'none', border: '1px solid rgba(200,160,80,0.25)', borderRadius: '3px', padding: '.2rem .45rem', cursor: 'none', color: 'rgba(200,160,80,0.55)', fontFamily: 'var(--font-mono)', fontSize: '10px', transition: 'all .15s' }}>
+                ✕
+              </button>
+            </>
+          ) : (
+            <>
+              {!liveMode && snapshotTime && (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.38rem', letterSpacing: '.05em', color: 'var(--muted)', opacity: .55 }}>
+                  {snapshotTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              <button onClick={handleLiveToggle} data-hover
+                style={{
+                  fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase',
+                  background: liveMode ? 'rgba(212,84,26,0.06)' : 'transparent',
+                  border: `1px solid ${liveMode ? 'rgba(212,84,26,0.4)' : '#2e2b27'}`,
+                  borderRadius: '3px', padding: '.2rem .5rem', cursor: 'none',
+                  color: liveMode ? 'var(--ember)' : '#3a3530',
+                  display: 'flex', alignItems: 'center', gap: '.35rem', transition: 'all .2s',
+                }}>
+                <span style={{
+                  width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                  background: liveMode ? 'var(--ember)' : '#3a3530',
+                  animation: liveMode ? 'neuronLivePulse 1.6s ease-in-out infinite' : 'none',
+                }} />
+                {liveMode ? 'LIVE' : 'PAUSED'}
+              </button>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
+            </>
           )}
-          <button onClick={handleLiveToggle} data-hover
-            style={{
-              fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '.1em', textTransform: 'uppercase',
-              background: liveMode ? 'rgba(212,84,26,0.06)' : 'transparent',
-              border: `1px solid ${liveMode ? 'rgba(212,84,26,0.4)' : '#2e2b27'}`,
-              borderRadius: '3px', padding: '.2rem .5rem', cursor: 'none',
-              color: liveMode ? 'var(--ember)' : '#3a3530',
-              display: 'flex', alignItems: 'center', gap: '.35rem', transition: 'all .2s',
-            }}>
-            <span style={{
-              width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-              background: liveMode ? 'var(--ember)' : '#3a3530',
-              animation: liveMode ? 'neuronLivePulse 1.6s ease-in-out infinite' : 'none',
-            }} />
-            {liveMode ? 'LIVE' : 'PAUSED'}
-          </button>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
         </div>
       </div>
 
@@ -925,7 +965,7 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
 
       {/* Graph area */}
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        <svg ref={svgRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+        <svg ref={svgRef} style={{ display: 'block', width: '100%', height: '100%', filter: isImpression ? 'saturate(0.82)' : 'none' }} />
 
         {/* Empty state */}
         {isEmpty && (
@@ -970,13 +1010,15 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
                 fontSize: '15px', color: '#5a5248', lineHeight: 1.75,
                 letterSpacing: '0.01em',
               }}>
-                The conversation hasn't<br />taken shape yet.
+                {isImpression
+                  ? <>This thought topology<br />was sealed.</>
+                  : <>The conversation hasn't<br />taken shape yet.</>}
               </p>
               <p style={{
                 fontFamily: 'monospace', fontSize: '9px', letterSpacing: '.18em',
                 textTransform: 'uppercase', color: '#3a3530', marginTop: '.7rem',
               }}>
-                Keep thinking.
+                {isImpression ? 'No topology recorded.' : 'Keep thinking.'}
               </p>
             </div>
           </div>
@@ -1005,6 +1047,21 @@ export default function Neuron({ messages, open, onScrollToMessage }) {
           </div>
         )}
       </div>
+
+      {/* Impression agents footer */}
+      {isImpression && impression?.snapshot?.agentsPresent?.length > 0 && (
+        <div style={{ padding: '.45rem 1rem', borderTop: '1px solid rgba(200,160,80,0.12)', background: 'rgba(200,160,80,0.03)', display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(200,160,80,0.35)', marginRight: '.25rem' }}>AGENTS</span>
+          {impression.snapshot.agentsPresent.map(role => (
+            <span key={role} style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase', color: ROLE_CONFIG[role]?.color || 'rgba(255,255,255,0.4)', opacity: 0.7 }}>
+              {ROLE_CONFIG[role]?.label || role}
+            </span>
+          ))}
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '.1em', color: 'rgba(200,160,80,0.3)', marginLeft: 'auto' }}>
+            {impression.snapshot.messageCount} msgs
+          </span>
+        </div>
+      )}
 
       {/* Detail panel */}
       {detail && (

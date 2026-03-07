@@ -398,6 +398,7 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
   const [builds, setBuilds] = useState([])
   const [loadingBuilds, setLoadingBuilds] = useState(false)
   const [enclaveBudget, setEnclaveBudget] = useState(null)
+  const [viewingImpression, setViewingImpression] = useState(null)
 
   async function fetchMembers() {
     if (!enclave?.id) return
@@ -510,6 +511,15 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
                     {b.description}
                   </p>
                   <p className="msg-timestamp">{new Date(b.created_at).toLocaleDateString([], { month:'short', day:'numeric' })}</p>
+                  {b.neuron_snapshot && (
+                    <button
+                      onClick={() => setViewingImpression({ snapshot: b.neuron_snapshot, buildSummary: b.description || '', buildId: b.id })}
+                      style={{ fontFamily:'var(--font-mono)', fontSize:'.42rem', letterSpacing:'.1em', textTransform:'uppercase', background:'none', border:'1px solid rgba(200,160,80,0.2)', borderRadius:'2px', padding:'.18rem .45rem', color:'rgba(200,160,80,0.55)', marginTop:'.35rem', display:'inline-block', transition:'all .15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(200,160,80,0.5)'; e.currentTarget.style.color = 'rgba(200,160,80,0.9)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(200,160,80,0.2)'; e.currentTarget.style.color = 'rgba(200,160,80,0.55)' }}>
+                      ⊕ VIEW IMPRESSION
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -580,6 +590,15 @@ function EnclaveSettingsPanel({ enclave, onInvite, onRemove, onDelete, onClose }
         </div>
         </>)}
       </div>
+      {viewingImpression && (
+        <Neuron
+          impression={viewingImpression}
+          messages={[]}
+          open={true}
+          onClose={() => setViewingImpression(null)}
+          onScrollToMessage={() => {}}
+        />
+      )}
     </div>
   )
 }
