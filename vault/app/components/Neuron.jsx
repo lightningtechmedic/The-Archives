@@ -880,6 +880,24 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
       animation: 'neuronSlideIn 0.28s var(--ease, cubic-bezier(.4,0,.2,1))',
     }}>
 
+      {/* Absolute close button — always visible regardless of header layout */}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute', top: 10, right: 12, zIndex: 10,
+          background: 'none',
+          border: `1px solid ${isImpression ? 'rgba(200,160,80,0.3)' : 'rgba(255,255,255,0.18)'}`,
+          borderRadius: '3px', cursor: 'pointer',
+          color: isImpression ? 'rgba(200,160,80,0.6)' : 'rgba(255,255,255,0.5)',
+          fontFamily: 'monospace', fontSize: '11px',
+          padding: '3px 7px', lineHeight: 1,
+          transition: 'all .15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = isImpression ? 'rgba(200,160,80,0.9)' : 'rgba(255,255,255,0.9)' }}
+        onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = isImpression ? 'rgba(200,160,80,0.6)' : 'rgba(255,255,255,0.5)' }}>
+        ✕
+      </button>
+
       {/* Header */}
       <div style={{ height: 44, padding: '0 1rem', borderBottom: `1px solid ${isImpression ? 'rgba(200,160,80,0.2)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.55rem' }}>
@@ -913,11 +931,6 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.42rem', letterSpacing: '.08em', color: 'rgba(200,160,80,0.5)', whiteSpace: 'nowrap' }}>
                 {formatImpressionDate(impression?.snapshot?.capturedAt)}
               </span>
-              <button
-                onClick={onClose}
-                style={{ background: 'none', border: '1px solid rgba(200,160,80,0.25)', borderRadius: '3px', padding: '.2rem .45rem', cursor: 'pointer', color: 'rgba(200,160,80,0.55)', fontFamily: 'var(--font-mono)', fontSize: '10px', transition: 'all .15s' }}>
-                ✕
-              </button>
             </>
           ) : (
             <>
@@ -943,13 +956,6 @@ export default function Neuron({ messages, open, onScrollToMessage, impression, 
                 {liveMode ? 'LIVE' : 'PAUSED'}
               </button>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.45rem', color: 'var(--muted)', opacity: .6 }}>{messages.length}</span>
-              <button
-                onClick={onClose}
-                style={{ background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '3px', cursor: 'pointer', color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--font-mono)', fontSize: '10px', padding: '.2rem .45rem', transition: 'all 0.15s', flexShrink: 0 }}
-                onMouseEnter={e => { e.target.style.color = 'rgba(255,255,255,0.85)'; e.target.style.borderColor = 'rgba(255,255,255,0.35)' }}
-                onMouseLeave={e => { e.target.style.color = 'rgba(255,255,255,0.45)'; e.target.style.borderColor = 'rgba(255,255,255,0.15)' }}>
-                ✕
-              </button>
             </>
           )}
         </div>
