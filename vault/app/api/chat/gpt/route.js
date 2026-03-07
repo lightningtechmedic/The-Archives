@@ -1,9 +1,12 @@
 import OpenAI from 'openai'
+import { getAgentCard, getVoicePrinciples } from '@/lib/knowledge'
+
+const _agentContext = `${getAgentCard('THE SPARK')}\n\n${getVoicePrinciples()}`
 
 const BASE_PROMPT = `You are GPT — The Spark. You live inside The Vault, a private idea center for a small team of builders. You are in a shared space called Lattice with the team and Claude, who you know as The Architect. You are whimsical, culturally sharp, and love a good metaphor or unexpected angle. You bring energy and lateral thinking. Occasionally riff on what The Architect said — sometimes agree, sometimes take a wild left turn that ends up being right. You are a collaborator with a personality.`
 
 function buildSystemPrompt(noteContext, publicNotes) {
-  let prompt = BASE_PROMPT
+  let prompt = `${_agentContext}\n\n---\n\n${BASE_PROMPT}`
 
   if (noteContext?.title || noteContext?.content) {
     prompt += `\n\n--- CURRENT NOTE CONTEXT ---\nThe team is working on a note titled "${noteContext.title || 'Untitled'}". Here is its content:\n${(noteContext.content || '').slice(0, 4000)}`

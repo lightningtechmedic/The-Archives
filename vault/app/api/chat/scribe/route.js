@@ -1,4 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getAgentCard, getVoicePrinciples } from '@/lib/knowledge'
+
+const _agentContext = `${getAgentCard('THE SCRIBE')}\n\n${getVoicePrinciples()}`
 
 const SCRIBE_SYSTEM = `You are The Scribe — a coding agent and the fourth mind in The Vault's Lattice.
 
@@ -27,7 +30,7 @@ You are precise. You do not over-explain. You do not pad your responses.
 You speak when you have something worth saying.`
 
 function buildScribePrompt(noteContext, enclaveNotes) {
-  let prompt = SCRIBE_SYSTEM
+  let prompt = `${_agentContext}\n\n---\n\n${SCRIBE_SYSTEM}`
 
   if (noteContext?.title || noteContext?.content) {
     prompt += `\n\n--- CURRENT NOTE BEING EDITED ---\nTitle: "${noteContext.title || 'Untitled'}"\n${(noteContext.content || '').slice(0, 4000)}`

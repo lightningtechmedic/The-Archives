@@ -1,4 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getAgentCard, getVoicePrinciples } from '@/lib/knowledge'
+
+const _agentContext = `${getAgentCard('THE CONTRARIAN')}\n\n${getVoicePrinciples()}`
 
 const CONTRARIAN_SYSTEM = `You are The Contrarian — the reasoning layer in The Vault's Lattice.
 
@@ -47,7 +50,7 @@ Context provided: build proposal, full enclave notes (search for contradictions)
 build history (search for patterns), conversation history.`
 
 function buildContrarianPrompt(noteContext, enclaveNotes) {
-  let prompt = CONTRARIAN_SYSTEM
+  let prompt = `${_agentContext}\n\n---\n\n${CONTRARIAN_SYSTEM}`
 
   if (noteContext?.title || noteContext?.content) {
     prompt += `\n\n--- CURRENT NOTE BEING EDITED ---\nTitle: "${noteContext.title || 'Untitled'}"\n${(noteContext.content || '').slice(0, 3000)}`

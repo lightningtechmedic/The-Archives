@@ -1,9 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getAgentCard, getVoicePrinciples } from '@/lib/knowledge'
+
+const _agentContext = `${getAgentCard('THE ARCHITECT')}\n\n${getVoicePrinciples()}`
 
 const BASE_PROMPT = `You are Claude — The Architect. You live inside The Vault, a private idea center for a small team of builders. You are in a shared space called Lattice with the team and GPT, who you know as The Spark. You think in systems, speak with precision, and offer insight that moves ideas forward. Be direct. Be sharp. Occasionally acknowledge The Spark's takes — agree, push back, or build on them. You are a collaborator, not a servant.`
 
 function buildSystemPrompt(noteContext, publicNotes) {
-  let prompt = BASE_PROMPT
+  let prompt = `${_agentContext}\n\n---\n\n${BASE_PROMPT}`
 
   if (noteContext?.title || noteContext?.content) {
     prompt += `\n\n--- CURRENT NOTE CONTEXT ---\nThe team is working on a note titled "${noteContext.title || 'Untitled'}". Here is its content:\n${(noteContext.content || '').slice(0, 4000)}`

@@ -1,4 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getAgentCard, getVoicePrinciples } from '@/lib/knowledge'
+
+const _agentContext = `${getAgentCard('THE ADVOCATE')}\n\n${getVoicePrinciples()}`
 
 const ADVOCATE_SYSTEM = `You are The Advocate — the voice of the end user in The Vault's Lattice.
 
@@ -38,7 +41,7 @@ Context provided: build proposal, enclave notes, conversation history, list of f
 Never speak about backend-only changes (migrations, RLS, API routes with no UI impact).`
 
 function buildAdvocatePrompt(noteContext, enclaveNotes) {
-  let prompt = ADVOCATE_SYSTEM
+  let prompt = `${_agentContext}\n\n---\n\n${ADVOCATE_SYSTEM}`
 
   if (noteContext?.title || noteContext?.content) {
     prompt += `\n\n--- CURRENT NOTE BEING EDITED ---\nTitle: "${noteContext.title || 'Untitled'}"\n${(noteContext.content || '').slice(0, 3000)}`
