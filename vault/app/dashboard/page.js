@@ -28,6 +28,7 @@ import ImpressionThumb from '@/components/ImpressionThumb'
 import PatternLibrary from '@/components/PatternLibrary'
 import { EchoWave } from '@/app/components/Echo'
 import EchoButton from '@/app/components/EchoButton'
+import EchoOverlay from '@/app/components/EchoOverlay'
 import Ledger from '@/app/components/Ledger'
 import AgentFace from '@/app/components/AgentFace'
 
@@ -1108,7 +1109,7 @@ function MobileMenuSheet({ open, onClose, user, enclaves, activeEnclaveId, onEnc
   )
 }
 
-function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll, echoTopConcepts = [], hasActiveNote = false, onCloseNote, onAvatarSaved, echoOverlayForceOpen = false, onEchoOverlayForceReset }) {
+function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles, profile, user, onSignOut, yourState, architectState, sparkState, enclaves, activeEnclaveId, onEnclaveSwitch, onCreateEnclave, onEnclaveSettings, boardCount, scribeActive, scribeAvailable, scribeState, onScribeSummon, stewardActive, stewardAvatarState, advocateAvatarState, contrarianAvatarState, isMobile, mobileMode, onMobileModeChange, v8 = false, echoHasImpression, echoText, echoTime, echoBuildCount, onEchoPulseAll, echoTopConcepts = [], hasActiveNote = false, onCloseNote, onAvatarSaved, onOpenEchoOverlay }) {
   // ── Mobile topbar: clean brand + mode toggle only ──
   if (isMobile) {
     return (
@@ -1242,13 +1243,9 @@ function TopBar({ noteTitle, notesCount, onNotesToggle, onlineUsers, allProfiles
           buildCount={echoBuildCount}
           onPulseAll={onEchoPulseAll}
           topConcepts={echoTopConcepts}
-          userId={user?.id}
           avatarPattern={profile?.avatar_pattern || null}
-          avatarName={profile?.avatar_name || null}
           avatarEmote={profile?.avatar_emote || 'neutral'}
-          onAvatarSaved={onAvatarSaved}
-          overlayForceOpen={echoOverlayForceOpen}
-          onOverlayForceReset={onEchoOverlayForceReset}
+          onOpenOverlay={onOpenEchoOverlay}
         />
 
         <div style={{ display:'flex', alignItems:'center' }}>
@@ -2322,7 +2319,7 @@ export default function Dashboard() {
   const [neuronOpen, setNeuronOpen] = useState(false)
   const [patternLibraryOpen, setPatternLibraryOpen] = useState(false)
   const [patternLibraryBuilds, setPatternLibraryBuilds] = useState([])
-  const [echoOverlayForceOpen, setEchoOverlayForceOpen] = useState(false)
+  const [echoOverlayOpen, setEchoOverlayOpen] = useState(false)
   const [echoImpression, setEchoImpression] = useState(null)
   const [echoBadgeVisible, setEchoBadgeVisible] = useState(false)
   const [echoBadgeText, setEchoBadgeText] = useState('')
@@ -3649,6 +3646,21 @@ export default function Dashboard() {
       )}
       <ReminderNotifications notifs={reminderNotifs} onGoTo={handleGoToNote} onDismiss={dismissReminder} />
 
+      {/* ── Echo Avatar Overlay — rendered at root to escape TopBar stacking context ── */}
+      {echoOverlayOpen && (
+        <EchoOverlay
+          userId={user?.id}
+          avatarPattern={profile?.avatar_pattern || null}
+          avatarName={profile?.avatar_name || null}
+          avatarEmote={profile?.avatar_emote || 'neutral'}
+          onClose={() => setEchoOverlayOpen(false)}
+          onAvatarSaved={(data) => {
+            setEchoOverlayOpen(false)
+            setProfile(prev => prev ? { ...prev, avatar_pattern: data.pattern, avatar_name: data.name, avatar_emote: data.emote, avatar_observation: data.observation } : prev)
+          }}
+        />
+      )}
+
       {/* ── Desktop: v8 three-column grid layout ── */}
       {!isMobile && (
         <div className="v8-shell">
@@ -3679,8 +3691,7 @@ export default function Dashboard() {
             hasActiveNote={!!activeNote}
             onCloseNote={() => { setActiveNote(null); setNoteTitle('Untitled'); setNoteContent(''); setNoteImages([]); setNoteVisibility('private') }}
             onAvatarSaved={(data) => setProfile(prev => prev ? { ...prev, avatar_pattern: data.pattern, avatar_name: data.name, avatar_emote: data.emote, avatar_observation: data.observation } : prev)}
-            echoOverlayForceOpen={echoOverlayForceOpen}
-            onEchoOverlayForceReset={() => setEchoOverlayForceOpen(false)}
+            onOpenEchoOverlay={() => setEchoOverlayOpen(true)}
             onEchoPulseAll={() => {
               AGENT_ROLES_ORDER.forEach((role, i) => {
                 const pIdx = AGENT_PULSE_INDEX[role]
@@ -3880,7 +3891,7 @@ export default function Dashboard() {
           avatarPattern={profile?.avatar_pattern || null}
           onChangeWithEcho={() => {
             setPatternLibraryOpen(false)
-            setEchoOverlayForceOpen(true)
+            setEchoOverlayOpen(true)
           }}
         />
       )}

@@ -1,10 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import dynamic from 'next/dynamic'
 import { PATTERNS } from '@/lib/patternSVGs'
-
-const EchoOverlay = dynamic(() => import('@/app/components/EchoOverlay'), { ssr: false })
 
 const THOUGHTS = [
   'reading patterns...',
@@ -39,13 +36,7 @@ function injectStyles() {
 // isPersonal     — true when on a personal note (no active enclave)
 // buildCount     — number of builds in pattern library (for footer)
 // onPulseAll     — () => void, calls pulseAgent for all 7 agents
-// userId              — for Echo avatar overlay
-// avatarPattern       — current pattern string or null
-// avatarName          — current avatar name or null
-// avatarEmote         — current emote string or 'neutral'
-// onAvatarSaved       — callback when avatar is saved
-// overlayForceOpen    — when true, open the avatar overlay immediately
-// onOverlayForceReset — callback after overlayForceOpen is consumed
+// onOpenOverlay  — () => void, called when avatar indicator is clicked
 export default function EchoButton({
   hasImpression = false,
   impressionText = '',
@@ -54,24 +45,11 @@ export default function EchoButton({
   buildCount = 0,
   onPulseAll,
   topConcepts = [],
-  userId = null,
   avatarPattern = null,
-  avatarName = null,
   avatarEmote = 'neutral',
-  onAvatarSaved,
-  overlayForceOpen = false,
-  onOverlayForceReset,
+  onOpenOverlay,
 }) {
   const [open, setOpen] = useState(false)
-  const [echoOverlayOpen, setEchoOverlayOpen] = useState(false)
-
-  // Respond to external force-open signal
-  useEffect(() => {
-    if (overlayForceOpen) {
-      setEchoOverlayOpen(true)
-      onOverlayForceReset?.()
-    }
-  }, [overlayForceOpen]) // eslint-disable-line
   const [floatThought, setFloatThought] = useState(null)
   const [rippleActive, setRippleActive] = useState(false)
   const [reading, setReading] = useState(false)
@@ -178,7 +156,7 @@ export default function EchoButton({
   function handleAvatarClick(e) {
     e.stopPropagation()
     setOpen(false)
-    setEchoOverlayOpen(true)
+    onOpenOverlay?.()
   }
 
   const glyphAnim = reading ? 'echoGlyphFast 1.5s ease-in-out infinite' : 'echoGlyphIdle 4s ease-in-out infinite'
@@ -427,20 +405,6 @@ export default function EchoButton({
         )}
       </div>
 
-      {/* ── Echo Avatar Overlay ── */}
-      {echoOverlayOpen && (
-        <EchoOverlay
-          userId={userId}
-          avatarPattern={avatarPattern}
-          avatarName={avatarName}
-          avatarEmote={avatarEmote}
-          onClose={() => setEchoOverlayOpen(false)}
-          onAvatarSaved={(data) => {
-            setEchoOverlayOpen(false)
-            onAvatarSaved?.(data)
-          }}
-        />
-      )}
     </>
   )
 }
