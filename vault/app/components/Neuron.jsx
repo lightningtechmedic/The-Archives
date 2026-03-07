@@ -153,16 +153,20 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
       const role = AGENT_ROLES[agentIndex]
       if (!role || !nodeElsRef.current || !window.d3) return
       const d3 = window.d3
+      const holdMs = 420
       nodeElsRef.current.filter(d => d.role === role).each(function(d) {
         const g = d3.select(this)
         const r0 = d._r || d.r
         const rPeak = r0 * (1 + intensity * 0.55)
+        // Lock out the breathing loop for the hold duration
+        d._pulseUntil = Date.now() + holdMs
         setNodeRadius(d3, g, d, rPeak)
         g.select('circle,rect,polygon').attr('opacity', Math.min(1, 0.82 + intensity * 0.18))
         setTimeout(() => {
+          d._pulseUntil = 0
           setNodeRadius(d3, g, d, r0)
           g.select('circle,rect,polygon').attr('opacity', 0.82)
-        }, 380 + intensity * 180)
+        }, holdMs + intensity * 180)
       })
     },
   }), []) // eslint-disable-line
@@ -433,6 +437,7 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
         let i = 0
         nodeElsRef.current.each(function(d) {
           if (!d._ghost) {
+            if (d._pulseUntil && Date.now() < d._pulseUntil) { i++; return }
             const breathAmt = Math.sin(t / divisor + i * 0.4) * 1.2
             setNodeRadius(d3, d3.select(this), d, (d._r || d.r) + breathAmt)
           }
@@ -449,9 +454,17 @@ const Neuron = forwardRef(function Neuron({ messages, open, onScrollToMessage, i
     }
     rafRef.current = requestAnimationFrame(breathe)
 
+    // ── Resize listener (backdrop only) ──
+    let onResize = null
+    if (backdrop) {
+      onResize = () => setRebuildKey(k => k + 1)
+      window.addEventListener('resize', onResize)
+    }
+
     return () => {
       sim.stop()
       cancelAnimationFrame(rafRef.current)
+      if (onResize) window.removeEventListener('resize', onResize)
     }
   }, [open, d3Ready, rebuildKey, impression, backdrop]) // eslint-disable-line
 
